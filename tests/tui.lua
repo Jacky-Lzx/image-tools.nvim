@@ -2,8 +2,18 @@ local root, temporary = assert(vim.env.IMAGE_TOOLS_ROOT), assert(vim.env.IMAGE_T
 vim.opt.rtp:prepend(root)
 vim.o.termguicolors = true
 vim.o.swapfile = false
+vim.api.nvim_create_autocmd("TermResponse", {
+  callback = function(event)
+    vim.fn.writefile({ vim.inspect(event.data) }, temporary .. "/responses.log", "a")
+  end,
+})
 local image = require("image_tools")
-image.setup({ auto_preview = true, position = "bottom_right", cache = temporary .. "/cache" })
+image.setup({
+  auto_preview = true,
+  position = "bottom_right",
+  cache = temporary .. "/cache",
+  transport = vim.env.IMAGE_TOOLS_TEST_TRANSPORT or "auto",
+})
 vim.api.nvim_buf_set_name(0, temporary .. "/note.md")
 vim.bo.filetype = "markdown"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, {
@@ -68,6 +78,7 @@ local steps = {
   function()
     assert(not image.status().window, "buffer switch revived a stale preview")
     results.lifecycle = true
+    results.cache = image.status().terminal_cache
     vim.fn.writefile({ vim.json.encode(results) }, temporary .. "/result.json")
     vim.cmd("qa!")
   end,
@@ -76,7 +87,7 @@ local function step(index)
   vim.defer_fn(function()
     local ok, err = pcall(steps[index])
     if not ok then
-      vim.fn.writefile({ tostring(err) }, temporary .. "/error.txt")
+      vim.fn.writefile({ tostring(err), vim.inspect(image.status()) }, temporary .. "/error.txt")
       vim.cmd("cquit")
       return
     end

@@ -32,7 +32,14 @@ function M.info(data, opts)
   return { width = width, height = height }
 end
 
-function M.read(path, opts, callback)
+function M.key(path, stat)
+  return table.concat(
+    { path, stat.size, stat.ino, stat.mtime.sec, stat.mtime.nsec, stat.ctime.sec, stat.ctime.nsec },
+    ":"
+  )
+end
+
+function M.read(path, opts, callback, metadata_only)
   local cancelled, fd = false, nil
   local function done(err, image)
     vim.schedule(function()
@@ -53,6 +60,10 @@ function M.read(path, opts, callback)
       done("Image file exceeds max_bytes")
       return
     end
+    if stat.size < 45 then
+      done("Not a complete PNG image")
+      return
+    end
     uv.fs_open(path, "r", 0, function(open_err, handle)
       if open_err then
         done(open_err)
@@ -64,7 +75,7 @@ function M.read(path, opts, callback)
         fd = nil
         return
       end
-      uv.fs_read(fd, stat.size, 0, function(read_err, data)
+      local function finish(read_err, data)
         uv.fs_close(fd)
         fd = nil
         if cancelled then
@@ -79,7 +90,29 @@ function M.read(path, opts, callback)
           done(info_err)
           return
         end
-        done(nil, { data = data, width = info.width, height = info.height, path = path })
+        uv.fs_stat(path, function(stat_err, after)
+          if stat_err or not after or M.key(path, after) ~= M.key(path, stat) then
+            done("Image file changed while reading; retry the preview")
+            return
+          end
+          done(nil, {
+            data = not metadata_only and data or nil,
+            width = info.width,
+            height = info.height,
+            path = path,
+            size = stat.size,
+            key = M.key(path, stat),
+          })
+        end)
+      end
+      uv.fs_read(fd, metadata_only and 33 or stat.size, 0, function(read_err, data)
+        if read_err or not data or cancelled or not metadata_only then
+          finish(read_err, data)
+          return
+        end
+        uv.fs_read(fd, 12, stat.size - 12, function(tail_err, tail)
+          finish(tail_err, tail and data .. tail or nil)
+        end)
       end)
     end)
   end)
@@ -91,12 +124,18 @@ end
 function M.prepare(path, opts, callback)
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
+  -- All configured transports prepare only metadata. Direct uploads read the
+  -- full PNG lazily on a cache miss, so cache hits avoid both IO and Base64.
+  local metadata_only = opts.transport ~= nil
   if extension == "png" then
-    return M.read(path, opts, callback)
+    return M.read(path, opts, callback, metadata_only)
   end
   local cancelled, process = false, nil
   local function done(err, image)
     if not cancelled then
+      if image then
+        image.source = path
+      end
       callback(err, image)
     end
   end
@@ -121,10 +160,10 @@ function M.prepare(path, opts, callback)
       done("Image file exceeds max_bytes")
       return
     end
-    local key = vim.fn.sha256(table.concat({ path, stat.size, stat.mtime.sec, stat.mtime.nsec, opts.magick }, ":"))
+    local key = vim.fn.sha256(M.key(path, stat) .. ":" .. opts.magick)
     local output = opts.cache .. "/" .. key .. ".png"
     if uv.fs_stat(output) then
-      M.read(output, opts, done)
+      M.read(output, opts, done, metadata_only)
       return
     end
     vim.fn.mkdir(opts.cache, "p")
@@ -162,11 +201,17 @@ function M.prepare(path, opts, callback)
               err = rename_err
             else
               image.path = output
+              local final_stat = uv.fs_stat(output)
+              if final_stat then
+                image.key = M.key(output, final_stat)
+              else
+                err = "Converted image disappeared before caching"
+              end
             end
           end
           uv.fs_unlink(temporary)
           done(err, image)
-        end)
+        end, metadata_only)
       end)
     end)
   end)

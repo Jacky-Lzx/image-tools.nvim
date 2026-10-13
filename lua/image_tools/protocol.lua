@@ -22,11 +22,11 @@ function M.command(fields, payload)
   return esc .. "_G" .. table.concat(parts, ",") .. (payload and ";" .. payload or "") .. esc .. "\\"
 end
 
-function M.upload(id, png)
+function M.upload(id, png, quiet)
   local data = vim.base64.encode(png)
   local commands = {}
   for offset = 1, #data, 4096 do
-    local fields = { m = offset + 4096 > #data and 0 or 1, q = 2 }
+    local fields = { m = offset + 4096 > #data and 0 or 1, q = quiet == nil and 2 or quiet }
     if offset == 1 then
       fields.a, fields.f, fields.t, fields.i = "t", 100, "d", id
     end
@@ -35,8 +35,16 @@ function M.upload(id, png)
   return table.concat(commands)
 end
 
-function M.place(id, width, height)
-  return M.command({ a = "p", U = 1, i = id, c = width, r = height, q = 2 })
+function M.upload_file(id, path)
+  return M.command({ a = "t", f = 100, t = "f", i = id, q = 0 }, vim.base64.encode(path))
+end
+
+function M.place(id, width, height, quiet)
+  return M.command({ a = "p", U = 1, i = id, c = width, r = height, q = quiet == nil and 2 or quiet })
+end
+
+function M.hide(id)
+  return M.command({ a = "d", d = "i", i = id, q = 2 })
 end
 
 function M.delete(id)

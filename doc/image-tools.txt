@@ -2,7 +2,7 @@
 
 REQUIREMENTS                                               *image-tools*
 
-Neovim 0.11+, termguicolors, and Kitty 0.28+ in a direct terminal session.
+Neovim 0.12+, termguicolors, and Kitty 0.28+ in a direct terminal session.
 ImageMagick is optional for PNG, required for the other supported formats.
 Other terminals, multiplexers, SSH and GUI frontends are not yet validated.
 
@@ -11,6 +11,8 @@ SETUP                                                      *image-tools-setup*
   require("image_tools").setup({
     auto_preview = true,
     position = "bottom_right", -- default: "cursor"
+    transport = "auto", -- prefer local file transfer; fall back to direct data
+    terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
     max_width = 60,
     max_height = 30,
     border = "rounded",
@@ -29,7 +31,11 @@ COMMANDS                                                   *:ImagePreview*
                        the document directory.
 
 :ImagePreviewClose                                         *:ImagePreviewClose*
-                       Close the float, cancel pending work and free the image.
+                       Close the float and cancel pending work. Uploaded pixels
+                       remain in the bounded terminal cache for reuse.
+
+:ImagePreviewClearCache                                    *:ImagePreviewClearCache*
+                       Close the float and free all image-tools terminal images.
 
 :ImagePreviewToggle                                        *:ImagePreviewToggle*
                        Toggle automatic current-line preview.
@@ -43,8 +49,10 @@ setup(opts)            Configure the plugin; repeated setup replaces handlers.
 preview(path, opts)    Preview a file. opts.silent suppresses notifications.
 hover(opts)            Preview the first Markdown image on the current line.
 close()                Close preview; safe to call repeatedly.
+clear_cache()          Close preview and release all owned terminal images.
 toggle()               Toggle automatic preview; returns its new state.
-status()               Return configured, auto_preview, path and window fields.
+status()               Return configured, auto_preview, path, window, transport
+                       and terminal_cache statistics.
 
 See README.md for resource limits, caching and custom path resolution.
 
@@ -52,6 +60,20 @@ Automatic preview follows cursor lines. The cursor need not be inside the image
 link. Horizontal movement, Insert mode and edits that preserve the source keep
 the same preview. Leaving the line closes it; entering a new image line previews
 that line immediately. Multiple images on one line use the first reference.
+
+TRANSPORT                                                  *image-tools-transport*
+
+"auto" tries Kitty t=f file transmission locally and t=d direct data when SSH
+environment variables are present. A file failure/timeout falls back to direct
+data. "file" forces files and reports failures; "direct" forces inline data.
+terminal_timeout (default 1500 ms) bounds each upload/placement response wait.
+Shared memory is not implemented; real SSH/other terminals remain unvalidated.
+
+Terminal cache keys include path, inode, size and nanosecond mtime/ctime.
+Reopening only sends a placement request. If Kitty has evicted the data, it is
+uploaded again. Inactive entries use LRU eviction, with default limits of 32
+images and 64 MiB estimated decoded RGBA bytes. Oversized images are not retained.
+max_images = 0 disables retention. Setup, suspend and exit release owned images.
 
 SCOPE                                                      *image-tools-scope*
 

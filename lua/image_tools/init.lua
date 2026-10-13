@@ -2,6 +2,9 @@ local M = {}
 local defaults = {
   auto_preview = true,
   position = "cursor", -- "cursor" or "bottom_right"
+  transport = "auto", -- "auto", "file" or "direct"
+  terminal_timeout = 1500,
+  terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
   max_width = 60,
   max_height = 30,
   border = "rounded",
@@ -35,6 +38,12 @@ end
 function M.close()
   if preview then
     preview:close()
+  end
+end
+
+function M.clear_cache()
+  if preview then
+    preview:destroy()
   end
 end
 
@@ -96,6 +105,8 @@ function M.status()
     auto_preview = options and options.auto_preview or false,
     path = preview and preview.state and preview.state.path or nil,
     window = preview and preview.state and preview.state.win or nil,
+    transport = options and options.transport or "auto",
+    terminal_cache = preview and preview.transfer:status() or nil,
   }
 end
 
@@ -121,10 +132,19 @@ refresh = function()
 end
 
 function M.setup(opts)
-  M.close()
+  M.clear_cache()
   options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
+  assert(vim.tbl_contains({ "auto", "file", "direct" }, options.transport), "transport must be auto, file or direct")
+  for _, name in ipairs({ "max_images", "max_bytes" }) do
+    assert(
+      type(options.terminal_cache[name]) == "number"
+        and options.terminal_cache[name] >= 0
+        and options.terminal_cache[name] % 1 == 0,
+      "terminal_cache." .. name .. " must be a non-negative integer"
+    )
+  end
   for _, name in ipairs({
     "max_width",
     "max_height",
@@ -133,6 +153,7 @@ function M.setup(opts)
     "max_pixels",
     "max_scan_lines",
     "convert_timeout",
+    "terminal_timeout",
   }) do
     assert(
       type(options[name]) == "number" and options[name] >= 1 and options[name] % 1 == 0,
@@ -162,12 +183,11 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd({
     "BufLeave",
     "WinLeave",
-    "VimSuspend",
-    "ExitPre",
   }, {
     group = group,
     callback = M.close,
   })
+  vim.api.nvim_create_autocmd({ "VimSuspend", "ExitPre", "VimLeavePre" }, { group = group, callback = M.clear_cache })
   vim.api.nvim_create_autocmd({ "VimResized", "ColorScheme" }, {
     group = group,
     callback = function()
@@ -221,6 +241,11 @@ function M.setup(opts)
     force = true,
   })
   vim.api.nvim_create_user_command("ImagePreviewClose", M.close, { desc = "Close the image preview", force = true })
+  vim.api.nvim_create_user_command(
+    "ImagePreviewClearCache",
+    M.clear_cache,
+    { desc = "Close preview and release all image-tools terminal images", force = true }
+  )
   vim.api.nvim_create_user_command(
     "ImagePreviewToggle",
     M.toggle,

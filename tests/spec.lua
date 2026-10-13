@@ -140,6 +140,11 @@ local transport = {
   write = function(data)
     writes[#writes + 1] = data
   end,
+  request = function(_, command, _, callback)
+    writes[#writes + 1] = command
+    callback(nil)
+    return function() end
+  end,
 }
 local loader = {
   prepare = function(_, _, callback)
@@ -173,14 +178,14 @@ assert(vim.api.nvim_win_is_valid(state.win))
 eq(vim.api.nvim_win_get_width(state.win), 16)
 eq(vim.api.nvim_win_get_height(state.win), 5)
 eq(vim.api.nvim_get_current_buf(), owner, "preview must not steal focus")
-eq(#writes, 1)
+eq(#writes, 2)
 preview:close()
 eq(vim.api.nvim_win_is_valid(state.win), false)
 eq(vim.api.nvim_buf_is_valid(state.buf), false)
-eq(#writes, 2)
-assert(writes[2]:find("i=" .. state.id, 1, true), "cleanup must delete only the owned id")
+eq(#writes, 3)
+assert(writes[3]:find("i=" .. state.id, 1, true), "cleanup must hide only the owned id")
 preview:close()
-eq(#writes, 2, "close must be idempotent")
+eq(#writes, 3, "close must be idempotent")
 preview:open(fixture)
 vim.api.nvim_win_set_cursor(0, { 4, 1 })
 callbacks[4](nil, prepared)
@@ -261,6 +266,12 @@ eq(terminal.supports({}), false, "multiplexers must be rejected explicitly")
 vim.env.TMUX, vim.env.KITTY_WINDOW_ID, vim.env.TERM = nil, nil, "unknown-terminal"
 eq(terminal.supports({}), false)
 eq(terminal.supports({ force = true }), true)
+local has = vim.fn.has
+vim.fn.has = function(name)
+  return name == "nvim-0.12" and 0 or has(name)
+end
+eq(terminal.supports({ force = true }), false, "old Neovim versions need an explicit compatibility diagnostic")
+vim.fn.has = has
 vim.api.nvim_list_uis = uis
 vim.env.TMUX, vim.env.ZELLIJ, vim.env.KITTY_WINDOW_ID, vim.env.TERM = tmux, zellij, kitty, term
 package.loaded["image_tools.terminal"] = real_transport

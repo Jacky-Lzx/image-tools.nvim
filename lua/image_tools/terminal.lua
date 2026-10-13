@@ -1,6 +1,9 @@
 local M = {}
 
 function M.supports(opts)
+  if vim.fn.has("nvim-0.12") ~= 1 then
+    return false, "Image preview requires Neovim 0.12+ for Kitty APC acknowledgement events"
+  end
   if #vim.api.nvim_list_uis() == 0 then
     return false, "Image preview requires an attached terminal UI"
   end
@@ -22,6 +25,67 @@ function M.write(data)
   else
     io.stdout:write(data)
     io.stdout:flush()
+  end
+end
+
+-- Match replies to a specific image id. Install the handler before sending,
+-- and always remove both handler and timer on completion or cancellation.
+function M.request(id, command, timeout, callback)
+  local finished, autocmd = false, nil
+  local timer = vim.uv.new_timer()
+  local function cleanup()
+    finished = true
+    if autocmd then
+      pcall(vim.api.nvim_del_autocmd, autocmd)
+      autocmd = nil
+    end
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
+    end
+  end
+  local function done(err)
+    if finished then
+      return
+    end
+    cleanup()
+    callback(err)
+  end
+  autocmd = vim.api.nvim_create_autocmd("TermResponse", {
+    callback = function(event)
+      local sequence = event.data and event.data.sequence or vim.v.termresponse
+      if type(sequence) ~= "string" then
+        return
+      end
+      -- Neovim's TUI strips the APC terminator from TermResponse sequences;
+      -- accept both that form and complete sequences from an attached UI.
+      sequence = sequence:gsub("\27\\$", "")
+      local fields, message = sequence:match("^\27_G([^;]+);([^\27]+)$")
+      local response_id = fields and fields:match("i=(%d+)")
+      if tonumber(response_id) == id then
+        if message == "OK" then
+          done(nil)
+        else
+          done(message)
+        end
+      end
+    end,
+  })
+  timer:start(
+    timeout,
+    0,
+    vim.schedule_wrap(function()
+      done("ETIMEDOUT: no Kitty graphics response")
+    end)
+  )
+  local ok, err = pcall(M.write, command)
+  if not ok then
+    done(tostring(err))
+  end
+  return function()
+    if not finished then
+      cleanup()
+    end
   end
 end
 

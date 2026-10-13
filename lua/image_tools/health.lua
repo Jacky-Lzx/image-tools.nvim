@@ -15,6 +15,22 @@ function M.check()
   end
   local cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
+  local state = require("image_tools").status()
+  vim.health.info("Transport: " .. state.transport .. " (auto tries local files and falls back to direct data)")
+  if state.terminal_cache then
+    vim.health.info(
+      string.format(
+        "Terminal cache: %d image(s), %d estimated decoded bytes; %d hit(s), %d upload attempt(s)",
+        state.terminal_cache.images,
+        state.terminal_cache.bytes,
+        state.terminal_cache.hits,
+        state.terminal_cache.uploads
+      )
+    )
+    if state.terminal_cache.last_error then
+      vim.health.warn(state.terminal_cache.last_error)
+    end
+  end
 end
 
 return M

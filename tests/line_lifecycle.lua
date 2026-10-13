@@ -20,6 +20,11 @@ package.loaded["image_tools.terminal"] = {
   write = function(data)
     writes[#writes + 1] = data
   end,
+  request = function(_, command, _, callback)
+    writes[#writes + 1] = command
+    callback(nil)
+    return function() end
+  end,
 }
 package.loaded["image_tools.image"] = {
   prepare = function(path, _, callback)
@@ -61,7 +66,7 @@ local window = assert(api.status().window, "horizontal movement must not reject 
 vim.api.nvim_win_set_cursor(0, { 1, 31 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, window, "same-line movement over the second image must preserve the first preview")
-eq(#writes, 1, "same-line movement must not reupload the image")
+eq(#writes, 2, "same-line movement must not reupload the image")
 vim.api.nvim_exec_autocmds("InsertEnter", {})
 vim.api.nvim_exec_autocmds("CursorMovedI", {})
 eq(api.status().window, window, "Insert-mode movement on the same line must preserve the preview")
@@ -72,7 +77,7 @@ eq(#requests, 1)
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil, "leaving the line must immediately close the preview")
-eq(#writes, 2, "leaving the line must delete the owned image")
+eq(#writes, 3, "leaving the line must hide the owned image")
 vim.api.nvim_win_set_cursor(0, { 3, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(requests[2].path, "/private/tmp/three.png", "entering another image line must start its preview immediately")
