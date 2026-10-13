@@ -53,6 +53,7 @@ Only image ids allocated by this plugin are deleted.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  position = "cursor", -- "cursor" or "bottom_right"
   max_width = 60, -- terminal cells, capped at 64
   max_height = 30, -- terminal cells, capped at 64
   border = "rounded",
@@ -69,6 +70,10 @@ require("image_tools").setup({
   force = false, -- bypass terminal-name detection for experimentation only
 })
 ```
+
+Set `position = "bottom_right"` to anchor the preview to the editor's bottom-right
+corner, above the command line and status line. The position is independent of
+the cursor and split layout. The default `"cursor"` places it near the cursor.
 
 Conversion is asynchronous, bounded by a timeout, and cached by path, size and
 nanosecond mtime. Preview PNGs are capped at 1920x1080; originals are never

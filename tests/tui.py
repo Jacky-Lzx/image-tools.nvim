@@ -64,6 +64,7 @@ with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         assert process.returncode == 0, error.read_text() if error.exists() else "TUI process failed"
         result = json.loads((temporary / "result.json").read_text())
         assert result["geometry"] == [16, 5], result
+        assert result["position"] == "bottom_right", result
         assert result["lifecycle"], result
         commands = []
         for match in re.finditer(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\", output):
@@ -81,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
             assert any(f.get(b"a") == b"d" and f.get(b"d") == b"I" and f.get(b"i") == fields[b"i"] for f, _ in commands)
         assert chr(0x10EEEE).encode() in output, "Neovim TUI did not emit Unicode placeholders"
         assert not any(f.get(b"d") in (b"A", b"a") for f, _ in commands)
-        print("image-tools TUI: PNG bytes, true-color ids, virtual placements, placeholders and lifecycle passed")
+        print("image-tools TUI: bottom-right placement, PNG bytes, true-color ids, placeholders and lifecycle passed")
     finally:
         if process.poll() is None:
             process.kill()

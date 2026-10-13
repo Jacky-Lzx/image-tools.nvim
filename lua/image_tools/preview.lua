@@ -86,18 +86,13 @@ function M:open(path, options)
       math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - 4)),
       math.max(1, math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - 4))
     )
-    local position = vim.fn.screenpos(state.owner_win, state.cursor[1], state.cursor[2] + 1)
-    local row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - 2))
-    local col = math.max(0, math.min(position.col, vim.o.columns - width - 2))
     state.buf = vim.api.nvim_create_buf(false, true)
     vim.bo[state.buf].buftype = "nofile"
     vim.bo[state.buf].bufhidden = "wipe"
     vim.bo[state.buf].swapfile = false
     vim.bo[state.buf].filetype = "image_tools_preview"
-    state.win = vim.api.nvim_open_win(state.buf, false, {
+    local window = {
       relative = "editor",
-      row = row,
-      col = col,
       width = width,
       height = height,
       style = "minimal",
@@ -106,7 +101,20 @@ function M:open(path, options)
       zindex = 50,
       title = " " .. vim.fs.basename(path) .. " ",
       title_pos = "center",
-    })
+    }
+    if self.opts.position == "bottom_right" then
+      local statusline = vim.o.laststatus == 2
+        or vim.o.laststatus == 3
+        or (vim.o.laststatus == 1 and vim.fn.winnr("$") > 1)
+      window.anchor = "SE"
+      window.row = math.max(0, vim.o.lines - vim.o.cmdheight - (statusline and 1 or 0))
+      window.col = vim.o.columns
+    else
+      local position = vim.fn.screenpos(state.owner_win, state.cursor[1], state.cursor[2] + 1)
+      window.row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - 2))
+      window.col = math.max(0, math.min(position.col, vim.o.columns - width - 2))
+    end
+    state.win = vim.api.nvim_open_win(state.buf, false, window)
     vim.wo[state.win].wrap = false
     vim.wo[state.win].winblend = 0
     vim.wo[state.win].conceallevel = 0

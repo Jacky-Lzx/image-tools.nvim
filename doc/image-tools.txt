@@ -10,6 +10,7 @@ SETUP                                                      *image-tools-setup*
 >
   require("image_tools").setup({
     auto_preview = true,
+    position = "bottom_right", -- default: "cursor"
     max_width = 60,
     max_height = 30,
     border = "rounded",
@@ -17,6 +18,8 @@ SETUP                                                      *image-tools-setup*
 <
 Merely requiring the module does not register handlers or mappings.
 Disable Snacks.image and restart Neovim before using this plugin.
+position = "bottom_right" anchors the float to the editor's bottom-right corner,
+above the command line and status line. "cursor" places it near the cursor.
 
 COMMANDS                                                   *:ImagePreview*
 

@@ -3,7 +3,7 @@ vim.opt.rtp:prepend(root)
 vim.o.termguicolors = true
 vim.o.swapfile = false
 local image = require("image_tools")
-image.setup({ auto_preview = false, cache = temporary .. "/cache" })
+image.setup({ auto_preview = false, position = "bottom_right", cache = temporary .. "/cache" })
 vim.api.nvim_buf_set_name(0, temporary .. "/note.md")
 vim.bo.filetype = "markdown"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { "![fixture](<中文 image (1).png>)", "second line" })
@@ -23,6 +23,13 @@ vim.defer_fn(function()
       run(function()
         local win = assert(image.status().window, "preview vanished during redraw")
         results.geometry = { vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win) }
+        local location = vim.api.nvim_win_get_position(win)
+        assert(location[2] + results.geometry[1] + 2 == vim.o.columns, "float is not at the right edge")
+        assert(
+          location[1] + results.geometry[2] + 2 == vim.o.lines - vim.o.cmdheight - 1,
+          "float is not above the command and status lines"
+        )
+        results.position = "bottom_right"
         results.cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
         image.close()
         assert(not image.status().window)

@@ -1,6 +1,7 @@
 local M = {}
 local defaults = {
   auto_preview = true,
+  position = "cursor", -- "cursor" or "bottom_right"
   max_width = 60,
   max_height = 30,
   border = "rounded",
@@ -79,6 +80,7 @@ function M.setup(opts)
   M.close()
   options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
+  assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   for _, name in ipairs({
     "max_width",
     "max_height",

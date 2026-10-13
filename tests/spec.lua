@@ -194,6 +194,39 @@ vim.cmd("enew!")
 callbacks[6](nil, prepared)
 eq(preview.state, nil, "buffer switches must invalidate a pending preview")
 
+-- Headless Neovim exposes anchor coordinates; the TUI test additionally checks
+-- the resolved border position after the window is actually drawn.
+local corner = require("image_tools.preview").new(
+  vim.tbl_extend("force", preview_opts, { position = "bottom_right" }),
+  { terminal = transport, image = loader }
+)
+local saved =
+  { lines = vim.o.lines, columns = vim.o.columns, cmdheight = vim.o.cmdheight, laststatus = vim.o.laststatus }
+local function corner_bounds(laststatus, cmdheight, status_rows)
+  vim.o.laststatus, vim.o.cmdheight = laststatus, cmdheight
+  corner:open(fixture)
+  callbacks[#callbacks](nil, prepared)
+  local win = assert(corner.state.win)
+  local config = vim.api.nvim_win_get_config(win)
+  eq(config.anchor, "SE")
+  eq(config.col, vim.o.columns, "border must reach the editor's right edge")
+  eq(config.row, vim.o.lines - cmdheight - status_rows, "bottom border must stay above command and status lines")
+  assert(config.width + 2 <= vim.o.columns, "float must fit a narrow editor")
+  assert(config.height + 2 + cmdheight + status_rows <= vim.o.lines, "float must fit a short editor")
+  corner:close()
+end
+corner_bounds(2, 1, 1)
+corner_bounds(3, 2, 1)
+corner_bounds(0, 0, 0)
+corner_bounds(1, 1, 0)
+vim.cmd("vsplit")
+corner_bounds(1, 1, 1)
+vim.cmd("close")
+vim.o.lines, vim.o.columns = 12, 12
+corner_bounds(2, 1, 1)
+vim.o.lines, vim.o.columns = saved.lines, saved.columns
+vim.o.cmdheight, vim.o.laststatus = saved.cmdheight, saved.laststatus
+
 -- Verify actual setup handlers and repeated setup without real terminal output.
 package.loaded["image_tools.terminal"] = transport
 api.setup({ auto_preview = false })
@@ -205,6 +238,7 @@ api.preview(fixture)
 await(function()
   return api.status().window ~= nil
 end)
+eq(vim.api.nvim_win_get_config(api.status().window).anchor, "NW", "default placement must remain near the cursor")
 local old_window = api.status().window
 vim.api.nvim_exec_autocmds("VimResized", {})
 eq(api.status().window, nil)
