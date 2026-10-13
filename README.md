@@ -127,7 +127,7 @@ Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
 Reference-style images, Obsidian wikilinks, multiline syntax, remote URLs,
-LaTeX/Typst, PDF/SVG, inline rendering and picker previews are future work.
+LaTeX/Typst, PDF/SVG, inline rendering are future work.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the
@@ -172,3 +172,21 @@ Clipboard commands have a 5-second timeout; conversions use `convert_timeout`.
 Empty clipboard, unsupported platform, missing tools and failed conversion report
 errors without inserting text or leaving image resources. The cancel function also
 stops pending reads/processes and removes temporary files.
+
+## Snacks picker integration
+
+Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
+preview in the existing picker window using this plugin's Kitty transport/cache.
+Confirm imports the selected images in order into the original document; closing
+without confirming cancels. Selection changes cancel pending conversions and
+placements; closing releases the picker cache and handlers. Use `pick({ insert =
+{ mode = "reference" }, picker = { cwd = "/images" } })` to configure import/picker.
+
+For ordinary Snacks file pickers and the explorer, set `picker.preview =
+function(ctx) require("image_tools").snacks_preview(ctx) end` in Snacks opts.
+Non-image items retain Snacks' file preview; custom source-specific previewers
+remain source-specific. Keep Snacks.image disabled. The independent previewer
+never calls Snacks.image for supported images. No monkey patches are installed.
+
+Set `IMAGE_TOOLS_SNACKS_ROOT` to an installed Snacks checkout when running tests
+for actual picker window, finder, confirmation, cancellation and TUI integration.

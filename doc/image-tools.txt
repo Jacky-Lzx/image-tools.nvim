@@ -102,3 +102,16 @@ paste(opts, callback) accepts the insertion options plus format (png/jpg/webp/av
 and quality (default 75). PNG is the default; conversions require ImageMagick.
 Clipboard resources are always copied. Empty clipboard, missing tools and failed
 conversion cause no insertion; cancellation kills subprocesses and cleans temp files.
+
+PICKER                                                    *image-tools-picker*
+
+:ImagePick / pick(opts, callback) require Snacks.picker. opts.insert overrides
+insertion defaults; opts.picker overrides file picker options. Confirmation
+imports selected files at the original extmark position. Closing cancels.
+Images render in the existing preview pane with this plugin's transport/cache.
+Selection changes cancel stale conversions; closing frees images and handlers.
+For regular file pickers/explorer, configure Snacks picker.preview as:
+>
+  function(ctx) require("image_tools").snacks_preview(ctx) end
+<
+Keep Snacks.image disabled. Non-image entries use the regular Snacks file preview.

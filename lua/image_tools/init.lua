@@ -43,6 +43,9 @@ function M.close()
 end
 
 function M.clear_cache()
+  if package.loaded["image_tools.picker"] then
+    require("image_tools.picker").clear_all()
+  end
   if preview then
     preview:destroy()
   end
@@ -116,6 +119,27 @@ function M.paste(opts, callback)
     reference_root = options.root,
   }, opts or {})
   return require("image_tools.clipboard").paste(insertion, callback)
+end
+
+function M.snacks_preview(ctx)
+  if not options then
+    M.setup()
+  end
+  return require("image_tools.picker").preview(ctx, options)
+end
+
+function M.pick(opts, callback)
+  if not options then
+    M.setup()
+  end
+  opts = opts or {}
+  local insertion = vim.tbl_extend(
+    "force",
+    options.insert,
+    { max_bytes = options.max_bytes, reference_root = options.root },
+    opts.insert or {}
+  )
+  return require("image_tools.picker").pick(insertion, opts.picker, M.snacks_preview, callback)
 end
 
 function M.hover(opts)
@@ -288,6 +312,9 @@ function M.setup(opts)
       end
     end,
   })
+  vim.api.nvim_create_user_command("ImagePick", function()
+    M.pick()
+  end, { desc = "Choose images with an independent Snacks picker preview", force = true })
   vim.api.nvim_create_user_command("ImagePaste", function()
     M.paste()
   end, { desc = "Paste a macOS clipboard image", force = true })

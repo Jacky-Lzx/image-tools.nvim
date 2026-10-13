@@ -22,7 +22,7 @@ root = Path(__file__).resolve().parents[1]
 pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
 
 
-def run_case(mode, reject_file=False, evict=False):
+def run_case(mode, reject_file=False, evict=False, picker=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixture.png").read_bytes()
@@ -40,7 +40,7 @@ def run_case(mode, reject_file=False, evict=False):
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
         process = subprocess.Popen(
-            ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui.lua")],
+            ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui_picker.lua" if picker else "tests/tui.lua"))],
             stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True,
         )
         os.close(slave)
@@ -123,11 +123,14 @@ def run_case(mode, reject_file=False, evict=False):
                     + "\ncommands: " + repr([f for f, _ in commands])
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
-            assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
-            assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
+            if picker:
+                assert result["picker"] and result["inserted"], result
+            else:
+                assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
+                assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
             assert len(uploads) == (2 if reject_file or evict else 1), uploads
             assert result["cache"]["uploads"] == len(uploads), result
-            assert result["cache"]["hits"] == (1 if evict else 2), result
+            assert result["cache"]["hits"] == (1 if evict or picker else 2), result
             assert len(resident) == 0, "exit must release all retained terminal images"
             assert any(f.get(b"d") == b"i" for f, _ in commands), "close must hide without freeing"
             assert any(f.get(b"d") == b"I" for f, _ in commands), "exit must free cached data"
@@ -143,7 +146,7 @@ def run_case(mode, reject_file=False, evict=False):
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -156,3 +159,6 @@ run_case("auto")
 run_case("direct")
 run_case("auto", reject_file=True)
 run_case("auto", evict=True)
+
+if os.environ.get("IMAGE_TOOLS_SNACKS_ROOT"):
+    run_case("auto", picker=True)
