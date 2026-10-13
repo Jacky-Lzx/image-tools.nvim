@@ -128,7 +128,26 @@ angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
 Reference-style images, Obsidian wikilinks, multiline syntax, remote URLs,
 LaTeX/Typst, PDF/SVG, inline rendering and picker previews are future work.
-The first version retains image-insert.nvim for insertion.
+File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
+image into `Figures/` beside the saved document, then inserts a relative Markdown
+link. With no path it prompts for a file. `:ImageInsert! [path]` references the
+source without copying. `insert(path_or_paths, opts, callback)` also accepts a batch.
+
+`insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after",
+prompt_for_file_name = false }` configures insertion. `directory` and `root` may
+be functions of the source document path. The default root is the document's
+directory; set insertion `root` for a project asset directory. Links remain relative
+to the document (or preview `root`). Per-call `filename` overrides the basename,
+`alt` sets Markdown alt text, and `mode = "reference"` avoids importing. Strategies
+are `insert_before`, `insert_after`, `insert_line_before`, `insert_line_after`.
+
+The returned function cancels pending insertion. Prompts retain the original buffer
+and an extmark position across edits and window switches. Batches insert in order
+as one text edit; filename collisions use numeric suffixes and never overwrite.
+Cancellation or insertion failure rolls back newly imported files. Text undo retains
+assets for reuse. Closing/renaming the source buffer or changing its filetype/read-only
+state causes rollback. Imports preserve original formats and bytes; conversion is
+currently for preview only.
 
 ## Development
 

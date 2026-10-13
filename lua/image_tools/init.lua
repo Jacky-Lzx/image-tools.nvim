@@ -1,6 +1,7 @@
 local M = {}
 local defaults = {
   auto_preview = true,
+  insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after", prompt_for_file_name = false },
   position = "cursor", -- "cursor" or "bottom_right"
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500,
@@ -56,6 +57,50 @@ function M.preview(path, opts)
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
   return preview:open(path, opts)
+end
+
+function M.insert(paths, opts, callback)
+  if not options then
+    M.setup()
+  end
+  local insertion = require("image_tools.insert")
+  opts = vim.tbl_extend(
+    "force",
+    options.insert,
+    { max_bytes = options.max_bytes, reference_root = options.root },
+    opts or {}
+  )
+  if paths then
+    return insertion.files(type(paths) == "string" and { paths } or paths, opts, callback)
+  end
+  local context = opts.context or insertion.capture(opts)
+  opts.context = context
+  local cancelled, cancel_import = false, nil
+  local function cancel()
+    if cancelled then
+      return
+    end
+    cancelled = true
+    if cancel_import then
+      cancel_import()
+    else
+      insertion.release(context)
+    end
+  end
+  vim.ui.input({ prompt = "Image file: ", completion = "file" }, function(path)
+    if cancelled then
+      return
+    end
+    if not path or path == "" then
+      cancel()
+      if callback then
+        callback("Cancelled")
+      end
+      return
+    end
+    cancel_import = insertion.files({ path }, opts, callback)
+  end)
+  return cancel
 end
 
 function M.hover(opts)
@@ -228,6 +273,13 @@ function M.setup(opts)
       end
     end,
   })
+  vim.api.nvim_create_user_command(
+    "ImageInsert",
+    function(args)
+      M.insert(args.args ~= "" and args.args or nil, { mode = args.bang and "reference" or options.insert.mode })
+    end,
+    { nargs = "?", bang = true, complete = "file", desc = "Import an image (! references the source)", force = true }
+  )
   vim.api.nvim_create_user_command("ImagePreview", function(args)
     if args.args == "" then
       M.hover()

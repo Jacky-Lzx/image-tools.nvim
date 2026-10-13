@@ -4,6 +4,12 @@ local signature = "\137PNG\13\10\26\10"
 local convertible =
   { jpg = true, jpeg = true, webp = true, avif = true, heic = true, gif = true, bmp = true, tiff = true, tif = true }
 
+function M.supported(path)
+  local extension = path:match("%.([^./]+)$")
+  extension = extension and extension:lower()
+  return extension == "png" or convertible[extension] == true
+end
+
 local function integer(data, offset)
   local a, b, c, d = data:byte(offset, offset + 3)
   return ((a * 256 + b) * 256 + c) * 256 + d
