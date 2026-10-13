@@ -17,6 +17,7 @@ local defaults = {
   max_scan_lines = 10000,
   convert_timeout = 10000,
   magick = "magick",
+  rsvg = "rsvg-convert",
 }
 local preview, options, group, refresh
 

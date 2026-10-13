@@ -20,6 +20,14 @@ function M.check()
       vim.health.warn("Install pngpaste for clipboard images: brew install pngpaste")
     end
   end
+  if vim.fn.executable("rsvg-convert") == 1 then
+    vim.health.ok("rsvg-convert found: SVG preview renderer")
+  else
+    vim.health.info("SVG preview falls back to ImageMagick internal MSVG renderer")
+  end
+  if vim.fn.executable("gs") ~= 1 then
+    vim.health.info("Ghostscript delegate is needed for ImageMagick PDF preview")
+  end
   local cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
   local state = require("image_tools").status()

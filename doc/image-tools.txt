@@ -127,3 +127,16 @@ Insertion requires graphicx and emits width=\linewidth with a detokenize path.
 Imports accept PNG/JPEG/PDF and sanitize TeX-special filename characters. Unsafe
 reference/directory paths fail and roll back. PDF preview uses the first page;
 ImageMagick must have Ghostscript support. SVG preview also uses ImageMagick.
+
+TYPST                                                     *image-tools-typst*
+
+Literal same-line #image("path", ...) and image("path", ...) in code, including
+inside multiline #figure bodies. Code strings, raw text and nested comments are
+excluded. Dynamic paths and multiline image calls are not evaluated.
+Relative paths resolve beside the document; /paths use the configured project root
+(or document directory). Configure root to match typst compile --root.
+Insertion uses document-relative paths and width: 100%; PNG/JPEG/GIF/WebP/SVG/PDF
+imports are supported. PDF embedding requires a supporting Typst version (0.15.1
+tested). Outside-project direct references fail: copy or configure root instead.
+SVG preview prefers rsvg-convert (rsvg option), then ImageMagick's internal MSVG
+renderer. Complex SVG rendering may differ with MSVG. Originals are unchanged.

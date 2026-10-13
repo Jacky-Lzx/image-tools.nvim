@@ -164,7 +164,9 @@ function M.prepare(path, opts, callback)
       done("Unsupported image format: " .. tostring(extension))
       return
     end
-    if vim.fn.executable(opts.magick) ~= 1 then
+    local svg_renderer = opts.rsvg or "rsvg-convert"
+    local use_rsvg = extension == "svg" and vim.fn.executable(svg_renderer) == 1
+    if not use_rsvg and vim.fn.executable(opts.magick) ~= 1 then
       done("ImageMagick is required to preview " .. extension)
       return
     end
@@ -177,7 +179,7 @@ function M.prepare(path, opts, callback)
       done("Image file exceeds max_bytes")
       return
     end
-    local key = vim.fn.sha256(M.key(path, stat) .. ":" .. opts.magick)
+    local key = vim.fn.sha256(M.key(path, stat) .. ":" .. (use_rsvg and svg_renderer or opts.magick) .. ":svg-v2")
     local output = opts.cache .. "/" .. key .. ".png"
     if uv.fs_stat(output) then
       M.read(output, opts, done, metadata_only)
@@ -185,23 +187,38 @@ function M.prepare(path, opts, callback)
     end
     vim.fn.mkdir(opts.cache, "p")
     local temporary = output .. "." .. tostring(uv.hrtime()) .. ".tmp.png"
-    process = vim.system({
-      opts.magick,
-      "-limit",
-      "memory",
-      "128MiB",
-      "-limit",
-      "map",
-      "256MiB",
-      "-limit",
-      "disk",
-      "256MiB",
-      path .. "[0]",
-      "-auto-orient",
-      "-resize",
-      "1920x1080>",
-      "png:" .. temporary,
-    }, { text = true, timeout = opts.convert_timeout }, function(result)
+    local command
+    if use_rsvg then
+      command = {
+        svg_renderer,
+        "--format=png",
+        "--width=1920",
+        "--height=1080",
+        "--keep-aspect-ratio",
+        "--output",
+        temporary,
+        path,
+      }
+    else
+      command = {
+        opts.magick,
+        "-limit",
+        "memory",
+        "128MiB",
+        "-limit",
+        "map",
+        "256MiB",
+        "-limit",
+        "disk",
+        "256MiB",
+        (extension == "svg" and "MSVG:" or "") .. path .. "[0]",
+        "-auto-orient",
+        "-resize",
+        "1920x1080>",
+        "png:" .. temporary,
+      }
+    end
+    process = vim.system(command, { text = true, timeout = opts.convert_timeout }, function(result)
       vim.schedule(function()
         process = nil
         if cancelled or result.code ~= 0 then

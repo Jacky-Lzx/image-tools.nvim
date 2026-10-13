@@ -1,6 +1,6 @@
 # image-tools.nvim
 
-Independent image previews for Neovim. Uses the Kitty graphics protocol directly;
+Independent image previews and insertion for Neovim. Uses the Kitty graphics protocol directly;
 no Snacks or image.nvim dependency. Preview windows use Unicode placeholders so
 Neovim controls clipping and overlapping windows.
 
@@ -10,7 +10,8 @@ Neovim controls clipping and overlapping windows.
 - Kitty 0.28+ in a direct terminal session. Other terminals, multiplexers, SSH and
   GUI frontends have not been validated. Multiplexers are currently rejected.
 - ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF, PDF and SVG. PDF preview shows the first page; ImageMagick
-  needs its Ghostscript delegate for PDF. GIF previews
+  needs its Ghostscript delegate for PDF. SVG prefers `rsvg-convert`, with
+  ImageMagick MSVG as fallback. GIF previews
   show the first frame. PNG preview does not require an external converter.
 
 ## Local installation
@@ -32,14 +33,15 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct
 
 - `:ImagePreview /absolute/or/relative/image.png` opens a file. Spaces are accepted
   literally; do not surround the path with shell quotes.
-- `:ImagePreview` previews the first Markdown image on the current line.
+- `:ImagePreview` previews the first Markdown/LaTeX/Typst image on the current line.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImagePreviewToggle` toggles automatic current-line previews.
 - `:checkhealth image_tools` checks the terminal and conversion tools.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
-`clear_cache()`, `toggle()`, `status()`. `require("image_tools")` alone registers no handlers.
+`clear_cache()`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
+`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`. `require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd. Markdown references are relative
 to the document; changing cwd does not change their meaning. An optional
 `root` replaces the document directory, or `resolve(document, source)` can
@@ -127,8 +129,8 @@ cached images use fresh ids, preventing late replies from matching the retry.
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
-Reference-style images, Obsidian wikilinks, multiline syntax, remote URLs,
-Typst and inline rendering are future work.
+Reference-style images, Obsidian wikilinks, multiline image calls, remote URLs
+and inline rendering are future work.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the
@@ -208,3 +210,25 @@ Other formats must be converted before LaTeX insertion. Imported filenames repla
 TeX-special characters with underscores; unsafe directory/reference paths fail with
 an actionable error and rollback. Spaces and underscores remain supported.
 Batch insertion has its own undo block, preserving edits made before confirmation.
+
+## Typst
+
+Current-line previews and insertion support literal same-line `#image("path", ...)`
+and `image("path", ...)` inside code, including a multiline `#figure` whose image
+call is complete on one line. Code strings, inline/block raw text, line comments
+and nested block comments are skipped. Variables, path expressions and multiline
+image calls are not evaluated. String escapes and Unicode escapes are decoded;
+percent signs retain their filesystem meaning.
+
+Relative paths resolve beside the containing document. A leading slash resolves
+under configured `root` (or the document directory), matching Typst project paths.
+Set `root` to match `typst compile --root` for nested projects. Insertion always
+uses document-relative paths, emits `#image(..., width: 100%)`, and supports an
+optional `alt`. Imports accept PNG/JPEG/GIF/WebP/SVG/PDF. Direct references outside
+the configured/default project root fail; copy the resource or configure the root.
+PDF image insertion requires a Typst version supporting PDF images (tested 0.15.1).
+
+SVG preview prefers `rsvg-convert` (option `rsvg` sets its executable); otherwise
+it uses ImageMagick's internal MSVG renderer. Both routes are bounded by
+`convert_timeout` and output dimensions. MSVG may differ for complex SVGs;
+`rsvg-convert` is recommended. Preview never modifies original SVG/PDF files.

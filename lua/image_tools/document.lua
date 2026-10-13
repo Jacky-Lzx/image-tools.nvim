@@ -101,7 +101,7 @@ function M.parse(line)
 end
 
 function M.supported(filetype)
-  return vim.tbl_contains({ "markdown", "tex", "latex", "plaintex" }, filetype)
+  return vim.tbl_contains({ "markdown", "tex", "latex", "plaintex", "typst" }, filetype)
 end
 
 function M.base(document, opts, buf)
@@ -153,10 +153,13 @@ end
 local function find(buf, row, col, opts)
   local filetype = vim.bo[buf].filetype
   if not M.supported(filetype) then
-    return nil, "Image references support Markdown and LaTeX"
+    return nil, "Image references support Markdown, LaTeX and Typst"
   end
   if row > opts.max_scan_lines then
     return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
+  end
+  if filetype == "typst" then
+    return require("image_tools.typst").find(buf, row, col, opts)
   end
   if filetype ~= "markdown" then
     return require("image_tools.tex").find(buf, row, col, opts)

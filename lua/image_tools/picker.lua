@@ -210,6 +210,9 @@ function M.pick(insertion, opts, previewer, callback)
   insertion = vim.tbl_extend("force", insertion, { context = context })
   local formats = vim.tbl_contains({ "tex", "latex", "plaintex" }, context.filetype) and { "png", "jpg", "jpeg", "pdf" }
     or { "png", "jpg", "jpeg", "webp", "heic", "avif", "gif", "bmp", "tif", "tiff", "pdf", "svg" }
+  if context.filetype == "typst" then
+    formats = { "png", "jpg", "jpeg", "webp", "gif", "svg", "pdf" }
+  end
   local confirmed = false
   local config = vim.tbl_deep_extend("force", {
     ft = formats,

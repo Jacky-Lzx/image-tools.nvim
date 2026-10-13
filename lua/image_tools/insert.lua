@@ -64,6 +64,10 @@ function M.supported(filetype, path)
     local extension = path:match("%.([^./]+)$")
     return extension and vim.tbl_contains({ "png", "jpg", "jpeg", "pdf" }, extension:lower())
   end
+  if filetype == "typst" then
+    local extension = path:match("%.([^./]+)$")
+    return extension and vim.tbl_contains({ "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }, extension:lower())
+  end
   return require("image_tools.image").supported(path)
 end
 
@@ -74,6 +78,14 @@ function M.markup(path, alt, filetype)
       "LaTeX image paths cannot contain TeX special characters or control characters; rename the file/directory"
     )
     return "\\includegraphics[width=\\linewidth]{\\detokenize{" .. path .. "}}"
+  end
+  if filetype == "typst" then
+    assert(not path:find("%c"), "Typst image paths cannot contain control characters")
+    local function quoted(text)
+      return '"' .. text:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
+    end
+    local description = alt and alt ~= "" and ", alt: " .. quoted(alt:gsub("[\r\n]", " ")) or ""
+    return "#image(" .. quoted(path) .. ", width: 100%" .. description .. ")"
   end
   assert(filetype == "markdown", "Unsupported image insertion filetype")
   local encoded = path:gsub("[%%<>%s\\%z]", function(c)
@@ -166,6 +178,9 @@ function M.files(paths, opts, callback)
     end
     directory = directory:sub(1, 1) == "/" and absolute(directory) or absolute(root .. "/" .. directory)
     base = require("image_tools.document").base(context.document, { root = opts.reference_root }, context.buf)
+    if context.filetype == "typst" then
+      base = vim.fs.dirname(context.document)
+    end
     if type(base) == "function" then
       base = base(context.document)
     end
@@ -186,6 +201,14 @@ function M.files(paths, opts, callback)
       local snippets = {}
       local success, message = pcall(function()
         for _, path in ipairs(state.outputs) do
+          if context.filetype == "typst" then
+            local project =
+              require("image_tools.document").base(context.document, { root = opts.reference_root }, context.buf)
+            assert(
+              not M.relative(path, project):match("^%.%./"),
+              "Typst image is outside the project root; copy it or configure root to match typst compile --root"
+            )
+          end
           snippets[#snippets + 1] = M.markup(M.relative(path, base), opts.alt, context.filetype)
         end
         insert(context, snippets)
