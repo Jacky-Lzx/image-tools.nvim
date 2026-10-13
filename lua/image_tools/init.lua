@@ -103,6 +103,21 @@ function M.insert(paths, opts, callback)
   return cancel
 end
 
+function M.paste(opts, callback)
+  if not options then
+    M.setup()
+  end
+  local insertion = vim.tbl_extend("force", options.insert, {
+    max_bytes = options.max_bytes,
+    max_dimension = options.max_dimension,
+    max_pixels = options.max_pixels,
+    magick = options.magick,
+    convert_timeout = options.convert_timeout,
+    reference_root = options.root,
+  }, opts or {})
+  return require("image_tools.clipboard").paste(insertion, callback)
+end
+
 function M.hover(opts)
   if not preview then
     M.setup()
@@ -273,6 +288,9 @@ function M.setup(opts)
       end
     end,
   })
+  vim.api.nvim_create_user_command("ImagePaste", function()
+    M.paste()
+  end, { desc = "Paste a macOS clipboard image", force = true })
   vim.api.nvim_create_user_command(
     "ImageInsert",
     function(args)

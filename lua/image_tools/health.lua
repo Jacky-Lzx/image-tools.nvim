@@ -13,6 +13,13 @@ function M.check()
   else
     vim.health.warn("ImageMagick missing: PNG previews only")
   end
+  if vim.fn.has("mac") == 1 then
+    if vim.fn.executable("pngpaste") == 1 then
+      vim.health.ok("pngpaste found: macOS clipboard paste available")
+    else
+      vim.health.warn("Install pngpaste for clipboard images: brew install pngpaste")
+    end
+  end
   local cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
   local state = require("image_tools").status()

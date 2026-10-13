@@ -85,3 +85,20 @@ picker previews and inline rendering are not implemented in this first version.
 Insertion currently remains provided by image-insert.nvim.
 
  vim:tw=78:ts=8:ft=help:norl:
+
+INSERTION                                                 *image-tools-insert*
+
+:ImageInsert [path] copies a file into insert.directory (default Figures beside
+this document) and adds a relative reference. :ImageInsert! references it without
+copying. insert(path_or_paths, opts, callback) returns a cancel function. opts:
+directory, root, mode (copy/reference), filename, alt, prompt_for_file_name and
+insert_strategy (insert_before/insert_after/insert_line_before/insert_line_after).
+The source buffer and extmark insertion position survive asynchronous prompts.
+Collisions add suffixes without overwriting. Failure/cancellation removes newly
+imported files; text undo retains them for reuse. A batch is inserted as one edit.
+
+:ImagePaste reads the macOS clipboard with pngpaste (brew install pngpaste).
+paste(opts, callback) accepts the insertion options plus format (png/jpg/webp/avif)
+and quality (default 75). PNG is the default; conversions require ImageMagick.
+Clipboard resources are always copied. Empty clipboard, missing tools and failed
+conversion cause no insertion; cancellation kills subprocesses and cleans temp files.

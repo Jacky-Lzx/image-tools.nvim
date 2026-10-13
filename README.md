@@ -159,3 +159,16 @@ terminal eviction, replies, cache reuse, true-color ids, placeholders and cleanu
 Actual terminal rendering must additionally be checked in Kitty.
 
 Protocol reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
+
+## macOS clipboard
+
+Install `pngpaste` (`brew install pngpaste`). `:ImagePaste` or `paste(opts, callback)`
+reads the system clipboard without modifying it, imports an image, and inserts a
+reference at the original source position. Clipboard paste always copies its
+resource, including when file insertion uses reference mode. Default PNG preserves
+pngpaste's output. Per-call `format = "jpg"`, `"webp"` or `"avif"` converts with
+ImageMagick (`quality = 75` by default); `prompt_for_file_name = true` requests a name.
+Clipboard commands have a 5-second timeout; conversions use `convert_timeout`.
+Empty clipboard, unsupported platform, missing tools and failed conversion report
+errors without inserting text or leaving image resources. The cancel function also
+stops pending reads/processes and removes temporary files.

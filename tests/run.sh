@@ -12,6 +12,7 @@ nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/spec.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/line_lifecycle.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/transfer.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/insert.lua"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/clipboard.lua"
 if command -v python3 >/dev/null 2>&1; then
   python3 "$root/tests/tui.py"
 fi
