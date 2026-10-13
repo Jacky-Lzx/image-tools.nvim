@@ -100,15 +100,37 @@ function M.parse(line)
   return result
 end
 
+function M.supported(filetype)
+  return vim.tbl_contains({ "markdown", "tex", "latex", "plaintex" }, filetype)
+end
+
+function M.base(document, opts, buf)
+  local root = opts.root
+  if type(root) == "function" then
+    root = root(document)
+  end
+  if not root and buf and vim.tbl_contains({ "tex", "latex", "plaintex" }, vim.bo[buf].filetype) then
+    local vimtex = vim.b[buf].vimtex
+    if type(vimtex) == "table" then
+      root = vimtex.root
+    end
+  end
+  return root and vim.fs.normalize(vim.fn.fnamemodify(root, ":p")) or vim.fs.dirname(document)
+end
+
 function M.resolve(src, document, opts)
-  src = src:gsub("\\([%p ])", "%1")
+  if not opts.literal then
+    src = src:gsub("\\([%p ])", "%1")
+  end
   -- Reject URLs before decoding, so percent escapes cannot hide a scheme.
   if src:match("^%a[%w+.-]*:") or src:sub(1, 2) == "//" then
     return nil, "Remote image references are not supported yet"
   end
-  src = src:gsub("%%(%x%x)", function(hex)
-    return string.char(tonumber(hex, 16))
-  end)
+  if not opts.literal then
+    src = src:gsub("%%(%x%x)", function(hex)
+      return string.char(tonumber(hex, 16))
+    end)
+  end
   if src:find("%z") or src:find("[\r\n]") then
     return nil, "Invalid image path"
   end
@@ -124,16 +146,20 @@ function M.resolve(src, document, opts)
   if document == "" then
     return nil, "Save the document before previewing a relative image reference"
   end
-  local base = opts.root and vim.fn.fnamemodify(opts.root, ":p") or vim.fs.dirname(document)
+  local base = M.base(document, opts)
   return vim.fs.normalize(base .. "/" .. src)
 end
 
 local function find(buf, row, col, opts)
-  if vim.bo[buf].filetype ~= "markdown" then
-    return nil, "Image references currently support Markdown only"
+  local filetype = vim.bo[buf].filetype
+  if not M.supported(filetype) then
+    return nil, "Image references support Markdown and LaTeX"
   end
   if row > opts.max_scan_lines then
     return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
+  end
+  if filetype ~= "markdown" then
+    return require("image_tools.tex").find(buf, row, col, opts)
   end
   local candidates = M.parse(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
   if #candidates == 0 then

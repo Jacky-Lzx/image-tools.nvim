@@ -59,8 +59,23 @@ function M.relative(path, base)
   return string.rep("../", #b) .. table.concat(a, "/")
 end
 
+function M.supported(filetype, path)
+  if vim.tbl_contains({ "tex", "latex", "plaintex" }, filetype) then
+    local extension = path:match("%.([^./]+)$")
+    return extension and vim.tbl_contains({ "png", "jpg", "jpeg", "pdf" }, extension:lower())
+  end
+  return require("image_tools.image").supported(path)
+end
+
 function M.markup(path, alt, filetype)
-  assert(filetype == "markdown", "Image insertion currently supports Markdown only")
+  if vim.tbl_contains({ "tex", "latex", "plaintex" }, filetype) then
+    assert(
+      not path:find("[%%#&$^~{}\\%c]"),
+      "LaTeX image paths cannot contain TeX special characters or control characters; rename the file/directory"
+    )
+    return "\\includegraphics[width=\\linewidth]{\\detokenize{" .. path .. "}}"
+  end
+  assert(filetype == "markdown", "Unsupported image insertion filetype")
   local encoded = path:gsub("[%%<>%s\\%z]", function(c)
     return string.format("%%%02X", c:byte())
   end)
@@ -75,6 +90,10 @@ local function insert(context, snippets)
   local pos = vim.api.nvim_buf_get_extmark_by_id(context.buf, ns, context.mark, {})
   assert(#pos == 2, "Insertion position was removed")
   local row, col = pos[1], pos[2]
+  -- Separate this transaction from edits made while a UI prompt was open.
+  vim.api.nvim_buf_call(context.buf, function()
+    vim.cmd("let &g:undolevels = &g:undolevels")
+  end)
   if context.strategy == "insert_line_before" or context.strategy == "insert_line_after" then
     if context.strategy == "insert_line_after" then
       row = row + 1
@@ -121,13 +140,13 @@ function M.files(paths, opts, callback)
   end
   local ok, err = pcall(function()
     assert(valid(context), "Source buffer is not editable")
-    assert(context.filetype == "markdown", "Image insertion currently supports Markdown only")
+    assert(require("image_tools.document").supported(context.filetype), "Unsupported image insertion filetype")
     assert(context.document ~= "", "Save the document before inserting images")
     assert(type(paths) == "table" and #paths > 0, "Choose at least one image file")
     assert(opts.mode == nil or opts.mode == "copy" or opts.mode == "reference", "mode must be copy or reference")
     for _, path in ipairs(paths) do
       assert(type(path) == "string" and path ~= "" and not path:find("[%z\r\n]"), "Invalid source path")
-      assert(require("image_tools.image").supported(path), "Unsupported image file: " .. path)
+      assert(M.supported(context.filetype, path), "Unsupported image format for " .. context.filetype .. ": " .. path)
     end
   end)
   if not ok then
@@ -146,7 +165,7 @@ function M.files(paths, opts, callback)
       directory = directory(context.document)
     end
     directory = directory:sub(1, 1) == "/" and absolute(directory) or absolute(root .. "/" .. directory)
-    base = opts.reference_root or vim.fs.dirname(context.document)
+    base = require("image_tools.document").base(context.document, { root = opts.reference_root }, context.buf)
     if type(base) == "function" then
       base = base(context.document)
     end
@@ -200,6 +219,9 @@ function M.files(paths, opts, callback)
       if name == "" or name == "." or name == ".." or name:find("[/\\%z\r\n]") then
         fail("Name must be a single filename")
         return
+      end
+      if vim.tbl_contains({ "tex", "latex", "plaintex" }, context.filetype) then
+        name = name:gsub("[%%#&$^~{}\\%c]", "_")
       end
       local extension = source:match("%.([^./]+)$")
       if not name:lower():match("%." .. extension:lower() .. "$") then

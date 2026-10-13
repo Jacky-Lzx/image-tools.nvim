@@ -210,7 +210,7 @@ refresh = function()
     end
     M.close()
   end
-  if options.auto_preview and vim.bo.filetype == "markdown" then
+  if options.auto_preview and require("image_tools.document").supported(vim.bo.filetype) then
     M.hover({ silent = true })
   end
 end
@@ -334,7 +334,7 @@ function M.setup(opts)
   end, {
     nargs = "?",
     complete = "file",
-    desc = "Preview an image file or the first Markdown image on the current line",
+    desc = "Preview an image file or the first image reference on the current line",
     force = true,
   })
   vim.api.nvim_create_user_command("ImagePreviewClose", M.close, { desc = "Close the image preview", force = true })

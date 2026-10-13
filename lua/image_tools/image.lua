@@ -1,8 +1,19 @@
 local M = {}
 local uv = vim.uv
 local signature = "\137PNG\13\10\26\10"
-local convertible =
-  { jpg = true, jpeg = true, webp = true, avif = true, heic = true, gif = true, bmp = true, tiff = true, tif = true }
+local convertible = {
+  jpg = true,
+  jpeg = true,
+  webp = true,
+  avif = true,
+  heic = true,
+  gif = true,
+  bmp = true,
+  tiff = true,
+  tif = true,
+  pdf = true,
+  svg = true,
+}
 
 function M.supported(path)
   local extension = path:match("%.([^./]+)$")

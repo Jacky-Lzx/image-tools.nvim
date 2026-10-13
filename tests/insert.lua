@@ -43,7 +43,10 @@ check(require("image_tools.document").at_line(buf, 2, options) == outputs[1], "E
 check(require("image_tools.document").at_line(buf, 3, options) == outputs[2], "Second link resolves")
 -- Undo must remove the batch as one edit, leaving imported resources reusable.
 vim.cmd("undo")
-check(#vim.api.nvim_buf_get_lines(buf, 0, -1, false) == 1, "Batch is one undo entry")
+check(
+  vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), { "原始内容" }),
+  "Batch undo preserves previous edits"
+)
 check(vim.uv.fs_stat(outputs[1]) ~= nil, "Undo retains resource")
 for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before", "insert_line_after" }) do
   buf = buffer(strategy, "你尾")

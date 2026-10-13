@@ -115,3 +115,15 @@ For regular file pickers/explorer, configure Snacks picker.preview as:
   function(ctx) require("image_tools").snacks_preview(ctx) end
 <
 Keep Snacks.image disabled. Non-image entries use the regular Snacks file preview.
+
+LATEX                                                     *image-tools-latex*
+
+tex/latex/plaintex: same-line \includegraphics[options]{path}, starred form,
+\detokenize paths, literal \graphicspath entries, and omitted PDF/PNG/JPG/JPEG
+extensions. Comments, \verb and verbatim/lstlisting/minted/comment environments
+are excluded. Macros and multiline references are not expanded.
+Resolution: configured root (string/function), b:vimtex.root, document directory.
+Insertion requires graphicx and emits width=\linewidth with a detokenize path.
+Imports accept PNG/JPEG/PDF and sanitize TeX-special filename characters. Unsafe
+reference/directory paths fail and roll back. PDF preview uses the first page;
+ImageMagick must have Ghostscript support. SVG preview also uses ImageMagick.

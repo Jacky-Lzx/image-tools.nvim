@@ -55,6 +55,10 @@ function M.paste(opts, callback, dependencies)
     finish("Clipboard format must be png, jpg, webp or avif")
     return cancel
   end
+  if not I.supported(context.filetype, "clipboard." .. format) then
+    finish("Unsupported clipboard format for " .. context.filetype .. "; use PNG or JPG")
+    return cancel
+  end
   local executable = opts.pngpaste or "pngpaste"
   if vim.fn.executable(executable) ~= 1 then
     finish("pngpaste is required for clipboard images (brew install pngpaste)")

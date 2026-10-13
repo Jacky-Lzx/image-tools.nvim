@@ -136,4 +136,21 @@ eq(api.status().window, window, "manual line preview should also persist horizon
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil)
+vim.bo.filetype = "tex"
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "\\includegraphics{" .. root .. "/tests/fixture.png}", "plain text" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+api.setup({ auto_preview = true })
+local expected = #requests + 1
+vim.wait(100, function()
+  return #requests == expected
+end)
+eq(requests[#requests].path, root .. "/tests/fixture.png", "LaTeX automatic reference")
+requests[#requests].callback(nil, fixture)
+window = assert(api.status().window)
+vim.api.nvim_win_set_cursor(0, { 1, 10 })
+vim.api.nvim_exec_autocmds("CursorMoved", {})
+eq(api.status().window, window, "LaTeX same-line persistence")
+vim.api.nvim_win_set_cursor(0, { 2, 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", {})
+eq(api.status().window, nil, "LaTeX leaving line closes preview")
 print("image-tools line lifecycle: " .. checks .. " assertions passed")

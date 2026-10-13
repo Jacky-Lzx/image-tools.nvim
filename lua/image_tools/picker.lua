@@ -208,9 +208,11 @@ function M.pick(insertion, opts, previewer, callback)
   local I = require("image_tools.insert")
   local context = insertion.context or I.capture(insertion)
   insertion = vim.tbl_extend("force", insertion, { context = context })
+  local formats = vim.tbl_contains({ "tex", "latex", "plaintex" }, context.filetype) and { "png", "jpg", "jpeg", "pdf" }
+    or { "png", "jpg", "jpeg", "webp", "heic", "avif", "gif", "bmp", "tif", "tiff", "pdf", "svg" }
   local confirmed = false
   local config = vim.tbl_deep_extend("force", {
-    ft = { "png", "jpg", "jpeg", "webp", "heic", "avif", "gif", "bmp", "tif", "tiff" },
+    ft = formats,
     preview = previewer,
   }, opts or {})
   local on_close = config.on_close

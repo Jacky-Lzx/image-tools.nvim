@@ -9,7 +9,8 @@ Neovim controls clipping and overlapping windows.
 - Neovim 0.12+ with `termguicolors` enabled (APC graphics response handling).
 - Kitty 0.28+ in a direct terminal session. Other terminals, multiplexers, SSH and
   GUI frontends have not been validated. Multiplexers are currently rejected.
-- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP and TIFF. GIF previews
+- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF, PDF and SVG. PDF preview shows the first page; ImageMagick
+  needs its Ghostscript delegate for PDF. GIF previews
   show the first frame. PNG preview does not require an external converter.
 
 ## Local installation
@@ -127,7 +128,7 @@ Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
 Reference-style images, Obsidian wikilinks, multiline syntax, remote URLs,
-LaTeX/Typst, PDF/SVG, inline rendering are future work.
+Typst and inline rendering are future work.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the
@@ -190,3 +191,20 @@ never calls Snacks.image for supported images. No monkey patches are installed.
 
 Set `IMAGE_TOOLS_SNACKS_ROOT` to an installed Snacks checkout when running tests
 for actual picker window, finder, confirmation, cancellation and TUI integration.
+
+## LaTeX
+
+Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
+same-line `\includegraphics[options]{path}` (including starred form and
+`\detokenize{path}`) is parsed. Comments, `\verb` and verbatim/lstlisting/minted/
+comment environments are excluded; macros and multiline references are not expanded.
+Literal `\graphicspath{{dir/}{other/}}` in preceding lines and omitted extensions
+(PDF/PNG/JPG/JPEG) are resolved. Resolution uses `root` (string/function), then an
+existing `b:vimtex.root`, then the document directory. No VimTeX dependency is added.
+
+Insertion emits `\includegraphics[width=\linewidth]{\detokenize{path}}`; load
+`graphicx` in your document. PNG/JPEG/PDF imports preserve original formats.
+Other formats must be converted before LaTeX insertion. Imported filenames replace
+TeX-special characters with underscores; unsafe directory/reference paths fail with
+an actionable error and rollback. Spaces and underscores remain supported.
+Batch insertion has its own undo block, preserving edits made before confirmation.
