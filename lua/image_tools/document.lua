@@ -1,0 +1,164 @@
+local M = {}
+
+local function escaped(text, pos)
+  local count = 0
+  while pos > 1 and text:sub(pos - 1, pos - 1) == "\\" do
+    count, pos = count + 1, pos - 1
+  end
+  return count % 2 == 1
+end
+
+local function closing(text, start, opening, ending)
+  local depth, angle, quote = 1, false, nil
+  for pos = start + 1, #text do
+    local char = text:sub(pos, pos)
+    if not escaped(text, pos) then
+      if opening == "(" and angle then
+        angle = char ~= ">"
+      elseif opening == "(" and quote then
+        if char == quote then
+          quote = nil
+        end
+      elseif opening == "(" and char == "<" and depth == 1 then
+        angle = true
+      elseif opening == "(" and (char == '"' or char == "'") and text:sub(pos - 1, pos - 1):match("%s") then
+        quote = char
+      elseif char == opening then
+        depth = depth + 1
+      elseif char == ending then
+        depth = depth - 1
+        if depth == 0 then
+          return pos
+        end
+      end
+    end
+  end
+end
+
+local function destination(content)
+  content = vim.trim(content)
+  if content:sub(1, 1) == "<" then
+    for i = 2, #content do
+      if content:sub(i, i) == ">" and not escaped(content, i) then
+        local suffix = vim.trim(content:sub(i + 1))
+        if suffix == "" or suffix:match('^".*"$') or suffix:match("^'.*'$") then
+          return content:sub(2, i - 1)
+        end
+        return nil
+      end
+    end
+    return nil
+  end
+  local depth, stop = 0, #content + 1
+  for i = 1, #content do
+    local char = content:sub(i, i)
+    if not escaped(content, i) then
+      if char == "(" then
+        depth = depth + 1
+      elseif char == ")" then
+        depth = depth - 1
+      elseif char:match("%s") and depth == 0 then
+        stop = i
+        break
+      end
+    end
+  end
+  local suffix = vim.trim(content:sub(stop))
+  if suffix ~= "" and not suffix:match('^".*"$') and not suffix:match("^'.*'$") then
+    return nil
+  end
+  return content:sub(1, stop - 1)
+end
+
+-- Deliberately bounded to complete, same-line Markdown inline images.
+-- Ignore escaped syntax and code spans; unsupported forms are not guessed.
+function M.parse(line)
+  local result, pos = {}, 1
+  while pos <= #line do
+    local char = line:sub(pos, pos)
+    if char == "`" and not escaped(line, pos) then
+      local ticks = line:match("^`+", pos)
+      local finish = line:find(ticks, pos + #ticks, true)
+      pos = finish and finish + #ticks or #line + 1
+    elseif line:sub(pos, pos + 1) == "![" and not escaped(line, pos) then
+      local alt_end = closing(line, pos + 1, "[", "]")
+      local finish = alt_end and line:sub(alt_end + 1, alt_end + 1) == "(" and closing(line, alt_end + 1, "(", ")")
+        or nil
+      if finish then
+        local src = destination(line:sub(alt_end + 2, finish - 1))
+        if src and src ~= "" then
+          result[#result + 1] = { src = src, start_col = pos - 1, end_col = finish }
+        end
+        pos = finish + 1
+      else
+        pos = pos + 2
+      end
+    else
+      pos = pos + 1
+    end
+  end
+  return result
+end
+
+function M.resolve(src, document, opts)
+  src = src:gsub("\\([%p ])", "%1")
+  -- Reject URLs before decoding, so percent escapes cannot hide a scheme.
+  if src:match("^%a[%w+.-]*:") or src:sub(1, 2) == "//" then
+    return nil, "Remote image references are not supported yet"
+  end
+  src = src:gsub("%%(%x%x)", function(hex)
+    return string.char(tonumber(hex, 16))
+  end)
+  if src:find("%z") or src:find("[\r\n]") then
+    return nil, "Invalid image path"
+  end
+  if opts.resolve then
+    local path = opts.resolve(document, src)
+    if path then
+      return vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
+    end
+  end
+  if src:sub(1, 1) == "/" then
+    return vim.fs.normalize(src)
+  end
+  if document == "" then
+    return nil, "Save the document before previewing a relative image reference"
+  end
+  local base = opts.root and vim.fn.fnamemodify(opts.root, ":p") or vim.fs.dirname(document)
+  return vim.fs.normalize(base .. "/" .. src)
+end
+
+function M.at_cursor(buf, row, col, opts)
+  if vim.bo[buf].filetype ~= "markdown" then
+    return nil, "Image references currently support Markdown only"
+  end
+  if row > opts.max_scan_lines then
+    return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
+  end
+  local lines = vim.api.nvim_buf_get_lines(buf, 0, row, false)
+  local fence, length
+  for i = 1, row do
+    local run = lines[i]:match("^ ? ? ?(```+)") or lines[i]:match("^ ? ? ?(~~~+)")
+    if run then
+      if not fence then
+        fence, length = run:sub(1, 1), #run
+      elseif run:sub(1, 1) == fence and #run >= length and lines[i]:match("^%s*[`~]+%s*$") then
+        fence = nil
+      end
+      if i == row then
+        return nil, "Cursor is inside a fenced code block"
+      end
+    elseif i == row and (fence or lines[i]:match("^    ") or lines[i]:match("^\t")) then
+      return nil, "Cursor is inside a code block"
+    end
+  end
+  for _, image in ipairs(M.parse(lines[row] or "")) do
+    if col >= image.start_col and col < image.end_col then
+      local path, err = M.resolve(image.src, vim.api.nvim_buf_get_name(buf), opts)
+      return path, err
+    end
+  end
+  return nil, "No supported image reference under the cursor"
+end
+
+return M

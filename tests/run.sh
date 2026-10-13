@@ -1,0 +1,14 @@
+#!/bin/sh
+set -eu
+root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+test_tmp=$(mktemp -d "${TMPDIR:-/tmp}/image-tools-test.XXXXXX")
+trap 'rm -rf "$test_tmp"' EXIT HUP INT TERM
+export IMAGE_TOOLS_ROOT="$root"
+export IMAGE_TOOLS_TEST_TMP="$test_tmp"
+export XDG_CACHE_HOME="$test_tmp/cache"
+export XDG_STATE_HOME="$test_tmp/state"
+export NVIM_LOG_FILE="$test_tmp/nvim.log"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/spec.lua"
+if command -v python3 >/dev/null 2>&1; then
+  python3 "$root/tests/tui.py"
+fi

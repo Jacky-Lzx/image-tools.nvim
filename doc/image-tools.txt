@@ -1,0 +1,57 @@
+*image-tools.txt*  Independent image previews for Neovim
+
+REQUIREMENTS                                               *image-tools*
+
+Neovim 0.11+, termguicolors, and Kitty 0.28+ in a direct terminal session.
+ImageMagick is optional for PNG, required for the other supported formats.
+Other terminals, multiplexers, SSH and GUI frontends are not yet validated.
+
+SETUP                                                      *image-tools-setup*
+>
+  require("image_tools").setup({
+    auto_preview = true,
+    max_width = 60,
+    max_height = 30,
+    border = "rounded",
+  })
+<
+Merely requiring the module does not register handlers or mappings.
+Disable Snacks.image and restart Neovim before using this plugin.
+
+COMMANDS                                                   *:ImagePreview*
+
+:ImagePreview [path]    Preview a file, or the Markdown image under the cursor.
+                       File paths are literal: spaces work without quotes.
+                       Explicit relative paths use cwd; Markdown paths use
+                       the document directory.
+
+:ImagePreviewClose                                         *:ImagePreviewClose*
+                       Close the float, cancel pending work and free the image.
+
+:ImagePreviewToggle                                        *:ImagePreviewToggle*
+                       Toggle automatic preview on CursorHold.
+
+:checkhealth image_tools
+                       Check the terminal and image conversion tools.
+
+API                                                        *image-tools-api*
+
+setup(opts)            Configure the plugin; repeated setup replaces handlers.
+preview(path, opts)    Preview a file. opts.silent suppresses notifications.
+hover(opts)            Preview the Markdown image under the cursor.
+close()                Close preview; safe to call repeatedly.
+toggle()               Toggle automatic preview; returns its new state.
+status()               Return configured, auto_preview, path and window fields.
+
+See README.md for resource limits, caching and custom path resolution.
+
+SCOPE                                                      *image-tools-scope*
+
+PNG, JPG, JPEG, WebP, AVIF, HEIC, GIF (first frame), BMP and TIFF previews.
+Complete same-line Markdown inline images, angle-bracket destinations, quoted
+titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
+excluded. Network access, reference-style images, wikilinks, PDF/SVG, LaTeX/Typst,
+picker previews and inline rendering are not implemented in this first version.
+Insertion currently remains provided by image-insert.nvim.
+
+ vim:tw=78:ts=8:ft=help:norl:
