@@ -128,12 +128,16 @@ function M.resolve(src, document, opts)
   return vim.fs.normalize(base .. "/" .. src)
 end
 
-function M.at_cursor(buf, row, col, opts)
+local function find(buf, row, col, opts)
   if vim.bo[buf].filetype ~= "markdown" then
     return nil, "Image references currently support Markdown only"
   end
   if row > opts.max_scan_lines then
     return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
+  end
+  local candidates = M.parse(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
+  if #candidates == 0 then
+    return nil, "No supported image reference on the current line"
   end
   local lines = vim.api.nvim_buf_get_lines(buf, 0, row, false)
   local fence, length
@@ -152,13 +156,22 @@ function M.at_cursor(buf, row, col, opts)
       return nil, "Cursor is inside a code block"
     end
   end
-  for _, image in ipairs(M.parse(lines[row] or "")) do
-    if col >= image.start_col and col < image.end_col then
+  for _, image in ipairs(candidates) do
+    if col == nil or (col >= image.start_col and col < image.end_col) then
       local path, err = M.resolve(image.src, vim.api.nvim_buf_get_name(buf), opts)
       return path, err
     end
   end
   return nil, "No supported image reference under the cursor"
+end
+
+function M.at_cursor(buf, row, col, opts)
+  return find(buf, row, col, opts)
+end
+
+-- A line with multiple references consistently previews its first image.
+function M.at_line(buf, row, opts)
+  return find(buf, row, nil, opts)
 end
 
 return M

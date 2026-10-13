@@ -23,7 +23,7 @@ above the command line and status line. "cursor" places it near the cursor.
 
 COMMANDS                                                   *:ImagePreview*
 
-:ImagePreview [path]    Preview a file, or the Markdown image under the cursor.
+:ImagePreview [path]    Preview a file, or the first Markdown image on the line.
                        File paths are literal: spaces work without quotes.
                        Explicit relative paths use cwd; Markdown paths use
                        the document directory.
@@ -32,7 +32,7 @@ COMMANDS                                                   *:ImagePreview*
                        Close the float, cancel pending work and free the image.
 
 :ImagePreviewToggle                                        *:ImagePreviewToggle*
-                       Toggle automatic preview on CursorHold.
+                       Toggle automatic current-line preview.
 
 :checkhealth image_tools
                        Check the terminal and image conversion tools.
@@ -41,12 +41,17 @@ API                                                        *image-tools-api*
 
 setup(opts)            Configure the plugin; repeated setup replaces handlers.
 preview(path, opts)    Preview a file. opts.silent suppresses notifications.
-hover(opts)            Preview the Markdown image under the cursor.
+hover(opts)            Preview the first Markdown image on the current line.
 close()                Close preview; safe to call repeatedly.
 toggle()               Toggle automatic preview; returns its new state.
 status()               Return configured, auto_preview, path and window fields.
 
 See README.md for resource limits, caching and custom path resolution.
+
+Automatic preview follows cursor lines. The cursor need not be inside the image
+link. Horizontal movement, Insert mode and edits that preserve the source keep
+the same preview. Leaving the line closes it; entering a new image line previews
+that line immediately. Multiple images on one line use the first reference.
 
 SCOPE                                                      *image-tools-scope*
 

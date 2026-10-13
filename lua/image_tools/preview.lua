@@ -55,6 +55,7 @@ function M:open(path, options)
     cursor = vim.api.nvim_win_get_cursor(0),
     path = path,
     automatic = options.silent or false,
+    reference = options.reference or false,
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   self.state = state
@@ -68,7 +69,7 @@ function M:open(path, options)
       or vim.api.nvim_get_current_win() ~= state.owner_win
       or vim.api.nvim_get_current_buf() ~= state.owner_buf
       or vim.api.nvim_buf_get_changedtick(state.owner_buf) ~= state.changedtick
-      or not vim.deep_equal(vim.api.nvim_win_get_cursor(state.owner_win), state.cursor)
+      or vim.api.nvim_win_get_cursor(state.owner_win)[1] ~= state.cursor[1]
     then
       self:close()
       return

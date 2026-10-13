@@ -65,13 +65,14 @@ with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         result = json.loads((temporary / "result.json").read_text())
         assert result["geometry"] == [16, 5], result
         assert result["position"] == "bottom_right", result
+        assert result["same_line"] and result["image_line_transition"], result
         assert result["lifecycle"], result
         commands = []
         for match in re.finditer(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\", output):
             fields = dict(part.split(b"=", 1) for part in match[1].split(b","))
             commands.append((fields, match[2]))
         uploads = [(fields, data) for fields, data in commands if fields.get(b"a") == b"t"]
-        assert len(uploads) == 2, [(fields, len(data or b"")) for fields, data in commands]
+        assert len(uploads) == 3, [(fields, len(data or b"")) for fields, data in commands]
         fixture = (root / "tests/fixture.png").read_bytes()
         for fields, data in uploads:
             assert base64.b64decode(data) == fixture
@@ -82,7 +83,7 @@ with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
             assert any(f.get(b"a") == b"d" and f.get(b"d") == b"I" and f.get(b"i") == fields[b"i"] for f, _ in commands)
         assert chr(0x10EEEE).encode() in output, "Neovim TUI did not emit Unicode placeholders"
         assert not any(f.get(b"d") in (b"A", b"a") for f, _ in commands)
-        print("image-tools TUI: bottom-right placement, PNG bytes, true-color ids, placeholders and lifecycle passed")
+        print("image-tools TUI: persistent line preview, Insert mode, line transitions, protocol and cleanup passed")
     finally:
         if process.poll() is None:
             process.kill()

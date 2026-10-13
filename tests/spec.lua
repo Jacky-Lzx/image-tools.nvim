@@ -272,10 +272,12 @@ end)
 old_window = api.status().window
 vim.api.nvim_win_close(old_window, true)
 eq(api.status().window, nil, "external float close must free the image")
+vim.api.nvim_buf_set_lines(0, 0, -1, false, { "first", "second" })
 api.preview(fixture)
 await(function()
   return api.status().window ~= nil
 end)
+vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil)
 api.preview(fixture)
@@ -293,7 +295,8 @@ await(function()
   return api.status().window ~= nil
 end)
 vim.api.nvim_exec_autocmds("InsertEnter", {})
-eq(api.status().window, nil, "entering Insert mode must close automatic preview")
+assert(api.status().window, "entering Insert mode on the same line must retain the preview")
+api.close()
 
 if vim.fn.executable("magick") == 1 then
   local avif = temporary .. "/中文 image (1)%.avif"

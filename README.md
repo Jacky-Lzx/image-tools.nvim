@@ -31,9 +31,9 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct
 
 - `:ImagePreview /absolute/or/relative/image.png` opens a file. Spaces are accepted
   literally; do not surround the path with shell quotes.
-- `:ImagePreview` previews the Markdown image under the cursor.
+- `:ImagePreview` previews the first Markdown image on the current line.
 - `:ImagePreviewClose` closes the preview and frees its terminal image.
-- `:ImagePreviewToggle` toggles automatic previews on `CursorHold`.
+- `:ImagePreviewToggle` toggles automatic current-line previews.
 - `:checkhealth image_tools` checks the terminal and conversion tools.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
@@ -43,10 +43,18 @@ to the document; changing cwd does not change their meaning. An optional
 `root` replaces the document directory, or `resolve(document, source)` can
 return a custom absolute path. Neither path searching nor network access occurs.
 
-The preview closes on cursor movement, entering Insert mode, document changes,
-window/buffer switching, resizing, scrolling, colorscheme changes, suspend and
-exit. Pending requests are invalidated and conversion processes are cancelled.
-Only image ids allocated by this plugin are deleted.
+Automatic preview starts when the cursor enters an image line, including when
+it is outside the image link. Moving horizontally on that line, entering Insert
+mode or editing surrounding text keeps the same preview and pending conversion.
+If a line has multiple images, its first image is used consistently.
+
+Moving to another line closes the previous preview immediately and previews
+the new line if it contains an image. Replacing or removing the image reference
+updates or closes the preview. Window/buffer switching, resizing, scrolling,
+colorscheme changes, suspend and exit clean the previous preview; automatic
+preview refreshes the current line after layout changes. Stale asynchronous
+requests cannot restore a preview after the cursor leaves its line. Only image
+ids allocated by this plugin are deleted.
 
 ## Configuration
 
