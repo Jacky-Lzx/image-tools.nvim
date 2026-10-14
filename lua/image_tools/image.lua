@@ -146,7 +146,7 @@ function M.read(path, opts, callback, metadata_only)
   end
 end
 
-function M.prepare(path, opts, callback)
+local function prepare(path, opts, callback)
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
   -- All configured transports prepare only metadata. Direct uploads read the
@@ -264,6 +264,10 @@ function M.prepare(path, opts, callback)
           return
         end
         M.read(temporary, opts, function(err, image)
+          local after = uv.fs_stat(path)
+          if not err and (not after or M.key(path, after) ~= M.key(path, stat)) then
+            err = "Image source changed during conversion; retry the preview"
+          end
           if not err then
             local renamed, rename_err = uv.fs_rename(temporary, output)
             if not renamed then
@@ -291,6 +295,82 @@ function M.prepare(path, opts, callback)
     end
     -- Let any in-flight read complete to clean its temporary file. done()
     -- suppresses its callback after cancellation.
+  end
+end
+
+-- Share conversion work across renderers. Subscribers keep independent
+-- cancellation; source version, page, renderer and validation limits form identity.
+local pending = {}
+function M.prepare(path, opts, callback)
+  local extension = path:match("%.([^./]+)$")
+  extension = extension and extension:lower()
+  local stat = convertible[extension] and uv.fs_stat(path)
+  if
+    not stat
+    or stat.type ~= "file"
+    or extension == "pdf"
+      and (opts.page ~= nil and (type(opts.page) ~= "number" or opts.page < 1 or opts.page % 1 ~= 0))
+  then
+    return prepare(path, opts, callback)
+  end
+  local key = table.concat({
+    M.key(path, stat),
+    opts.cache or "",
+    opts.magick or "",
+    opts.rsvg or "rsvg-convert",
+    tostring(opts.page or 1),
+    tostring(opts.pdf_density or 144),
+    tostring(opts.transport ~= nil),
+    tostring(opts.max_bytes),
+    tostring(opts.max_dimension),
+    tostring(opts.max_pixels),
+    tostring(opts.convert_timeout),
+  }, "\0")
+  local job = pending[key]
+  local fresh = not job
+  if fresh then
+    job = { subscribers = {} }
+    pending[key] = job
+  end
+  local subscriber = { active = true }
+  job.subscribers[subscriber] = callback
+  if fresh then
+    job.cancel = prepare(path, opts, function(err, image)
+      if job.done then
+        return
+      end
+      job.done = true
+      if pending[key] == job then
+        pending[key] = nil
+      end
+      local subscribers = job.subscribers
+      job.subscribers = {}
+      for consumer, receive in pairs(subscribers) do
+        -- One callback cannot prevent other subscribers from completing.
+        vim.schedule(function()
+          if consumer.active then
+            consumer.active = false
+            receive(err, image and vim.deepcopy(image) or nil)
+          end
+        end)
+      end
+    end)
+  end
+  return function()
+    if not subscriber.active then
+      return
+    end
+    subscriber.active = false
+    job.subscribers[subscriber] = nil
+    if not job.done and not next(job.subscribers) then
+      job.done = true
+      if pending[key] == job then
+        pending[key] = nil
+      end
+      if job.cancel then
+        job.cancel()
+      end
+    end
   end
 end
 

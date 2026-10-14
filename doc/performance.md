@@ -11,3 +11,10 @@ ordinary-line detection around 0.01 ms for both LaTeX and Typst, versus roughly
 8 ms / 28 ms before this optimization. Warm candidate queries were about 0.03 ms.
 These are Lua/parser measurements, not terminal decode/render latency. The first
 candidate query after an edit may still need to scan its preceding context.
+
+Converted formats share pending requests when the source version, PDF page,
+renderer, cache directory and validation settings match. Each subscriber receives
+its own metadata and cancellation handle. The worker is killed only when its last
+subscriber cancels; failures release the shared slot so later requests can retry.
+The source version is checked again before publishing converted pixels. PNG
+metadata reads and the per-renderer terminal caches remain independent.
