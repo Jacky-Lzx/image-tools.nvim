@@ -34,7 +34,7 @@ local owner_buf = vim.api.nvim_create_buf(false, true)
 vim.api.nvim_buf_set_lines(owner_buf, 0, -1, false, { "Image/PDF filename and page header" })
 vim.api.nvim_win_set_buf(0, owner_buf)
 local owner = vim.api.nvim_get_current_win()
-local meta = { path = root .. "/tests/fixture.png", page = 1, generation = 1 }
+local meta = { path = root .. "/tests/fixtures/fixture.png", page = 1, generation = 1 }
 local function render(label)
   canvas:close()
   vim.cmd.redraw()

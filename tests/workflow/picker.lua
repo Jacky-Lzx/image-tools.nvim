@@ -32,7 +32,7 @@ package.loaded["image_tools.terminal"] = {
   end,
 }
 local original = require("image_tools.image")
-local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
+local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 require("snacks").setup({ image = { enabled = false }, picker = { enabled = true } })
 local count = 0
 local function check(value, msg)
@@ -49,7 +49,7 @@ local image = require("image_tools")
 image.setup({ auto_preview = false })
 local done, err, paths
 local picker = image.pick(
-  { picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests", ft = { "png" }, layout = { preset = "default" } } },
+  { picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures", ft = { "png" }, layout = { preset = "default" } } },
   function(e, p)
     done, err, paths = true, e, p
   end
@@ -152,7 +152,7 @@ package.loaded["image_tools.image"] = {
   end,
 }
 local cancelled
-picker = image.pick({ picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests", ft = { "png" } } }, function(e)
+picker = image.pick({ picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures", ft = { "png" } } }, function(e)
   cancelled = e
 end)
 check(

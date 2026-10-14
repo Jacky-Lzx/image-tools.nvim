@@ -1,7 +1,7 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
 local D, I = require("image_tools.media.disk_cache"), require("image_tools.image")
 local root = assert(vim.uv.fs_realpath(assert(vim.env.IMAGE_TOOLS_TEST_TMP))) .. "/disk"
-local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
+local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 local checks = 0
 local function check(value, msg)
   checks = checks + 1

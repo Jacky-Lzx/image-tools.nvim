@@ -40,7 +40,7 @@ vim.bo.filetype = "typst"
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "= Image fixture" })
 local done, err, paths
 I.files(
-  { vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png" },
+  { vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png" },
   { filename = 'quote " percent% 图.png', alt = 'A "quoted" image' },
   function(e, p)
     done, err, paths = true, e, p
@@ -83,7 +83,7 @@ check(
   "Relative path uses containing document"
 )
 done, err = nil, nil
-I.files({ vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png" }, { mode = "reference" }, function(e)
+I.files({ vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png" }, { mode = "reference" }, function(e)
   done, err = true, e
 end)
 check(vim.wait(2000, function()

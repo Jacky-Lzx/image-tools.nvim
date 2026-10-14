@@ -17,7 +17,15 @@ assert(
 )
 assert(not err, err)
 local compared = vim
-  .system({ "magick", "compare", "-metric", "AE", vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", paths[1], "null:" })
+  .system({
+    "magick",
+    "compare",
+    "-metric",
+    "AE",
+    vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png",
+    paths[1],
+    "null:",
+  })
   :wait()
 assert(compared.code == 0, "Native image pixels changed: " .. (compared.stderr or ""))
 assert(require("image_tools.document").at_line(0, 2, { max_scan_lines = 100 }) == paths[1], "Native reference failed")

@@ -3,7 +3,7 @@ local I = require("image_tools.image")
 local tmp = assert(vim.uv.fs_realpath(assert(vim.env.IMAGE_TOOLS_TEST_TMP))) .. "/conversion"
 vim.fn.mkdir(tmp, "p")
 local source = tmp .. "/source.jpg"
-assert(vim.system({ "magick", vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", source }):wait().code == 0)
+assert(vim.system({ "magick", vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", source }):wait().code == 0)
 local checks = 0
 local function check(v, msg)
   checks = checks + 1
@@ -129,7 +129,7 @@ await(function()
   return completed == 1
 end)
 -- PDF page and conversion settings are independent identities.
-local pdf = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.pdf"
+local pdf = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.pdf"
 opts = options("pages")
 completed = 0
 before = launches

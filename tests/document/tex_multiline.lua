@@ -15,10 +15,10 @@ local function buffer(lines)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   return buf
 end
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/a.png")
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/b.png")
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/space #%.png")
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/space #.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/a.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/b.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/space #%.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/space #.png")
 local opts = config.resolve({ treesitter = false })
 local sample = {
   [[  \includegraphics[]],

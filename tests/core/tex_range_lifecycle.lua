@@ -6,7 +6,7 @@ vim.o.termguicolors = true
 local tmp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/range-lifecycle"
 vim.fn.mkdir(tmp, "p")
 for _, name in ipairs({ "a", "b" }) do
-  vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/" .. name .. ".png")
+  vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/" .. name .. ".png")
 end
 local writes, requests, cancelled, checks, serial = {}, {}, 0, 0, 0
 local function check(value, message)

@@ -11,7 +11,7 @@ local buf = vim.api.nvim_create_buf(false, true)
 vim.bo[buf].filetype = "typst"
 vim.api.nvim_buf_set_name(buf, tmp .. "/async.typ")
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { '#image("a.png")' })
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/a.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/a.png")
 local real = vim.treesitter.get_parser
 local callbacks, starts = {}, 0
 vim.treesitter.get_parser = function(...)

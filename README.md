@@ -228,6 +228,14 @@ The commented groups in `tests/run.sh` cover:
 6. LaTeX/Typst syntax and paths, optional real compilation, image buffers and bounds.
 7. Real Neovim TUI with a simulated Kitty protocol responder.
 
+Test files follow the implementation subsystems: `tests/core/` covers API/runtime
+and lifecycle regressions, while `document/`, `media/`, `render/`, `terminal/` and
+`workflow/` hold their respective suites. Shared assets and the interactive demo
+live in `tests/fixtures/`. `tests/tui/run.py` launches the TUI scenarios in that
+directory; run it directly with `python3 -u tests/tui/run.py` to isolate TUI checks.
+The runner keeps an explicit suite list and execution order; it does not discover
+manual tests or run TUI Lua scenarios as headless tests.
+
 Neovim and ImageMagick (`magick`, with Ghostscript support for PDF conversion)
 are required for the suite. Optional coverage is enabled as follows:
 
@@ -241,7 +249,7 @@ are required for the suite. Optional coverage is enabled as follows:
 Document path assertions prove reference recognition and resolution; lifecycle
 tests additionally assert preview windows and cleanup. The TUI responder verifies
 protocol traffic, while visible pixels still require a real Kitty check.
-`tests/clipboard_native.lua` is a separate opt-in test requiring a prepared system
+`tests/manual/clipboard_native.lua` is a separate opt-in test requiring a prepared system
 clipboard; the automatic runner only exercises simulated clipboard commands.
 
 Protocol reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/

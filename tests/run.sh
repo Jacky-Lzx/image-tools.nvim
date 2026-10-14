@@ -60,6 +60,8 @@ export XDG_STATE_HOME="$test_tmp/state"
 export NVIM_LOG_FILE="$test_tmp/nvim.log"
 
 # Run each Lua file in a fresh Neovim process to isolate mocks and global state.
+# Keep the suite list explicit so manual clipboard tests and TUI scenarios are
+# never discovered and executed as headless tests.
 # --headless: no terminal UI, but real buffers, windows and events remain available.
 # -u NONE / -i NONE / --noplugin: disable user config, ShaDa and plugin autoloading.
 # -l: execute the Lua file; a failed assertion produces a nonzero exit status.
@@ -68,31 +70,31 @@ run_test() {
 }
 
 # 1. Core API, preview lifecycle and diagnostics.
-run_test spec.lua # general regressions
-run_test runtime.lua
-run_test line_lifecycle.lua # reference entry/exit, edits and async cancellation
-run_test cursor_lifecycle.lua
-run_test tex_range_lifecycle.lua # asserts that a preview stays open within a multiline reference and closes on exit
-run_test health.lua
+run_test core/regression.lua # general regressions
+run_test core/runtime.lua
+run_test core/line_lifecycle.lua # reference entry/exit, edits and async cancellation
+run_test core/cursor_lifecycle.lua
+run_test core/tex_range_lifecycle.lua # asserts that a preview stays open within a multiline reference and closes on exit
+run_test core/health.lua
 
 # 2. Image preparation and rendering resources: disk cache, conversion, queues,
 # protocol transfer and pixel reuse. These suites use both controlled mocks and
 # real conversions, so headless execution also covers integration behavior.
-run_test disk_cache.lua
-run_test conversion.lua
-run_test media_prepare.lua
-run_test conversion_queue.lua
-run_test transfer.lua
-run_test pixel_pool.lua
-run_test render_session.lua
+run_test media/disk_cache.lua
+run_test media/conversion.lua
+run_test media/prepare.lua
+run_test media/conversion_queue.lua
+run_test terminal/transfer.lua
+run_test terminal/pixel_pool.lua
+run_test render/session.lua
 
 # 3. Image insertion, clipboard adapters and picker integration.
-# clipboard.lua uses fake commands without accessing the system clipboard.
-# picker.lua checks IMAGE_TOOLS_SNACKS_ROOT and reports a skip when unconfigured.
-# clipboard_native.lua requires a prepared system clipboard and runs separately.
-run_test insert.lua
-run_test clipboard.lua
-run_test picker.lua
+# workflow/clipboard.lua uses fake commands without accessing the system clipboard.
+# workflow/picker.lua checks IMAGE_TOOLS_SNACKS_ROOT and reports a skip when unconfigured.
+# manual/clipboard_native.lua requires a prepared system clipboard and runs separately.
+run_test workflow/insert.lua
+run_test workflow/clipboard.lua
+run_test workflow/picker.lua
 
 # 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter
 # queries/fallback. treesitter.lua always runs and reports skipped real-language
@@ -121,15 +123,15 @@ fi
 run_test document/tex.lua
 run_test document/tex_multiline.lua
 run_test document/typst.lua
-run_test buffer.lua
-run_test canvas_bounds.lua
+run_test render/buffer.lua
+run_test render/canvas_bounds.lua
 
 # 7. Real Neovim TUI: Python starts Neovim in a PTY and simulates Kitty replies.
 # Checks uploads, placeholders, caches and window lifecycle. Visible pixels still
-# require a real Kitty check. tui.py launches tui*.lua; those Lua files require TUI
-# execution and should not be run as headless tests.
+# require a real Kitty check. tui/run.py launches the Lua scenarios in tui/;
+# those files require TUI execution and should not be run as headless tests.
 if command -v python3 >/dev/null 2>&1; then
-  run_suite tests/tui.py python3 "$root/tests/tui.py"
+  run_suite tests/tui/run.py python3 "$root/tests/tui/run.py"
 else
   log skip 'TUI protocol tests: python3 unavailable'
 fi

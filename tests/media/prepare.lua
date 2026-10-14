@@ -3,7 +3,7 @@ local Prepare, Disk = require("image_tools.media.prepare"), require("image_tools
 local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/media-lease"
 vim.fn.mkdir(tmp, "p")
 local source = tmp .. "/source.jpg"
-assert(vim.system({ "magick", vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", source }):wait().code == 0)
+assert(vim.system({ "magick", vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", source }):wait().code == 0)
 local opts = require("image_tools.config").resolve({ cache = tmp .. "/cache", disk_cache = { enabled = false } })
 local count = 0
 local function check(value, message)

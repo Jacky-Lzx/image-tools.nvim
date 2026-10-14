@@ -83,7 +83,7 @@ vim.api.nvim_buf_set_lines(markdown, 0, 1, false, { "ordinary" })
 check(D.at_line(markdown, 2, opts) == tmp .. "/a.png", "Markdown fence invalidation")
 vim.fn.mkdir(tmp .. "/one", "p")
 vim.fn.mkdir(tmp .. "/two", "p")
-local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
+local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 vim.uv.fs_copyfile(fixture, tmp .. "/one/a.png")
 vim.uv.fs_copyfile(fixture, tmp .. "/two/a.png")
 local tex = buffer("tex", { "\\graphicspath{{one/}}", "\\includegraphics{a}" })

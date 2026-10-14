@@ -140,14 +140,20 @@ vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil)
 vim.bo.filetype = "tex"
-vim.api.nvim_buf_set_lines(0, 0, -1, false, { "\\includegraphics{" .. root .. "/tests/fixture.png}", "plain text" })
+vim.api.nvim_buf_set_lines(
+  0,
+  0,
+  -1,
+  false,
+  { "\\includegraphics{" .. root .. "/tests/fixtures/fixture.png}", "plain text" }
+)
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 api.setup({ auto_preview = true })
 local expected = #requests + 1
 vim.wait(100, function()
   return #requests == expected
 end)
-eq(requests[#requests].path, root .. "/tests/fixture.png", "LaTeX automatic reference")
+eq(requests[#requests].path, root .. "/tests/fixtures/fixture.png", "LaTeX automatic reference")
 requests[#requests].callback(nil, fixture)
 window = assert(api.status().window)
 vim.api.nvim_win_set_cursor(0, { 1, 10 })
@@ -158,14 +164,14 @@ vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil, "LaTeX leaving line closes preview")
 vim.bo.filetype = "typst"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { '#image("fixture.png")', "plain text" })
-vim.api.nvim_buf_set_name(0, root .. "/tests/preview.typ")
+vim.api.nvim_buf_set_name(0, root .. "/tests/fixtures/preview.typ")
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
 api.setup({ auto_preview = true })
 expected = #requests + 1
 vim.wait(100, function()
   return #requests == expected
 end)
-eq(requests[#requests].path, root .. "/tests/fixture.png", "Typst automatic reference")
+eq(requests[#requests].path, root .. "/tests/fixtures/fixture.png", "Typst automatic reference")
 requests[#requests].callback(nil, fixture)
 window = assert(api.status().window)
 vim.api.nvim_win_set_cursor(0, { 1, 10 })

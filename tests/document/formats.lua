@@ -4,7 +4,7 @@ local D, I, Picker =
 local tmp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/format-policy"
 vim.fn.mkdir(tmp .. "/chapter", "p")
 local source = tmp .. "/image space.png"
-assert(vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", source))
+assert(vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", source))
 local count, config = 0, nil
 local function check(value, message)
   count = count + 1

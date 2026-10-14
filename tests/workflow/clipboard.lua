@@ -1,9 +1,9 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
 local tmp = assert(vim.env.IMAGE_TOOLS_TEST_TMP) .. "/clipboard"
 vim.fn.mkdir(tmp, "p")
-local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
+local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 local script = tmp .. "/fake pngpaste"
-vim.fn.writefile({ "#!/bin/sh", 'cp "$IMAGE_TOOLS_ROOT/tests/fixture.png" "$1"' }, script)
+vim.fn.writefile({ "#!/bin/sh", 'cp "$IMAGE_TOOLS_ROOT/tests/fixtures/fixture.png" "$1"' }, script)
 vim.uv.fs_chmod(script, 493)
 local C = require("image_tools.workflow.clipboard")
 local count = 0

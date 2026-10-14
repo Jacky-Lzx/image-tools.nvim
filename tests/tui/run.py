@@ -18,7 +18,7 @@ import tempfile
 import termios
 import time
 
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[2]
 pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
 sgr_pattern = re.compile(rb"\x1b\[([0-9;:]*)m")
 
@@ -54,14 +54,14 @@ def test_rgb_colors():
 def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
-        fixture = (root / "tests/fixture.png").read_bytes()
-        shutil.copyfile(root / "tests/fixture.png", temporary / "中文 image (1).png")
+        fixture = (root / "tests/fixtures/fixture.png").read_bytes()
+        shutil.copyfile(root / "tests/fixtures/fixture.png", temporary / "中文 image (1).png")
         if cursor:
-            shutil.copyfile(root / "tests/fixture.png", temporary / "second.png")
+            shutil.copyfile(root / "tests/fixtures/fixture.png", temporary / "second.png")
         if buffer:
-            shutil.copyfile(root / "tests/fixture.pdf", temporary / "pages.pdf")
+            shutil.copyfile(root / "tests/fixtures/fixture.pdf", temporary / "pages.pdf")
         if latex:
-            shutil.copyfile(root / "tests/fixture.pdf", temporary / "SC_multiplier_accurate.pdf")
+            shutil.copyfile(root / "tests/fixtures/fixture.pdf", temporary / "SC_multiplier_accurate.pdf")
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 100, 1000, 640))
         env = os.environ.copy()
@@ -74,13 +74,13 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
         )
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
-        command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui_picker.lua" if picker else "tests/tui.lua"))]
+        command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui/picker.lua" if picker else "tests/tui/preview.lua"))]
         if cursor:
-            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui_cursor.lua")]
+            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/cursor.lua")]
         if latex:
-            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui_latex.lua")]
+            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/latex.lua")]
         if buffer:
-            command = ["nvim", "-u", str(root / "tests/tui_buffer.lua"), "-i", "NONE", "--noplugin", str(temporary / "中文 image (1).png")]
+            command = ["nvim", "-u", str(root / "tests/tui/buffer.lua"), "-i", "NONE", "--noplugin", str(temporary / "中文 image (1).png")]
         process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()

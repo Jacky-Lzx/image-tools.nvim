@@ -6,7 +6,7 @@ local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/tex"
 vim.fn.mkdir(tmp .. "/plots", "p")
 tmp = assert(vim.uv.fs_realpath(tmp))
 
-local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
+local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 vim.uv.fs_copyfile(source, tmp .. "/plots/figure.png")
 vim.uv.fs_copyfile(source, tmp .. "/percent%20.png")
 

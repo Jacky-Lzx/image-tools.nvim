@@ -45,7 +45,7 @@ check(text:find("Limits: 256 file(s) / 512.00 MiB", 1, true), "Default limits ar
 local folder = tmp .. "/configured"
 vim.fn.mkdir(folder, "p")
 local path = folder .. "/" .. vim.fn.sha256("one") .. ".png"
-assert(vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", path))
+assert(vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", path))
 vim.fn.writefile({ "ignore" }, folder .. "/notes.txt")
 local symlink = folder .. "/" .. vim.fn.sha256("link") .. ".png"
 assert(vim.uv.fs_symlink(path, symlink))

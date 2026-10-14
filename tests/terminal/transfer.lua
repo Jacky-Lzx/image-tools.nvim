@@ -22,7 +22,7 @@ local opts = {
   terminal_cache = { max_images = 2, max_bytes = 64000 * 2 },
 }
 local path = temporary .. "/中文 image (1).png"
-assert(vim.uv.fs_copyfile(root .. "/tests/fixture.png", path))
+assert(vim.uv.fs_copyfile(root .. "/tests/fixtures/fixture.png", path))
 
 -- Real asynchronous metadata reads must avoid reading the entire PNG.
 local real_read, sizes = vim.uv.fs_read, {}

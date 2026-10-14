@@ -51,7 +51,58 @@ lua/image_tools/
 `require("image_tools.document")` retains `supported`, `parse`, `base`,
 `resolve`, `at_line` and `at_cursor`. Format modules use the path and
 syntax-cache helpers directly, without importing the dispatcher. Format tests
-live in `tests/document/`; shared image/PDF fixtures remain in `tests/`.
+live in `tests/document/`; shared image/PDF fixtures live in `tests/fixtures/`.
+
+## Test Layout
+
+```
+tests/
+  run.sh                     explicit suite list, isolation and status logs
+  core/
+    regression.lua           combined API/protocol/preview regressions
+    runtime.lua              setup, dependency injection and teardown
+    health.lua               diagnostics and cache inspection
+    line_lifecycle.lua       line selection, edits and asynchronous cancellation
+    cursor_lifecycle.lua     cursor-based reference selection
+    tex_range_lifecycle.lua  multiline reference lifecycle
+  document/                  existing format/parser/indexing suites
+  media/
+    conversion.lua           real conversions and coalescing
+    prepare.lua              preparation leases
+    conversion_queue.lua     process scheduling and cancellation
+    disk_cache.lua           disk limits, leases and cleanup
+  render/
+    buffer.lua               file-buffer and PDF paging behavior
+    canvas_bounds.lua        viewport geometry and owner boundaries
+    session.lua              preparation/placement resource lifecycle
+  terminal/
+    transfer.lua             protocol transmission, replies and cache reuse
+    pixel_pool.lua           shared ownership and independent placements
+  workflow/
+    insert.lua               import, extmarks, batches and rollback
+    clipboard.lua            simulated clipboard commands
+    picker.lua               optional real Snacks integration
+  tui/
+    run.py                   PTY runner and Kitty protocol responder
+    preview.lua              floating preview scenario
+    buffer.lua               image/PDF buffer scenario
+    picker.lua               optional Snacks scenario
+    cursor.lua               reference-selection scenario
+    latex.lua                multiline PDF-reference scenario
+  manual/
+    clipboard_native.lua     opt-in prepared-system-clipboard check
+  fixtures/
+    fixture.png              raster fixture
+    fixture.pdf              two-page PDF fixture
+    demo.md                  interactive preview example
+```
+
+`tests/run.sh` retains the explicit suite order and optional-dependency gates.
+Each headless Lua suite starts in a fresh Neovim process. `tui/run.py` locates the
+repository from its own path and launches the adjacent Lua scenarios in a PTY;
+these are not standalone headless tests. The native clipboard check is excluded
+from automatic runs. Moving fixtures does not change their bytes; the demo's
+relative image link resolves within the fixture directory.
 
 ## Terminal Ownership
 

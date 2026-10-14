@@ -23,8 +23,8 @@ end
 local function set(buf, lines)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
 end
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/a.png")
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/b.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/a.png")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/b.png")
 local config = require("image_tools.config")
 check(config.resolve({}).treesitter == true, "Tree-sitter defaults on")
 check(config.resolve({ treesitter = false }).treesitter == false, "Lexer can be selected explicitly")
@@ -138,7 +138,7 @@ for ft, lang in pairs({ tex = "latex", typst = "typst" }) do
         check(D.at_line(buf, 1, opts) == tmp .. "/a.png", "Literal compatibility: " .. command)
       end
       vim.fn.mkdir(tmp .. "/plots", "p")
-      vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", tmp .. "/plots/only.png")
+      vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", tmp .. "/plots/only.png")
       set(buf, { [[\graphicspath{{plots/}}]], [[\includegraphics{only}]] })
       check(D.at_line(buf, 2, opts) == tmp .. "/plots/only.png", "Tree-sitter graphicspath and extension lookup")
       set(buf, { [[\verb|\graphicspath{{plots/}}|]], [[\includegraphics{only}]] })

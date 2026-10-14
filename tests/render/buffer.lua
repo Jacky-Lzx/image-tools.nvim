@@ -4,7 +4,7 @@ local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/buffer"
 vim.fn.mkdir(tmp, "p")
 tmp = assert(vim.uv.fs_realpath(tmp))
 local png = tmp .. "/picture.PNG"
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png", png)
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png", png)
 local original_hash = vim.fn.sha256(table.concat(vim.fn.readfile(png, "b"), "\n"))
 local writes, count = {}, 0
 local function check(value, msg)
@@ -172,7 +172,7 @@ image.setup({ auto_preview = false, cache = tmp .. "/cache" })
 check(ready(second), "Repeated setup reconnects loaded image buffers")
 check(vim.fn.sha256(table.concat(vim.fn.readfile(png, "b"), "\n")) == original_hash, "Setup does not alter source")
 -- Real two-page PDF fixture with distinct colors; prove paging changes pixels.
-vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.pdf", tmp .. "/pages.pdf")
+vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.pdf", tmp .. "/pages.pdf")
 local pdf = tmp .. "/pages.pdf"
 local pdf_hash = vim.fn.sha256(table.concat(vim.fn.readfile(pdf, "b"), "\n"))
 check(image.open(pdf), "ImageOpen opens PDF")
