@@ -5,7 +5,7 @@
 --   view.
 --
 -- Architecture:
---   Bridge the image facade and a transfer manager. Controllers supply
+--   Bridge the media entry point and a transfer manager. Controllers supply
 --   authority checks, size, drawing and error callbacks, keeping window policy
 --   outside the shared lifecycle.
 --

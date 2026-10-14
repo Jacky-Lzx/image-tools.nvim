@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local I = require("image_tools.image")
+local I = require("image_tools.media")
 local tmp = assert(vim.uv.fs_realpath(assert(vim.env.IMAGE_TOOLS_TEST_TMP))) .. "/conversion"
 vim.fn.mkdir(tmp, "p")
 local source = tmp .. "/source.jpg"

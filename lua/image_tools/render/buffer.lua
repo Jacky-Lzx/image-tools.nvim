@@ -143,7 +143,7 @@ function M:reload(buf)
   elseif stat.size > self.opts.max_bytes then
     meta.error = "File exceeds max_bytes"
   else
-    meta.key = require("image_tools.image").key(meta.path, stat)
+    meta.key = require("image_tools.media").key(meta.path, stat)
   end
 
   if meta.pdf and not meta.error then
@@ -257,7 +257,7 @@ function M:sync()
 
         local stat = vim.uv.fs_stat(meta.path)
         if
-          stat and (not meta.key or require("image_tools.image").key(meta.path, stat) ~= meta.key)
+          stat and (not meta.key or require("image_tools.media").key(meta.path, stat) ~= meta.key)
           or not stat and not meta.error
         then
           self:reload(buf)
@@ -336,7 +336,7 @@ end
 
 function M:open(path)
   self.paused = false
-  if type(path) ~= "string" or path == "" or not require("image_tools.image").supported(path) then
+  if type(path) ~= "string" or path == "" or not require("image_tools.media").supported(path) then
     return false, "Choose a supported image or PDF file"
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))

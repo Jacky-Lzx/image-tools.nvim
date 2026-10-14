@@ -36,7 +36,7 @@ terminal-cache keys. Existing file modification times supply the initial order
 after a restart. Workers and subscribers hold reference-counted file leases; files
 remain protected until subscribers release or close their preparation handles.
 Cancelling a pending request releases its work; after delivery, the separate
-release/close operation unpins its output. The compatibility image.prepare
+release/close operation unpins its output. The media entry point's prepare
 cancel function performs close. Readers
 arriving during a deletion wait for it before checking/recreating the output.
 Active files may temporarily exceed the budget; releasing them triggers deferred

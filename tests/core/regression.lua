@@ -103,7 +103,7 @@ assert(protocol.place(123, 3, 2):find("U=1", 1, true))
 assert(protocol.delete(123):find("d=I", 1, true))
 assert(not protocol.delete(123):find("d=A", 1, true))
 
-local image = require("image_tools.image")
+local image = require("image_tools.media")
 local fixture = root .. "/tests/fixtures/fixture.png"
 local prepared, failure
 image.prepare(fixture, opts, function(err, value)

@@ -4,7 +4,7 @@
 --   Define defaults and resolve independent, validated option tables.
 --
 -- Architecture:
---   Used by the public facade and internal services. Consult the image facade
+--   Used by the public facade and internal services. Consult the media entry point
 --   for supported buffer formats; leave handler registration and resource
 --   allocation to runtime.
 --
@@ -94,7 +94,7 @@ function M.resolve(opts)
     assert(
       type(extension) == "string"
         and extension:match("^%a+$")
-        and require("image_tools.image").supported("file." .. extension),
+        and require("image_tools.media").supported("file." .. extension),
       "Unsupported buffer format"
     )
   end

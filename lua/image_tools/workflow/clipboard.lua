@@ -184,7 +184,7 @@ function M.paste(opts, callback, dependencies)
       end
 
       -- Validate PNG before copying it into the user's document resources.
-      state.cancel_read = require("image_tools.image").read(png, {
+      state.cancel_read = require("image_tools.media").read(png, {
         max_bytes = opts.max_bytes or 32 * 1024 * 1024,
         max_dimension = opts.max_dimension or 16384,
         max_pixels = opts.max_pixels or 64 * 1024 * 1024,

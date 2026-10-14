@@ -248,7 +248,7 @@ function M.files(paths, opts, callback)
           local after = uv.fs_stat(source)
           if
             not after
-            or require("image_tools.image").key(source, stat) ~= require("image_tools.image").key(source, after)
+            or require("image_tools.media").key(source, stat) ~= require("image_tools.media").key(source, after)
           then
             fail("Image source changed during import")
             return

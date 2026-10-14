@@ -29,8 +29,8 @@ package.loaded["image_tools.terminal"] = {
     return function() end
   end,
 }
-local real_image = require("image_tools.image")
-package.loaded["image_tools.image"] = {
+local real_image = require("image_tools.media")
+package.loaded["image_tools.media"] = {
   supported = real_image.supported,
   prepare = function(path, _, callback)
     requests[#requests + 1] = { path = path, callback = callback }

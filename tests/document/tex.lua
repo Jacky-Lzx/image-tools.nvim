@@ -83,7 +83,7 @@ if vim.fn.executable("pdflatex") == 1 then
     )
   end
   local completed, prepare_err, image
-  require("image_tools.image").prepare(tmp .. "/main.pdf", {
+  require("image_tools.media").prepare(tmp .. "/main.pdf", {
     transport = "auto",
     magick = "magick",
     cache = tmp .. "/cache",

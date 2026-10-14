@@ -212,9 +212,9 @@ check(
   "PDF stays unchanged"
 )
 -- Pending conversion cannot reappear after switching its source window.
-local real_image = require("image_tools.image")
+local real_image = require("image_tools.media")
 local pending
-package.loaded["image_tools.image"] = vim.tbl_extend("force", real_image, {
+package.loaded["image_tools.media"] = vim.tbl_extend("force", real_image, {
   prepare = function(_, _, cb)
     pending = cb
     return function() end
@@ -232,7 +232,7 @@ vim.wait(50)
 local old = #writes
 pending(nil, { path = png, width = 160, height = 100, key = "stale" })
 check(#writes == old, "Late conversion cannot restore a closed view")
-package.loaded["image_tools.image"] = real_image
+package.loaded["image_tools.media"] = real_image
 image.clear_cache()
 vim.api.nvim_buf_delete(buf, { force = true })
 vim.api.nvim_buf_delete(pdfbuf, { force = true })

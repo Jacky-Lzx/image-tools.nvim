@@ -31,7 +31,7 @@ package.loaded["image_tools.terminal"] = {
     end
   end,
 }
-local original = require("image_tools.image")
+local original = require("image_tools.media")
 local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
 require("snacks").setup({ image = { enabled = false }, picker = { enabled = true } })
 local count = 0
@@ -144,7 +144,7 @@ check(renderer.transfer:status().placements == 0, "Close releases picker placeme
 check(not renderer.group, "Close removes lifecycle group")
 check(vim.api.nvim_buf_is_valid(buf), "Source buffer retained")
 -- A slow conversion cancelled by moving to a different selection cannot draw late.
-package.loaded["image_tools.image"] = {
+package.loaded["image_tools.media"] = {
   supported = original.supported,
   prepare = function(_, _, cb)
     pending[#pending + 1] = cb
@@ -168,6 +168,6 @@ pending[#pending](nil, { path = source, width = 160, height = 100, key = "late",
 check(not renderer.state and #requests == previous, "Stale selection never uploads")
 picker:close()
 check(cancelled == "Cancelled", "Closing picker cancels insertion context")
-package.loaded["image_tools.image"] = original
+package.loaded["image_tools.media"] = original
 check(package.loaded["snacks.image"] == nil, "Snacks.image remained disabled")
 print("picker: " .. count .. " assertions with real Snacks windows passed")

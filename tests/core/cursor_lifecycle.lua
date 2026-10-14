@@ -36,8 +36,8 @@ package.loaded["image_tools.terminal"] = {
     return function() end
   end,
 }
-local image = require("image_tools.image")
-package.loaded["image_tools.image"] = vim.tbl_extend("force", image, {
+local image = require("image_tools.media")
+package.loaded["image_tools.media"] = vim.tbl_extend("force", image, {
   prepare = function(path, _, callback)
     local request = { path = path, callback = callback }
     requests[#requests + 1] = request

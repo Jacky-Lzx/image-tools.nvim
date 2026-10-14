@@ -256,8 +256,10 @@ Protocol reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
 
 Implementation modules are grouped under `document/`, `media/`, `render/`,
 `terminal/` and `workflow/`. The public API, configuration, runtime coordinator,
-commands, health entry and media facade remain at the package root. Internal
-module imports use the grouped paths; dependency injection keeps its logical
+commands and health entry remain at the package root. `require("image_tools.media")`
+provides the media entry point from `media/init.lua`; the former
+`image_tools.image` module path is removed. Internal imports use the grouped
+paths; dependency injection keeps its logical
 keys. See [module architecture](doc/architecture.md) for the file layout and
 ownership boundaries.
 

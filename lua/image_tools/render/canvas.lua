@@ -15,6 +15,7 @@
 
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
+  image = "image_tools.media",
   protocol = "image_tools.terminal.protocol",
 }
 

@@ -1,12 +1,12 @@
--- Module: image_tools.image
+-- Module: image_tools.media
 --
 -- Purpose:
---   Preserve the image helper API while delegating to the media subsystem.
+--   Provide the unified entry point for image formats, reads and preparation.
 --
 -- Architecture:
 --   Forward format checks, PNG inspection/reads and file-version keys to media
---   helpers. Adapt media/prepare request handles into the existing preparation
---   cancellation function.
+--   helpers. Adapt media/prepare request handles into a cancellation function that
+--   also releases the preparation lease.
 --
 -- Ownership:
 --   Own no cache or worker state. The returned preparation cancel function
@@ -28,7 +28,7 @@ function M.read(path, opts, callback, metadata_only)
 end
 function M.prepare(path, opts, callback)
   local request = require("image_tools.media.prepare").request(path, opts, callback)
-  -- Preserve the existing cancellation function, which also releases resources.
+  -- Closing the preparation handle cancels delivery and releases resources.
   return request.close
 end
 

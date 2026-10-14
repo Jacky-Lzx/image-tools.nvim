@@ -16,6 +16,7 @@
 
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
+  image = "image_tools.media",
   protocol = "image_tools.terminal.protocol",
 }
 
@@ -230,7 +231,7 @@ end
 -- Public custom previewer: uses picker lifecycle, not cursor-line ownership.
 function M.preview(ctx, opts, dependencies)
   local path = Snacks.picker.util.path(ctx.item)
-  if path and require("image_tools.image").supported(path) then
+  if path and require("image_tools.media").supported(path) then
     local renderer = ctx.picker._image_tools_preview
     if not renderer then
       renderer = M.new(ctx.picker, opts, dependencies)

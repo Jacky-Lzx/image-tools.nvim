@@ -4,7 +4,7 @@
 --   Coordinate media preparation and coalesce matching conversion requests.
 --
 -- Architecture:
---   Dispatch native PNG reads or media/convert workers behind the image facade.
+--   Dispatch native PNG reads or media/convert workers behind the media entry point.
 --   Share a convertible-source worker while delivering independent metadata and
 --   cancel/release/close handles to subscribers.
 --

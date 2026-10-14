@@ -26,7 +26,7 @@ function M.info(path, opts, callback)
     if cancelled then
       return
     end
-    local image = require("image_tools.image")
+    local image = require("image_tools.media")
     local stat = vim.uv.fs_stat(path)
     if not stat or stat.type ~= "file" then
       done("PDF is missing or not a regular file")

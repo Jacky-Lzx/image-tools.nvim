@@ -14,7 +14,6 @@ lua/image_tools/
   runtime.lua              editor lifecycle and subsystem coordination
   commands.lua             user commands
   health.lua               Neovim checkhealth entry point
-  image.lua                media compatibility facade
   document/
     init.lua               document API
     formats.lua            filetype aliases and adapter dispatch
@@ -26,6 +25,7 @@ lua/image_tools/
     syntax_cache.lua       buffer results and prefix checkpoints
     treesitter.lua         async syntax indexing and diagnostics
   media/
+    init.lua               unified image helper API
     formats.lua            supported preview formats
     file_version.lua       source revision keys
     png.lua                PNG reads and validation
@@ -57,6 +57,11 @@ lua/image_tools/
 `resolve`, `at_line` and `at_cursor`. Format modules use the path and
 syntax-cache helpers directly, without importing the dispatcher. Format tests
 live in `tests/document/`; shared image/PDF fixtures live in `tests/fixtures/`.
+
+`require("image_tools.media")` is the entry point for format checks, PNG reads,
+revision keys and preparation. The former `image_tools.image` module is removed
+without a compatibility alias. Injected media overrides still use the logical
+`image` key; controllers map its default to `image_tools.media`.
 
 ## Test Layout
 
@@ -134,12 +139,12 @@ helpers do not depend on a particular controller.
 
 ## Media Preparation and Process Budget
 
-`image` is the compatibility facade. `media/png` reads and validates PNG data;
+`media/init` is the unified entry point. `media/png` reads and validates PNG data;
 `media/file_version` identifies source revisions; `media/formats` lists preview
 formats; `media/convert` constructs converters and publishes validated outputs.
 `media/prepare` owns process-scoped coalesced workers. Each request has separate
 `cancel`, `release` and `close` operations: cancellation suppresses pending delivery;
-release unpins delivered files; close performs both. The old `image.prepare`
+release unpins delivered files; close performs both. The `media.prepare`
 cancellation function delegates to close. Successful preparation keeps each
 subscriber's disk lease until the view closes.
 

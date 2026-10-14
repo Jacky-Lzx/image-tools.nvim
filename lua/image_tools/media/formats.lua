@@ -4,7 +4,7 @@
 --   Define preview format capabilities and normalize filename extensions.
 --
 -- Architecture:
---   Used by the image facade, converters, document insertion rules and
+--   Used by the media entry point, converters, document insertion rules and
 --   file-buffer validation. Treat PNG as the native path and expose the other
 --   supported formats for conversion.
 --

@@ -95,7 +95,7 @@ vim.fn.writefile({
   [[<svg xmlns="http://www.w3.org/2000/svg" width="160" height="100"><rect width="160" height="100" fill="red"/></svg>]],
 }, svg)
 local completed, prepare_err, image
-require("image_tools.image").prepare(svg, {
+require("image_tools.media").prepare(svg, {
   transport = "auto",
   magick = "magick",
   cache = tmp .. "/cache",
@@ -135,7 +135,7 @@ if vim.fn.executable("typst") == 1 then
   check(D.at_line(buf, 3, { max_scan_lines = 100 }) == paths[2], "PDF inserted reference")
 end
 completed, prepare_err, image = nil, nil, nil
-require("image_tools.image").prepare(svg, {
+require("image_tools.media").prepare(svg, {
   transport = "auto",
   magick = "magick",
   rsvg = tmp .. "/missing-rsvg",
