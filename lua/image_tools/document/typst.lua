@@ -197,20 +197,20 @@ function M.find(buf, row, col, opts)
   if not line:find("image%s*%(") then
     return nil, "No supported image reference on the current line"
   end
-  local candidates = require("image_tools.syntax_cache").query(buf, row, "typst", {}, M.scan)
+  local candidates = require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
   local document = vim.api.nvim_buf_get_name(buf)
   for _, image in ipairs(candidates) do
     if col == nil or col >= image.start_col and col < image.end_col then
       if image.src:find("%c") then
         return nil, "Invalid Typst image path"
       end
-      local root = image.src:sub(1, 1) == "/" and require("image_tools.document").base(document, opts, buf)
+      local root = image.src:sub(1, 1) == "/" and require("image_tools.document.paths").base(document, opts, buf)
         or vim.fs.dirname(document)
       if document == "" then
         return nil, "Save the document before previewing an image reference"
       end
       local src = image.src:sub(1, 1) == "/" and image.src:gsub("^/+", "") or image.src
-      return require("image_tools.document").resolve(
+      return require("image_tools.document.paths").resolve(
         src,
         document,
         vim.tbl_extend("force", opts, { root = root, literal = true })

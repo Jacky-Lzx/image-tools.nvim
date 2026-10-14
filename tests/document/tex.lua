@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local I, D, T = require("image_tools.insert"), require("image_tools.document"), require("image_tools.tex")
+local I, D, T = require("image_tools.insert"), require("image_tools.document"), require("image_tools.document.tex")
 local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/tex"
 vim.fn.mkdir(tmp .. "/plots", "p")
 tmp = assert(vim.uv.fs_realpath(tmp))

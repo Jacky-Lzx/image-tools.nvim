@@ -1,5 +1,6 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local D, C, T = require("image_tools.document"), require("image_tools.syntax_cache"), require("image_tools.typst")
+local D, C, T =
+  require("image_tools.document"), require("image_tools.document.syntax_cache"), require("image_tools.document.typst")
 local tmp = assert(vim.uv.fs_realpath(assert(vim.env.IMAGE_TOOLS_TEST_TMP)))
 local opts, checks = { max_scan_lines = 10000 }, 0
 local function check(value, message)

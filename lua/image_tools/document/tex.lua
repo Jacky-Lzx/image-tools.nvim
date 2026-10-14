@@ -159,16 +159,19 @@ function M.find(buf, row, col, opts)
   if not line:find("\\includegraphics", 1, true) then
     return nil, "No supported image reference on the current line"
   end
-  local syntax = require("image_tools.syntax_cache").query(buf, row, "tex", {}, scan)
+  local syntax = require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
   if syntax.blocked then
     return nil, "Cursor is inside a verbatim/comment environment"
   end
   local document = vim.api.nvim_buf_get_name(buf)
-  local resolve_opts =
-    vim.tbl_extend("force", opts, { literal = true, root = require("image_tools.document").base(document, opts, buf) })
+  local resolve_opts = vim.tbl_extend(
+    "force",
+    opts,
+    { literal = true, root = require("image_tools.document.paths").base(document, opts, buf) }
+  )
   for _, candidate in ipairs(syntax.candidates) do
     if col == nil or col >= candidate.start_col and col < candidate.end_col then
-      local path, err = require("image_tools.document").resolve(candidate.src, document, resolve_opts)
+      local path, err = require("image_tools.document.paths").resolve(candidate.src, document, resolve_opts)
       if not path then
         return nil, err
       end
@@ -176,7 +179,7 @@ function M.find(buf, row, col, opts)
       if candidate.src:sub(1, 1) ~= "/" then
         for _, directory in ipairs(syntax.directories) do
           local resolved =
-            require("image_tools.document").resolve(directory .. "/" .. candidate.src, document, resolve_opts)
+            require("image_tools.document.paths").resolve(directory .. "/" .. candidate.src, document, resolve_opts)
           if resolved then
             paths[#paths + 1] = resolved
           end

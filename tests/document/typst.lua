@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local T, D, I = require("image_tools.typst"), require("image_tools.document"), require("image_tools.insert")
+local T, D, I = require("image_tools.document.typst"), require("image_tools.document"), require("image_tools.insert")
 local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/typst"
 vim.fn.mkdir(tmp, "p")
 tmp = assert(vim.uv.fs_realpath(tmp))
