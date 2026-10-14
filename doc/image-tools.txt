@@ -128,7 +128,12 @@ latex/typst language parsers; nvim-treesitter is not a required dependency.
 Missing parsers, incompatible queries, parsing failures or syntax errors in
 preceding context fall back to the cached Lua scanner. Valid empty results do not
 fall back. Set treesitter=false to always
-use the scanner. Syntax is cached until edits; path resolution stays live.
+use the scanner. Parses are asynchronous; pending work does not start a lexical
+scan. Queries stop at the requested row (bounded by max_scan_lines). Edits and
+parser change ranges invalidate the affected suffix, retaining valid prefixes.
+Path resolution stays live. status().treesitter and :checkhealth image_tools
+report backend/fallback reasons, parse/index timing, hits and indexed rows.
+Parse timing includes time yielded to the event loop.
 Markdown uses its existing scanner. Formula preview is not included.
 
 tex/latex/plaintex: same-line \includegraphics[options]{path}, starred form,

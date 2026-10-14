@@ -111,6 +111,10 @@ text = report()
 check(cancelled and text:find("inspection timed out", 1, true), "Timed-out inspection is cancelled and reported")
 disk.inspect = inspect
 vim.wait = wait
+api.setup({ auto_preview = false, treesitter = false, cache = folder })
+text = report()
+check(text:find("Tree-sitter: disabled; using Lua scanner", 1, true), "Explicit scanner backend is described")
+check(text:find("index hit(s)", 1, true), "Syntax counters appear without parser initialization")
 for name, callback in pairs(original) do
   vim.health[name] = callback
 end

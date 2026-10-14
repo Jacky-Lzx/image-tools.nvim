@@ -1,5 +1,24 @@
 local M = {}
 local entries, attached, queries = {}, {}, {}
+local diagnostics = {}
+local totals = { parses = 0, hits = 0, indexed_rows = 0, fallbacks = {} }
+local function report(buf, lang, backend, reason, detail)
+  local state = diagnostics[buf] or { lang = lang }
+  state.lang, state.backend, state.reason, state.detail = lang, backend, reason, detail
+  diagnostics[buf] = state
+  if reason then
+    totals.fallbacks[reason] = (totals.fallbacks[reason] or 0) + 1
+  end
+  return state
+end
+function M.status(buf)
+  if buf == nil or buf == 0 then
+    buf = vim.api.nvim_get_current_buf()
+  end
+  local result = vim.deepcopy(totals)
+  result.current = vim.deepcopy(diagnostics[buf])
+  return result
+end
 local watched = setmetatable({}, { __mode = "k" })
 local sources = {
   latex = [[
@@ -137,20 +156,39 @@ end
 -- while Neovim is yielding a large parse back to the event loop.
 function M.query(buf, row, lang, ready)
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
+  if not attached[buf] then
+    attached[buf] = vim.api.nvim_buf_attach(buf, false, {
+      on_lines = function(_, _, _, first)
+        invalidate(entries[buf], first)
+      end,
+      on_reload = function()
+        entries[buf] = nil
+      end,
+      on_detach = function()
+        entries[buf], attached[buf], diagnostics[buf] = nil, nil, nil
+      end,
+    })
+  end
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = entries[buf]
   if not entry or entry.tick ~= tick or entry.lang ~= lang then
+    local stage = "parser_unavailable"
     local ok, parser, query = pcall(function()
       local parser = vim.treesitter.get_parser(buf, lang)
       if not parser then
         return
       end
-      queries[lang] = queries[lang] or vim.treesitter.query.parse(lang, sources[lang])
-      return parser, queries[lang]
+      stage = "query_error"
+      local query = queries[lang] or vim.treesitter.query.parse(lang, sources[lang])
+      return parser, query
     end)
     if not ok or not parser then
+      report(buf, lang, "lexer", stage, not ok and tostring(parser) or "No buffer parser")
       return
     end
+    local started = vim.uv.hrtime()
+    totals.parses = totals.parses + 1
+    report(buf, lang, "pending")
     local previous = entry and entry.lang == lang and (entry.previous or entry)
     if previous and not previous.frontier then
       previous = nil
@@ -167,19 +205,6 @@ function M.query(buf, row, lang, ready)
       })
     end
     entries[buf] = entry
-    if not attached[buf] then
-      attached[buf] = vim.api.nvim_buf_attach(buf, false, {
-        on_lines = function(_, _, _, first)
-          invalidate(entries[buf], first)
-        end,
-        on_reload = function()
-          entries[buf] = nil
-        end,
-        on_detach = function()
-          entries[buf], attached[buf] = nil, nil
-        end,
-      })
-    end
     local function complete(err, trees)
       if not entry.pending then
         return
@@ -192,12 +217,16 @@ function M.query(buf, row, lang, ready)
         return
       end
       entry.pending = false
+      local state = report(buf, lang, "treesitter")
+      state.parse_ms = (vim.uv.hrtime() - started) / 1e6
       if not err and trees and trees[1] then
+        queries[lang] = query
         local result = previous or { rows = {}, directories = {}, errors = {}, frontier = 0 }
         result.tick, result.lang, result.tree, result.query = tick, lang, trees[1], query
         entries[buf] = result
       else
         entries[buf] = { tick = tick, lang = lang, failed = true }
+        report(buf, lang, "lexer", "parse_error", tostring(err or "No syntax tree"))
       end
       for _, callback in ipairs(entry.waiters) do
         vim.schedule(function()
@@ -227,17 +256,26 @@ function M.query(buf, row, lang, ready)
     return
   end
   if entry.frontier < row then
-    local ok = pcall(index, buf, entry, row)
+    local first, started = entry.frontier, vim.uv.hrtime()
+    local ok, err = pcall(index, buf, entry, row)
+    local state = diagnostics[buf]
+    state.index_ms = (vim.uv.hrtime() - started) / 1e6
+    totals.indexed_rows = totals.indexed_rows + row - first
     if not ok then
+      report(buf, lang, "lexer", "index_error", tostring(err))
       entry.failed = true
       return
     end
+  else
+    totals.hits = totals.hits + 1
   end
+  report(buf, lang, "treesitter")
   local candidates = entry.rows[row] or {}
   for _, err in ipairs(entry.errors) do
     -- Error recovery can expose calls inside unfinished raw/environment blocks.
     -- When preceding context is unreliable, let the existing lexer handle it.
     if err.row < row or err.row == row and candidates[1] and err.col < candidates[1].start_col then
+      report(buf, lang, "lexer", "error_context", "Syntax error at line " .. err.row)
       return
     end
   end

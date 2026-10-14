@@ -46,12 +46,28 @@ for _, failure in ipairs({ "missing", "nil", "parse", "query" }) do
           end,
         }
       end
+      if failure == "query" then
+        return {
+          parse = function()
+            error("Query failure must precede parsing")
+          end,
+        }
+      end
       return get_parser(...)
     end
     vim.treesitter.query.parse = failure == "query" and function()
       error("incompatible grammar")
     end or parse_query
-    check(D.at_line(buffer(ft, { source }), 1, opts) == tmp .. "/a.png", failure .. " falls back for " .. ft)
+    local test_buf = buffer(ft, { source })
+    check(D.at_line(test_buf, 1, opts) == tmp .. "/a.png", failure .. " falls back for " .. ft)
+    local state = TS.status(test_buf)
+    local reason = failure == "parse" and "parse_error" or failure == "query" and "query_error" or "parser_unavailable"
+    check(
+      state.current.backend == "lexer" and state.current.reason == reason,
+      "Specific fallback diagnostic: " .. failure
+    )
+    state.fallbacks[reason] = -1
+    check(TS.status(test_buf).fallbacks[reason] > 0, "Diagnostics snapshot cannot mutate internal counters")
   end
 end
 vim.treesitter.get_parser, vim.treesitter.query.parse = get_parser, parse_query
@@ -77,6 +93,13 @@ for ft, lang in pairs({ tex = "latex", typst = "typst" }) do
     check(D.at_cursor(buf, 1, 0, opts) == tmp .. "/a.png", "Cursor includes command/hash in " .. lang)
     check(not D.at_cursor(buf, 1, 500, opts), "Cursor outside reference in " .. lang)
     check(requests == 1, "Unchanged buffer reuses syntax index in " .. lang)
+    local diagnostics = TS.status(buf)
+    check(
+      diagnostics.current.backend == "treesitter"
+        and diagnostics.current.parse_ms >= 0
+        and diagnostics.current.index_ms >= 0,
+      "Successful backend and timing are observable in " .. lang
+    )
     set(buf, { ft == "tex" and [[\includegraphics{b.png}]] or [[#image("b.png")]] })
     check(D.at_line(buf, 1, opts) == tmp .. "/b.png", "Edit invalidates index in " .. lang)
     check(requests == 2, "Edit refreshes buffer parser in " .. lang)
@@ -150,7 +173,9 @@ for ft, lang in pairs({ tex = "latex", typst = "typst" }) do
     C.query = query
     vim.treesitter.get_parser = get_parser
     local unfinished = ft == "tex" and { [[\begin{minted}]], fixtures.tex } or { "```typst", fixtures.typst }
-    check(not D.at_line(buffer(ft, unfinished), 2, opts), "Unreliable prefix falls back conservatively in " .. lang)
+    local broken = buffer(ft, unfinished)
+    check(not D.at_line(broken, 2, opts), "Unreliable prefix falls back conservatively in " .. lang)
+    check(TS.status(broken).current.reason == "error_context", "Error context diagnostic in " .. lang)
     local retry = buffer(ft, { fixtures[ft] })
     vim.treesitter.get_parser = function()
       return nil

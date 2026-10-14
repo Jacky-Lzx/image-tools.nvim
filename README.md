@@ -222,9 +222,18 @@ path; no dependency on nvim-treesitter is required. If the parser, grammar query
 or parsing is unavailable (including syntax errors in preceding context),
 recognition falls back to the existing cached Lua scanner. A valid syntax tree
 with no supported reference does not trigger fallback.
-Set `treesitter = false` to always use the Lua scanner. Syntax results are cached
-until the buffer changes; project roots, custom resolvers and file checks remain
-live. Markdown continues to use its existing scanner.
+Large parses yield to Neovim's event loop. Pending parses do not trigger a Lua
+scan; completion only resumes previews for the same buffer, window, line and
+text version. Capture queries stop at the requested line, within `max_scan_lines`.
+Edits invalidate the affected suffix and any earlier ranges reported by the
+parser, preserving valid prefix results.
+Set `treesitter = false` to always use the Lua scanner. Project roots, custom
+resolvers and file checks remain live. Markdown uses its existing scanner.
+`status().treesitter` reports parse/index timing, index hits, queried rows and
+fallback reasons (`parser_unavailable`, `query_error`, `parse_error`, `index_error`,
+`error_context`). `:checkhealth image_tools` shows these diagnostics without
+starting a parser. Parse timing includes time yielded to the event loop.
+
 
 Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
 same-line `\includegraphics[options]{path}` (including starred form and

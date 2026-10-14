@@ -116,6 +116,27 @@ function M.check()
       vim.health.warn(state.terminal_cache.last_error)
     end
   end
+  if state.treesitter then
+    local syntax = state.treesitter
+    vim.health.start("image-tools: reference syntax")
+    vim.health.info("Tree-sitter: " .. (syntax.enabled and "enabled" or "disabled; using Lua scanner"))
+    vim.health.info(
+      string.format("%d parse(s), %d index hit(s), %d indexed row(s)", syntax.parses, syntax.hits, syntax.indexed_rows)
+    )
+    for _, reason in ipairs(vim.tbl_keys(syntax.fallbacks)) do
+      vim.health.info(string.format("Fallback %s: %d request(s)", reason, syntax.fallbacks[reason]))
+    end
+    if syntax.current then
+      local current = syntax.current
+      vim.health.info("Current buffer backend: " .. current.backend .. " (" .. current.lang .. ")")
+      if current.reason then
+        vim.health.info("Reason: " .. current.reason .. ": " .. (current.detail or ""))
+      end
+      vim.health.info(
+        string.format("Last parse: %.2f ms; last index: %.2f ms", current.parse_ms or 0, current.index_ms or 0)
+      )
+    end
+  end
   disk_health(state)
 end
 
