@@ -140,7 +140,7 @@ check(
   vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]:match("fixture.png"),
   "Confirm imports into extmark source position"
 )
-check(renderer.transfer:status().images == 0, "Close frees picker cache")
+check(renderer.transfer:status().placements == 0, "Close releases picker placement in shared pool")
 check(not renderer.group, "Close removes lifecycle group")
 check(vim.api.nvim_buf_is_valid(buf), "Source buffer retained")
 -- A slow conversion cancelled by moving to a different selection cannot draw late.

@@ -33,6 +33,33 @@ local steps = {
     assert(view.window, "Startup image did not acknowledge")
     assert(not vim.bo.modifiable and vim.bo.readonly and not vim.bo.modified, "Startup image is writable")
     assert(not pcall(vim.cmd, "write!"), "Forced write was allowed")
+    vim.cmd.vsplit()
+  end,
+  function()
+    local status = image.status().buffer
+    local other = vim.api.nvim_get_current_win()
+    assert(other ~= win and status.views[win].window and status.views[other].window, "Shared split canvases missing")
+    assert(
+      status.views[win].cache.uploads == 1 and status.views[win].cache.placements == 2,
+      "Split duplicated terminal pixels"
+    )
+    local function color(owner)
+      local buf = vim.api.nvim_win_get_buf(status.views[owner].window)
+      local mark = vim.api.nvim_buf_get_extmarks(
+        buf,
+        vim.api.nvim_create_namespace("image_tools.canvas"),
+        0,
+        -1,
+        { details = true }
+      )[1]
+      return vim.api.nvim_get_hl(0, { name = mark[4].hl_group })
+    end
+    local first, second = color(win), color(other)
+    assert(first.fg == second.fg and first.sp ~= second.sp, "Split placement ids are not independent")
+    results.shared_placements = { first.sp, second.sp }
+    results.shared = true
+    vim.api.nvim_win_close(other, true)
+    assert(image.status().buffer.views[win].window, "Closing split removed remaining canvas")
     assert(image.open(tmp .. "/pages.pdf"))
   end,
   function()
@@ -55,7 +82,7 @@ local steps = {
     within_owner()
     results.statusline = true
     assert(
-      status.views[win].cache.uploads == 2 and status.views[win].cache.hits >= 1,
+      status.views[win].cache.uploads == 3 and status.views[win].cache.hits >= 1,
       "PDF paging did not reuse uploaded pixels"
     )
     results.cache = status.views[win].cache

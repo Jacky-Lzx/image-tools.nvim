@@ -112,6 +112,27 @@ local second = vim.api.nvim_get_current_win()
 check(ready(second), "Same image can preview in second split")
 local status = image.status().buffer
 check(status.views[win].window ~= status.views[second].window, "Each split has its own placement")
+check(
+  status.views[second].cache.uploads == 1 and status.views[second].cache.placements == 2,
+  "Two actual Neovim split canvases share one terminal upload"
+)
+local function canvas_color(owner)
+  local canvas = image.status().buffer.views[owner].window
+  local buf = vim.api.nvim_win_get_buf(canvas)
+  local mark = vim.api.nvim_buf_get_extmarks(
+    buf,
+    vim.api.nvim_create_namespace("image_tools.canvas"),
+    0,
+    -1,
+    { details = true }
+  )[1]
+  return vim.api.nvim_get_hl(0, { name = mark[4].hl_group })
+end
+local color_a, color_b = canvas_color(win), canvas_color(second)
+check(
+  color_a.fg == color_b.fg and color_a.sp ~= color_b.sp,
+  "Split highlight colors select independent virtual placements"
+)
 local before = status.views[second].cache.uploads
 vim.api.nvim_win_set_width(second, 20)
 vim.api.nvim_exec_autocmds("WinResized", { group = "image_tools.buffers" })
@@ -133,6 +154,7 @@ check(
 )
 vim.api.nvim_set_current_win(win)
 check(ready(win), "Other split remains visible")
+check(image.status().buffer.views[win].cache.placements == 1, "Closing split releases only its placement")
 vim.api.nvim_set_current_win(second)
 vim.cmd("buffer " .. buf)
 check(ready(second), "Returning to hidden file restores preview")

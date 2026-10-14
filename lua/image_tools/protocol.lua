@@ -39,16 +39,28 @@ function M.upload_file(id, path)
   return M.command({ a = "t", f = 100, t = "f", i = id, q = 0 }, vim.base64.encode(path))
 end
 
-function M.place(id, width, height, quiet)
-  return M.command({ a = "p", U = 1, i = id, c = width, r = height, q = quiet == nil and 2 or quiet })
+function M.place(id, width, height, quiet, placement)
+  return M.command({ a = "p", U = 1, i = id, p = placement, c = width, r = height, q = quiet == nil and 2 or quiet })
 end
 
-function M.hide(id)
-  return M.command({ a = "d", d = "i", i = id, q = 2 })
+function M.hide(id, placement)
+  return M.command({ a = "d", d = "i", i = id, p = placement, q = 2 })
 end
 
 function M.delete(id)
   return M.command({ a = "d", d = "I", i = id, q = 2 })
+end
+
+-- Kitty selects a virtual placement from the underline color (Neovim sp).
+-- Neovim's TUI emits sp only with an underline attribute enabled:
+-- https://github.com/neovim/neovim/blob/v0.12.6/src/nvim/tui/tui.c
+function M.highlight(id, placement)
+  return {
+    fg = string.format("#%06x", id),
+    sp = placement and string.format("#%06x", placement) or nil,
+    nocombine = true,
+    underline = placement ~= nil,
+  }
 end
 
 function M.grid(width, height)

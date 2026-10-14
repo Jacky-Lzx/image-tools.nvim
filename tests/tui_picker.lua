@@ -57,7 +57,7 @@ local steps = {
       require("image_tools.document").at_line(buf, 2, { max_scan_lines = 100 }) == paths[1],
       "Wrong imported reference"
     )
-    assert(renderer.transfer:status().images == 0, "Picker cache leaked")
+    assert(renderer.transfer:status().placements == 0, "Picker placement leaked")
     results.inserted = true
     vim.fn.writefile({ vim.json.encode(results) }, temporary .. "/result.json")
     vim.cmd("qa!")

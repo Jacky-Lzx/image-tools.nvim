@@ -205,8 +205,9 @@ function Renderer:show(ctx, path)
         fail(transfer_err)
         return
       end
-      state.id, state.highlight = entry.id, "ImageToolsPicker_" .. entry.id
-      vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", entry.id) })
+      state.id, state.placement_id = entry.id, entry.placement_id
+      state.highlight = "ImageToolsPicker_" .. entry.id .. "_" .. (entry.placement_id or 0)
+      vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
       state.width, state.height, state.top, state.left = width, height, 0, 0
       local lines = protocol.grid(width, height)
@@ -228,12 +229,12 @@ function Renderer:show(ctx, path)
 end
 
 -- Public custom previewer: uses picker lifecycle, not cursor-line ownership.
-function M.preview(ctx, opts)
+function M.preview(ctx, opts, dependencies)
   local path = Snacks.picker.util.path(ctx.item)
   if path and require("image_tools.image").supported(path) then
     local renderer = ctx.picker._image_tools_preview
     if not renderer then
-      renderer = M.new(ctx.picker, opts)
+      renderer = M.new(ctx.picker, opts, dependencies)
       ctx.picker._image_tools_preview = renderer
     end
     renderer:show(ctx, path)

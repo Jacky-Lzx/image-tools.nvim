@@ -135,8 +135,9 @@ function M:open(meta, owner_buf, owner_win, callback)
         end
 
         state.id, state.width, state.height = entry.id, width, height
-        state.highlight = "ImageToolsCanvas_" .. entry.id
-        vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", entry.id) })
+        state.placement_id = entry.placement_id
+        state.highlight = "ImageToolsCanvas_" .. entry.id .. "_" .. (entry.placement_id or 0)
+        vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
         state.buf = vim.api.nvim_create_buf(false, true)
         vim.bo[state.buf].bufhidden, vim.bo[state.buf].filetype = "wipe", "image_tools_canvas"
         vim.bo[state.buf].swapfile = false

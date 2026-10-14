@@ -8,6 +8,9 @@ local function allocate_id()
 end
 
 function M.new(opts, dependencies)
+  if dependencies and dependencies.pixel_pool then
+    return dependencies.pixel_pool:manager()
+  end
   return setmetatable(
     { opts = opts, dependencies = dependencies or {}, entries = {}, clock = 0, hits = 0, uploads = 0, last_error = nil },
     M
@@ -121,7 +124,9 @@ function M:acquire(image, width, height, callback)
     end
     entry.cancel, entry.pinned = nil, false
     if completed and entry.uploaded and entry.cacheable then
-      terminal.write(protocol.hide(entry.id))
+      if not self.pixels_only then
+        terminal.write(protocol.hide(entry.id))
+      end
       self:trim()
     else
       self:discard(entry)
@@ -148,6 +153,12 @@ function M:acquire(image, width, height, callback)
   end
   local upload
   local function place(reusable)
+    if self.pixels_only then
+      completed = true
+      self.last_error = nil
+      callback(nil, entry)
+      return
+    end
     request(protocol.place(entry.id, width, height, 0), function(err)
       if err then
         if reusable and (err:match("^ENOENT") or err:match("^ETIMEDOUT")) then

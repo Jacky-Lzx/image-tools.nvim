@@ -73,7 +73,8 @@ Shared memory is not implemented; real SSH/other terminals remain unvalidated.
 
 Terminal cache keys include path, inode, size and nanosecond mtime/ctime.
 Reopening only sends a placement request. If Kitty has evicted the data, it is
-uploaded again. Inactive entries use LRU eviction, with default limits of 32
+uploaded again when no other view still owns it. Otherwise the affected view
+reports an error; reload to retry. Inactive entries use LRU eviction, with default limits of 32
 images and 64 MiB estimated decoded RGBA bytes. Oversized images are not retained.
 max_images = 0 disables retention. Setup, suspend and exit release owned images.
 
@@ -190,3 +191,9 @@ Converter processes share a FIFO queue controlled by convert_concurrency
 (default 2). Queued cancellation does not spawn a process; running cancellation
 holds its slot until exit. PNG reads and cache hits bypass the queue.
 status().conversion_queue reports active and queued processes.
+
+Floating, picker and file-buffer previews share terminal pixel data per runtime.
+Each view has an independent virtual placement id and size. Closing a view
+releases only its placement; terminal_cache limits apply to the shared pool.
+Cache statistics are runtime-wide; placements counts active acknowledged views.
+Setup replacement and explicit clearing free all runtime data.

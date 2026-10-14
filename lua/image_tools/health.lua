@@ -105,11 +105,12 @@ function M.check()
   if state.terminal_cache then
     vim.health.info(
       string.format(
-        "Terminal cache: %d image(s), %d estimated decoded bytes; %d hit(s), %d upload attempt(s)",
+        "Terminal cache: %d image(s), %d estimated decoded bytes; %d hit(s), %d upload attempt(s), %d placement(s)",
         state.terminal_cache.images,
         state.terminal_cache.bytes,
         state.terminal_cache.hits,
-        state.terminal_cache.uploads
+        state.terminal_cache.uploads,
+        state.terminal_cache.placements or 0
       )
     )
     if state.terminal_cache.last_error then
@@ -129,7 +130,7 @@ function M.check()
       string.format("%d parse(s), %d index hit(s), %d indexed row(s)", syntax.parses, syntax.hits, syntax.indexed_rows)
     )
     for _, reason in ipairs(vim.tbl_keys(syntax.fallbacks)) do
-      vim.health.info(string.format("Fallback %s: %d request(s)", reason, syntax.fallbacks[reason]))
+      vim.health.info(string.format("Fallback %s: %d event(s)", reason, syntax.fallbacks[reason]))
     end
     if syntax.current then
       local current = syntax.current

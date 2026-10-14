@@ -129,7 +129,9 @@ original inline-data method. Shared-memory (`t=s`) transmission is not implement
 Uploads are cached by PNG path, inode, size, and nanosecond mtime/ctime. Reopening
 an unchanged image sends only a placement request; its acknowledgement verifies
 that Kitty still has the data. An `ENOENT` response or placement timeout causes a
-fresh upload. File changes evict the previous version. The least recently used
+fresh upload when the requesting view is the sole owner. With other owners still
+active, a failed placement reports an error instead of replacing their pixels;
+reload the affected view to retry. File changes evict unused previous versions. The least recently used
 inactive entries are evicted when `terminal_cache` limits are reached.
 The byte budget estimates decoded RGBA size, rather than measuring Kitty's actual
 GPU memory. Oversized images can be displayed but are released on close. Set
@@ -289,7 +291,7 @@ The file keeps its named, listed buffer, with a filename/page header and a Kitty
 canvas bound to each regular window showing it. The image fits that window while
 preserving its aspect ratio and stays at the top-left beneath the header. Splits
 have independent placements; resizing refits them, switching buffers/tabs hides
-the old canvas, and closing/suspending/exiting frees owned terminal images. Returning
+the old canvas, and closing releases its placement; suspending/exiting frees the shared terminal data. Returning
 to a hidden file buffer restores its preview. Original files are never replaced by
 placeholder text: the view is nonmodifiable, readonly and `nofile`, so `:write!`
 cannot overwrite them. Modified source buffers are not automatically taken over.
@@ -315,3 +317,12 @@ with `convert_concurrency = 2` by default. Same-source requests still share one
 conversion. Closing a queued preview removes its job; cancelling a running job
 keeps its slot until the process exits. Cache hits and PNG reads bypass the queue.
 `status().conversion_queue` reports active and queued converters.
+
+Terminal pixel data is shared by floating previews, picker previews and file
+buffers within one plugin runtime. Each view has a separate Kitty virtual
+placement id, encoded in the placeholder underline color, so differently sized
+splits reuse one upload. Closing a view releases its placement; other active
+placements keep the pixels pinned. Inactive pixels use the shared `terminal_cache`
+LRU limits. Setup replacement, suspension and explicit cache clearing release
+the runtime's shared data. `status().terminal_cache` reports runtime-wide totals
+and active `placements`; per-buffer view cache statistics refer to that same pool.

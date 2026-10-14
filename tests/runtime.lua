@@ -180,21 +180,17 @@ require("image_tools.commands").register = real_register
 api.setup({ auto_preview = false })
 eq(api.status().configured, true, "Setup recovers after startup failure")
 local waiting, callbacks = true, {}
-local async_dependencies = vim.tbl_extend(
-  "force",
-  dependencies,
-  {
-    document = {
-      at_line = function(_, _, options)
-        if waiting then
-          callbacks[#callbacks + 1] = options._treesitter_ready
-          return nil, "pending", "pending"
-        end
-        return "/private/tmp/ready.png"
-      end,
-    },
-  }
-)
+local async_dependencies = vim.tbl_extend("force", dependencies, {
+  document = {
+    at_line = function(_, _, options)
+      if waiting then
+        callbacks[#callbacks + 1] = options._treesitter_ready
+        return nil, "pending", "pending"
+      end
+      return "/private/tmp/ready.png"
+    end,
+  },
+})
 local async = Runtime.new(config.resolve({ auto_preview = false }), async_dependencies)
 async:hover({ silent = true })
 async:hover({ silent = true })
@@ -210,8 +206,14 @@ callbacks[2]()
 eq(async.preview.opens, 1, "Closing cancels delayed preview")
 waiting = true
 async:hover({ silent = true })
-async:destroy()
+async:clear_cache()
 waiting = false
 callbacks[3]()
+eq(async.preview.opens, 1, "Cache clear cancels a pending syntax preview")
+waiting = true
+async:hover({ silent = true })
+async:destroy()
+waiting = false
+callbacks[4]()
 eq(async.preview.opens, 1, "Destroyed runtime cannot reopen delayed preview")
 print("image-tools runtime: " .. count .. " assertions passed")

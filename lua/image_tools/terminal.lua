@@ -30,7 +30,7 @@ end
 
 -- Match replies to a specific image id. Install the handler before sending,
 -- and always remove both handler and timer on completion or cancellation.
-function M.request(id, command, timeout, callback)
+function M.request(id, command, timeout, callback, placement)
   local finished, autocmd = false, nil
   local timer = vim.uv.new_timer()
 
@@ -65,7 +65,8 @@ function M.request(id, command, timeout, callback)
       sequence = sequence:gsub("\27\\$", "")
       local fields, message = sequence:match("^\27_G([^;]+);([^\27]+)$")
       local response_id = fields and fields:match("i=(%d+)")
-      if tonumber(response_id) == id then
+      local response_placement = fields and fields:match("p=(%d+)")
+      if tonumber(response_id) == id and tonumber(response_placement) == placement then
         if message == "OK" then
           done(nil)
         else

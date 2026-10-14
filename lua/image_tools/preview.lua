@@ -121,7 +121,7 @@ function M:open(path, options)
         self:close()
         return
       end
-      state.id = entry.id
+      state.id, state.placement_id = entry.id, entry.placement_id
       state.buf = vim.api.nvim_create_buf(false, true)
       vim.bo[state.buf].buftype = "nofile"
       vim.bo[state.buf].bufhidden = "wipe"
@@ -156,8 +156,8 @@ function M:open(path, options)
       vim.wo[state.win].conceallevel = 0
       vim.wo[state.win].list = false
       vim.wo[state.win].spell = false
-      state.highlight = "ImageTools_" .. state.id
-      vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", state.id) })
+      state.highlight = "ImageTools_" .. state.id .. "_" .. (state.placement_id or 0)
+      vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(state.id, state.placement_id))
       vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, protocol.grid(width, height))
       local namespace = vim.api.nvim_create_namespace("image_tools.preview")
       for i = 0, height - 1 do

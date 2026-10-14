@@ -48,10 +48,11 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()
         offset, pending, rejected, evicted = 0, None, False, False
+        underline_reported = False
 
-        def reply(identifier, message, quiet):
+        def reply(identifier, message, quiet, placement=None):
             if quiet != b"2":
-                os.write(master, b"\x1b_Gi=" + identifier + b";" + message + b"\x1b\\")
+                os.write(master, b"\x1b_Gi=" + identifier + (b",p=" + placement if placement else b"") + b";" + message + b"\x1b\\")
 
         def handle(fields, payload):
             nonlocal pending, rejected, evicted
@@ -81,7 +82,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
                 if fields[b"m"] == b"0":
                     finish_upload()
             elif action == b"p":
-                reply(identifier, b"OK" if identifier in resident else b"ENOENT:image not found", quiet)
+                reply(identifier, b"OK" if identifier in resident else b"ENOENT:image not found", quiet, fields.get(b"p"))
             elif action == b"d":
                 if fields[b"d"] == b"I":
                     resident.discard(identifier)
@@ -111,6 +112,12 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
                     if not data:
                         break
                     output.extend(data)
+                    # Kitty answers Neovim's DECRQSS query with the active
+                    # extended underline style. Without this handshake the TUI
+                    # deliberately suppresses SGR 58, even when sp is defined.
+                    if not underline_reported and b"\x1bP$qm\x1b\\" in output:
+                        os.write(master, b"\x1bP1$r0;4:3m\x1b\\")
+                        underline_reported = True
                     for match in pattern.finditer(output, offset):
                         offset = match.end()
                         fields = dict(part.split(b"=", 1) for part in match[1].split(b","))
@@ -130,14 +137,17 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
             if buffer:
-                assert result["buffer"] and result["lifecycle"] and result["statusline"], result
+                assert result["buffer"] and result["lifecycle"] and result["statusline"] and result["shared"], result
+                for placement in result["shared_placements"]:
+                    color = rb"58[;:]2[;:]+%d[;:]%d[;:]%d" % (placement >> 16, (placement >> 8) & 255, placement & 255)
+                    assert underline_reported and re.search(color, output), "TUI did not emit independent placement as underline color"
             elif picker:
                 assert result["picker"] and result["inserted"], result
             else:
                 assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
             assert len(uploads) == (3 if buffer else 2 if reject_file or evict else 1), uploads
-            assert result["cache"]["uploads"] == (2 if buffer else len(uploads)), result
+            assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result
             if picker or buffer:
                 assert result["cache"]["hits"] >= 1, result
             else:

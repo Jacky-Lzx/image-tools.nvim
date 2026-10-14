@@ -4,10 +4,11 @@ Runtime.__index = Runtime
 function Runtime.new(options, dependencies)
   local self = setmetatable({
     options = options,
-    dependencies = dependencies or {},
+    dependencies = vim.tbl_extend("force", {}, dependencies or {}),
     disposed = false,
     renderers = setmetatable({}, { __mode = "k" }),
   }, Runtime)
+  self.dependencies.pixel_pool = require("image_tools.pixel_pool").new(options, self.dependencies)
   self.preview = self:dependency("preview").new(options, self.dependencies)
   self.buffers = self:dependency("buffer").new(options, self.dependencies)
   return self
@@ -73,6 +74,7 @@ function Runtime:close()
 end
 
 function Runtime:clear_cache()
+  self.reference_request, self.pending_reference = nil, nil
   if self.buffers then
     self.buffers:clear_cache()
   end
@@ -84,6 +86,7 @@ function Runtime:clear_cache()
   if self.preview then
     self.preview:destroy()
   end
+  self.dependencies.pixel_pool:clear()
 end
 
 function Runtime:clear_disk_cache(callback)
@@ -152,7 +155,7 @@ function Runtime:paste(opts, callback)
 end
 
 function Runtime:snacks_preview(ctx)
-  local result = self:dependency("picker").preview(ctx, self.options)
+  local result = self:dependency("picker").preview(ctx, self.options, self.dependencies)
   local renderer = ctx.picker._image_tools_preview
   if renderer then
     self.renderers[renderer] = true

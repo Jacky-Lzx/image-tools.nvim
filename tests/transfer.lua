@@ -112,6 +112,20 @@ vim.wait(30, function()
 end)
 eq(#replies, 2)
 eq(#vim.api.nvim_get_autocmds({ event = "TermResponse" }), initial_handlers)
+local matched = {}
+terminal.request(107, "placement one", 100, function(err)
+  matched[#matched + 1] = err or "one"
+end, 11)
+terminal.request(107, "placement two", 100, function(err)
+  matched[#matched + 1] = err or "two"
+end, 12)
+response(107, "OK")
+eq(#matched, 0, "Image-only response cannot acknowledge a specific placement")
+vim.api.nvim_exec_autocmds("TermResponse", { data = { sequence = "\27_Gi=107,p=12;OK" } })
+eq(matched, { "two" }, "Placement acknowledgement only completes its own request")
+vim.api.nvim_exec_autocmds("TermResponse", { data = { sequence = "\27_Gi=107,p=11;OK" } })
+eq(matched, { "two", "one" }, "Concurrent placements may acknowledge in reverse order")
+eq(#vim.api.nvim_get_autocmds({ event = "TermResponse" }), initial_handlers, "Placement handlers clean up")
 terminal.write = real_write
 
 local function fields(command)
