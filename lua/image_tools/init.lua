@@ -1,6 +1,12 @@
 local M = {}
 local defaults = {
   auto_preview = true,
+  buffer = {
+    enabled = true,
+    formats = { "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" },
+  },
+  pdfinfo = "pdfinfo",
+  pdf_density = 144,
   insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after", prompt_for_file_name = false },
   position = "cursor", -- "cursor" or "bottom_right"
   transport = "auto", -- "auto", "file" or "direct"
@@ -19,7 +25,7 @@ local defaults = {
   magick = "magick",
   rsvg = "rsvg-convert",
 }
-local preview, options, group, refresh
+local preview, options, group, refresh, buffers
 
 local function on_current_line(state)
   return state
@@ -44,6 +50,9 @@ function M.close()
 end
 
 function M.clear_cache()
+  if buffers then
+    buffers:clear_cache()
+  end
   if package.loaded["image_tools.picker"] then
     require("image_tools.picker").clear_all()
   end
@@ -143,6 +152,31 @@ function M.pick(opts, callback)
   return require("image_tools.picker").pick(insertion, opts.picker, M.snacks_preview, callback)
 end
 
+function M.open(path)
+  if not buffers then
+    M.setup()
+  end
+  return buffers:open(path)
+end
+function M.page(page)
+  if not buffers then
+    M.setup()
+  end
+  return buffers:page(page)
+end
+function M.next_page(delta)
+  if not buffers then
+    M.setup()
+  end
+  return buffers:step(delta or 1)
+end
+function M.reload()
+  if not buffers then
+    M.setup()
+  end
+  return buffers:reload(vim.api.nvim_get_current_buf())
+end
+
 function M.hover(opts)
   if not preview then
     M.setup()
@@ -187,6 +221,7 @@ end
 function M.status()
   return {
     configured = preview ~= nil,
+    buffer = buffers and buffers:status() or nil,
     auto_preview = options and options.auto_preview or false,
     path = preview and preview.state and preview.state.path or nil,
     window = preview and preview.state and preview.state.win or nil,
@@ -218,6 +253,10 @@ end
 
 function M.setup(opts)
   M.clear_cache()
+  if buffers then
+    buffers:destroy()
+    buffers = nil
+  end
   options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), opts or {})
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
@@ -239,6 +278,7 @@ function M.setup(opts)
     "max_scan_lines",
     "convert_timeout",
     "terminal_timeout",
+    "pdf_density",
   }) do
     assert(
       type(options[name]) == "number" and options[name] >= 1 and options[name] % 1 == 0,
@@ -246,6 +286,15 @@ function M.setup(opts)
     )
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
+  assert(type(options.buffer.enabled) == "boolean", "buffer.enabled must be boolean")
+  for _, extension in ipairs(options.buffer.formats) do
+    assert(
+      type(extension) == "string"
+        and extension:match("^%a+$")
+        and require("image_tools.image").supported("file." .. extension),
+      "Unsupported buffer format"
+    )
+  end
   preview = require("image_tools.preview").new(options)
   group = vim.api.nvim_create_augroup("image_tools", { clear = true })
   vim.api.nvim_create_autocmd({
@@ -313,6 +362,26 @@ function M.setup(opts)
       end
     end,
   })
+  local function report(ok, err)
+    if not ok then
+      vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
+    end
+  end
+  vim.api.nvim_create_user_command("ImageOpen", function(args)
+    report(M.open(args.args))
+  end, { nargs = 1, complete = "file", desc = "Open an image/PDF in a read-only buffer", force = true })
+  vim.api.nvim_create_user_command("ImagePage", function(args)
+    report(M.page(tonumber(args.args)))
+  end, { nargs = 1, desc = "Display a PDF page", force = true })
+  vim.api.nvim_create_user_command("ImageNextPage", function(args)
+    report(M.next_page(args.count))
+  end, { count = 1, desc = "Next PDF page", force = true })
+  vim.api.nvim_create_user_command("ImagePreviousPage", function(args)
+    report(M.next_page(-args.count))
+  end, { count = 1, desc = "Previous PDF page", force = true })
+  vim.api.nvim_create_user_command("ImageReload", function()
+    report(M.reload())
+  end, { desc = "Reload the current image/PDF buffer", force = true })
   vim.api.nvim_create_user_command("ImagePick", function()
     M.pick()
   end, { desc = "Choose images with an independent Snacks picker preview", force = true })
@@ -349,6 +418,8 @@ function M.setup(opts)
     M.toggle,
     { desc = "Toggle automatic image preview", force = true }
   )
+  buffers = require("image_tools.buffer").new(options)
+  buffers:setup()
   schedule_refresh()
 end
 

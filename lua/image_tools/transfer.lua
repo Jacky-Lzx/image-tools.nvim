@@ -79,7 +79,7 @@ end
 function M:acquire(image, width, height, callback)
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
-  local source = image.source or image.path
+  local source = image.cache_source or image.source or image.path
   -- Drop obsolete versions of the same file, rather than filling the cache
   -- with every edit. The active image is released before the next acquire.
   for _, old in pairs(vim.tbl_extend("force", {}, self.entries)) do

@@ -28,6 +28,11 @@ function M.check()
   if vim.fn.executable("gs") ~= 1 then
     vim.health.info("Ghostscript delegate is needed for ImageMagick PDF preview")
   end
+  if vim.fn.executable("pdfinfo") == 1 then
+    vim.health.ok("pdfinfo found: PDF buffer page counts available")
+  else
+    vim.health.warn("Install poppler for PDF buffers: brew install poppler")
+  end
   local cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
   local state = require("image_tools").status()

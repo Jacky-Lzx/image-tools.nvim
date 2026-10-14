@@ -20,7 +20,7 @@ Neovim controls clipping and overlapping windows.
 {
   dir = vim.fn.expand("~/Documents/Github/nvim_plugins/image-tools.nvim"),
   name = "image-tools.nvim",
-  event = "VeryLazy",
+  lazy = false, -- install file buffer handlers before startup files are read
   opts = { auto_preview = true, max_width = 60, max_height = 30 },
   config = function(_, opts) require("image_tools").setup(opts) end,
 }
@@ -67,6 +67,9 @@ release all retained terminal images and cancel pending requests.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  buffer = { enabled = true }, -- automatic binary image/PDF file buffers
+  pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
+  pdf_density = 144,
   position = "cursor", -- "cursor" or "bottom_right"
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500, -- milliseconds to wait for a graphics acknowledgement
@@ -236,3 +239,37 @@ SVG preview prefers `rsvg-convert` (option `rsvg` sets its executable); otherwis
 it uses ImageMagick's internal MSVG renderer. Both routes are bounded by
 `convert_timeout` and output dimensions. MSVG may differ for complex SVGs;
 `rsvg-convert` is recommended. Preview never modifies original SVG/PDF files.
+
+## Image and PDF file buffers
+
+With `buffer.enabled = true` (default), opening a PNG/JPEG/WebP/AVIF/HEIC/GIF/BMP/
+TIFF/PDF with `:edit`, a file picker, or as a startup file opens a read-only viewer.
+Load the plugin with `lazy = false` to intercept startup files before binary data
+is read. `:ImageOpen path` / `open(path)` also open an explicit preview, including
+SVG. SVG remains editable through normal `:edit` unless added to `buffer.formats`.
+Set `buffer.enabled = false` to retain normal file editing and use explicit opening.
+
+The file keeps its named, listed buffer, with a filename/page header and a Kitty
+canvas bound to each regular window showing it. The image fits that window while
+preserving its aspect ratio and stays at the top-left beneath the header. Splits
+have independent placements; resizing refits them, switching buffers/tabs hides
+the old canvas, and closing/suspending/exiting frees owned terminal images. Returning
+to a hidden file buffer restores its preview. Original files are never replaced by
+placeholder text: the view is nonmodifiable, readonly and `nofile`, so `:write!`
+cannot overwrite them. Modified source buffers are not automatically taken over.
+
+PDF buffers need ImageMagick with Ghostscript, plus Poppler's `pdfinfo`
+(`brew install poppler`). `]p` / `[p` move forward/backward (counts supported).
+`:ImagePage 3` selects a page; `:ImageNextPage` / `:ImagePreviousPage` move a page.
+Page bounds come from actual PDF metadata. Conversion/transmission caches retain
+pages separately, so revisiting an unchanged page can reuse its uploaded pixels.
+`r` / `:ImageReload` reloads the current file and refreshes metadata. Source changes
+are also checked on buffer/window/focus events. `status().buffer` reports the current
+file, page count, error and per-window cache/placement. `page(n)`, `next_page(delta)`
+and `reload()` provide the same operations programmatically. Existing terminal,
+source-size, dimension, conversion-timeout and terminal-cache limits apply.
+
+Unsupported terminals, invalid/oversized files, encrypted/unreadable PDFs and
+missing conversion/metadata tools show a readable error in the file buffer.
+No terminal responses, stale conversions or page changes can reopen a canvas after
+its source window/buffer is closed. Use `:checkhealth image_tools` to check tools.

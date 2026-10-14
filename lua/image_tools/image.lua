@@ -147,11 +147,26 @@ function M.prepare(path, opts, callback)
   if extension == "png" then
     return M.read(path, opts, callback, metadata_only)
   end
+  local page = opts.page == nil and 1 or opts.page
+  if extension == "pdf" and (type(page) ~= "number" or page < 1 or page % 1 ~= 0) then
+    local cancelled = false
+    vim.schedule(function()
+      if not cancelled then
+        callback("PDF page must be a positive integer")
+      end
+    end)
+    return function()
+      cancelled = true
+    end
+  end
   local cancelled, process = false, nil
   local function done(err, image)
     if not cancelled then
       if image then
         image.source = path
+        if extension == "pdf" then
+          image.cache_source = path .. "#page=" .. page
+        end
       end
       callback(err, image)
     end
@@ -179,7 +194,13 @@ function M.prepare(path, opts, callback)
       done("Image file exceeds max_bytes")
       return
     end
-    local key = vim.fn.sha256(M.key(path, stat) .. ":" .. (use_rsvg and svg_renderer or opts.magick) .. ":svg-v2")
+    local key = vim.fn.sha256(
+      M.key(path, stat)
+        .. ":"
+        .. (use_rsvg and svg_renderer or opts.magick)
+        .. ":svg-v2:"
+        .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or 144)) or "")
+    )
     local output = opts.cache .. "/" .. key .. ".png"
     if uv.fs_stat(output) then
       M.read(output, opts, done, metadata_only)
@@ -211,13 +232,19 @@ function M.prepare(path, opts, callback)
         "-limit",
         "disk",
         "256MiB",
-        (extension == "svg" and "MSVG:" or "") .. path .. "[0]",
+      }
+      if extension == "pdf" then
+        vim.list_extend(command, { "-density", tostring(opts.pdf_density or 144) })
+      end
+      vim.list_extend(command, {
+        (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
         "-auto-orient",
         "-resize",
         "1920x1080>",
         "png:" .. temporary,
-      }
+      })
     end
+
     process = vim.system(command, { text = true, timeout = opts.convert_timeout }, function(result)
       vim.schedule(function()
         process = nil

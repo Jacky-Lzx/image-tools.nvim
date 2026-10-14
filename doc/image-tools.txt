@@ -144,3 +144,29 @@ imports are supported. PDF embedding requires a supporting Typst version (0.15.1
 tested). Outside-project direct references fail: copy or configure root instead.
 SVG preview prefers rsvg-convert (rsvg option), then ImageMagick's internal MSVG
 renderer. Complex SVG rendering may differ with MSVG. Originals are unchanged.
+
+
+FILE BUFFERS                                              *image-tools-buffers*
+
+buffer.enabled (true by default) installs BufReadCmd for common binary images
+and PDFs. Use lazy=false to register before startup files are read.
+:ImageOpen path opens an explicit file viewer (including SVG). Normal :edit SVG
+stays editable unless svg is added to buffer.formats. Automatic takeover skips
+already loaded modified buffers. Original files stay unchanged; viewers use
+readonly, nonmodifiable nofile buffers and cannot write placeholder text to disk.
+A nonfocusable Kitty canvas belongs to each regular window, aligned top-left
+beneath a filename/page header. Splits, resizing, tab switching and closing are
+handled independently. Exiting/suspending frees images and cancels requests.
+
+PDF buffers require magick with Ghostscript plus pdfinfo (brew install poppler).
+]p / [p: next/previous PDF page (counts supported).
+:ImagePage N: go to a page; page bounds are read from the PDF.
+:ImageNextPage / :ImagePreviousPage: move a page.
+r / :ImageReload: reread the file and metadata.
+PDF conversion uses pdf_density=144; converted/uploaded pages are cached separately.
+File changes are checked on buffer/window/focus events; r forces a refresh.
+Failures (missing tools, corrupt/oversized files, unsupported terminals) display
+readable errors in the file buffer. buffer.enabled=false disables automatic
+interception; :ImageOpen still works. buffer.formats controls automatic extensions.
+
+API: open(path), page(n), next_page(delta), reload(), status().buffer.

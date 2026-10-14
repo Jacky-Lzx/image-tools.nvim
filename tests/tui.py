@@ -22,11 +22,13 @@ root = Path(__file__).resolve().parents[1]
 pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixture.png").read_bytes()
         shutil.copyfile(root / "tests/fixture.png", temporary / "中文 image (1).png")
+        if buffer:
+            shutil.copyfile(root / "tests/fixture.pdf", temporary / "pages.pdf")
         master, slave = pty.openpty()
         fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 32, 100, 1000, 640))
         env = os.environ.copy()
@@ -39,10 +41,10 @@ def run_case(mode, reject_file=False, evict=False, picker=False):
         )
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
-        process = subprocess.Popen(
-            ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui_picker.lua" if picker else "tests/tui.lua"))],
-            stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True,
-        )
+        command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui_picker.lua" if picker else "tests/tui.lua"))]
+        if buffer:
+            command = ["nvim", "-u", str(root / "tests/tui_buffer.lua"), "-i", "NONE", "--noplugin", str(temporary / "中文 image (1).png")]
+        process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()
         offset, pending, rejected, evicted = 0, None, False, False
@@ -63,7 +65,11 @@ def run_case(mode, reject_file=False, evict=False, picker=False):
                         reply(identifier, b"EBADF:Failed to read image file", quiet)
                     else:
                         path = Path(base64.b64decode(payload).decode())
-                        assert path.read_bytes() == fixture, "file transport did not reference the PNG fixture"
+                        data = path.read_bytes()
+                        if buffer:
+                            assert data[:8] == b"\x89PNG\r\n\x1a\n", "buffer upload is not a PNG"
+                        else:
+                            assert data == fixture, "file transport did not reference the PNG fixture"
                         resident.add(identifier)
                         reply(identifier, b"OK", quiet)
                 else:
@@ -123,14 +129,16 @@ def run_case(mode, reject_file=False, evict=False, picker=False):
                     + "\ncommands: " + repr([f for f, _ in commands])
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
-            if picker:
+            if buffer:
+                assert result["buffer"] and result["lifecycle"], result
+            elif picker:
                 assert result["picker"] and result["inserted"], result
             else:
                 assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
-            assert len(uploads) == (2 if reject_file or evict else 1), uploads
-            assert result["cache"]["uploads"] == len(uploads), result
-            if picker:
+            assert len(uploads) == (3 if buffer else 2 if reject_file or evict else 1), uploads
+            assert result["cache"]["uploads"] == (2 if buffer else len(uploads)), result
+            if picker or buffer:
                 assert result["cache"]["hits"] >= 1, result
             else:
                 assert result["cache"]["hits"] == (1 if evict else 2), result
@@ -149,7 +157,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False):
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -165,3 +173,5 @@ run_case("auto", evict=True)
 
 if os.environ.get("IMAGE_TOOLS_SNACKS_ROOT"):
     run_case("auto", picker=True)
+
+run_case("auto", buffer=True)
