@@ -1,5 +1,6 @@
 local M = {}
 local entries, attached, queries = {}, {}, {}
+local watched = setmetatable({}, { __mode = "k" })
 local sources = {
   latex = [[
     (ERROR) @error
@@ -36,11 +37,33 @@ local function allowed(node)
   return true
 end
 
-local function index(buf, lang, tick, trees, query)
-  if not trees or not trees[1] then
+local function invalidate(entry, first)
+  entry = entry and (entry.previous or entry)
+  if not entry or not entry.frontier then
     return
   end
-  local entry = { tick = tick, lang = lang, rows = {}, directories = {}, errors = {} }
+  -- A capture spanning the edit must be re-read from its beginning.
+  for _, err in ipairs(entry.errors) do
+    if err.last >= first then
+      first = math.min(first, err.row - 1)
+    end
+  end
+  entry.frontier = math.min(entry.frontier, first)
+  for row in pairs(entry.rows) do
+    if row > first then
+      entry.rows[row] = nil
+    end
+  end
+  entry.directories = vim.tbl_filter(function(change)
+    return change.row <= first
+  end, entry.directories)
+  entry.errors = vim.tbl_filter(function(err)
+    return err.row <= first
+  end, entry.errors)
+end
+
+local function index(buf, entry, finish)
+  local lang, query, tree, first = entry.lang, entry.query, entry.tree, entry.frontier
   local lines, parsed = {}, {}
   local function line_at(row)
     if not lines[row] then
@@ -48,12 +71,14 @@ local function index(buf, lang, tick, trees, query)
     end
     return lines[row]
   end
-  for id, node in query:iter_captures(trees[1]:root(), buf) do
+  for id, node in query:iter_captures(tree:root(), buf, first, finish) do
     local capture = query.captures[id]
     if capture == "error" then
-      local row, col = node:range()
-      entry.errors[#entry.errors + 1] = { row = row + 1, col = col }
-    elseif (capture == "image" or capture == "command") and allowed(node) then
+      local row, col, last = node:range()
+      if row >= first then
+        entry.errors[#entry.errors + 1] = { row = row + 1, col = col, last = last }
+      end
+    elseif (capture == "image" or capture == "command") and allowed(node) and node:start() >= first then
       local row, col, last = node:range()
       local line = line_at(row)
       if lang == "latex" then
@@ -105,7 +130,7 @@ local function index(buf, lang, tick, trees, query)
   table.sort(entry.directories, function(a, b)
     return a.row < b.row or a.row == b.row and a.col < b.col
   end)
-  return entry
+  entry.frontier = finish
 end
 
 -- Pending parses are authoritative too: never scan the buffer synchronously
@@ -126,12 +151,26 @@ function M.query(buf, row, lang, ready)
     if not ok or not parser then
       return
     end
-    entry = { tick = tick, lang = lang, pending = true, waiters = {} }
+    local previous = entry and entry.lang == lang and (entry.previous or entry)
+    if previous and not previous.frontier then
+      previous = nil
+    end
+    entry = { tick = tick, lang = lang, pending = true, waiters = {}, previous = previous }
+    if parser.register_cbs and not watched[parser] then
+      watched[parser] = true
+      parser:register_cbs({
+        on_changedtree = function(ranges)
+          for _, range in ipairs(ranges) do
+            invalidate(entries[buf], range[1])
+          end
+        end,
+      })
+    end
     entries[buf] = entry
     if not attached[buf] then
       attached[buf] = vim.api.nvim_buf_attach(buf, false, {
-        on_lines = function()
-          entries[buf] = nil
+        on_lines = function(_, _, _, first)
+          invalidate(entries[buf], first)
         end,
         on_reload = function()
           entries[buf] = nil
@@ -152,9 +191,14 @@ function M.query(buf, row, lang, ready)
       then
         return
       end
-      local success, result = pcall(index, buf, lang, tick, trees, query)
       entry.pending = false
-      entries[buf] = not err and success and result or { tick = tick, lang = lang, failed = true }
+      if not err and trees and trees[1] then
+        local result = previous or { rows = {}, directories = {}, errors = {}, frontier = 0 }
+        result.tick, result.lang, result.tree, result.query = tick, lang, trees[1], query
+        entries[buf] = result
+      else
+        entries[buf] = { tick = tick, lang = lang, failed = true }
+      end
       for _, callback in ipairs(entry.waiters) do
         vim.schedule(function()
           if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_changedtick(buf) == tick then
@@ -181,6 +225,13 @@ function M.query(buf, row, lang, ready)
   end
   if entry.failed then
     return
+  end
+  if entry.frontier < row then
+    local ok = pcall(index, buf, entry, row)
+    if not ok then
+      entry.failed = true
+      return
+    end
   end
   local candidates = entry.rows[row] or {}
   for _, err in ipairs(entry.errors) do
