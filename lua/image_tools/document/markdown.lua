@@ -131,10 +131,10 @@ function M.find(buf, row, col, opts)
   for _, image in ipairs(candidates) do
     if col == nil or (col >= image.start_col and col < image.end_col) then
       local path, err = require("image_tools.document.paths").resolve(image.src, vim.api.nvim_buf_get_name(buf), opts)
-      return path, err
+      return path, err, nil, vim.tbl_extend("force", image, { start_row = row, end_row = row })
     end
   end
-  return nil, "No supported image reference under the cursor"
+  return nil, "No supported image reference under the cursor", "miss"
 end
 
 function M.image_formats()

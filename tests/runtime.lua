@@ -69,7 +69,7 @@ local dependencies = {
     supported = function()
       return true
     end,
-    at_line = function(_, _, options)
+    at_cursor = function(_, _, _, options)
       return options.root .. "/fixture.png"
     end,
   },
@@ -186,7 +186,7 @@ eq(api.status().conversion_queue.limit, 2, "Replacement updates the budget rathe
 local waiting, callbacks = true, {}
 local async_dependencies = vim.tbl_extend("force", dependencies, {
   document = {
-    at_line = function(_, _, options)
+    at_cursor = function(_, _, _, options)
       if waiting then
         callbacks[#callbacks + 1] = options._treesitter_ready
         return nil, "pending", "pending"

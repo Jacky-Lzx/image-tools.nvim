@@ -28,3 +28,10 @@ controller and document services to be replaced in lifecycle tests.
 The Runtime is internal. The supported user-facing API and single active editor
 configuration remain `require("image_tools")`; multiple concurrently started
 runtimes are not supported because the commands and autocmd groups have fixed names.
+
+Reference previews first query `document.at_cursor` with Neovim's byte column.
+Only a selection `miss` falls back to the first reference on the line; errors in
+an explicitly selected destination remain errors. Horizontal movement rechecks
+selection, while an unchanged source retains its window and preparation handle.
+Pending syntax requests capture the column as well as buffer/window/version and
+range, so delayed completion resumes the most recent selected reference.

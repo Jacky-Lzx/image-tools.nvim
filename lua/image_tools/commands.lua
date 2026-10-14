@@ -61,7 +61,7 @@ function M.register(runtime)
   end, {
     nargs = "?",
     complete = "file",
-    desc = "Preview an image file or the first image reference on the current line",
+    desc = "Preview an image file or the image reference under the cursor",
     force = true,
   })
 

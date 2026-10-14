@@ -218,14 +218,15 @@ function M.find(buf, row, col, opts)
         return nil, "Save the document before previewing an image reference"
       end
       local src = image.src:sub(1, 1) == "/" and image.src:gsub("^/+", "") or image.src
-      return require("image_tools.document.paths").resolve(
+      local path, err = require("image_tools.document.paths").resolve(
         src,
         document,
         vim.tbl_extend("force", opts, { root = root, literal = true })
       )
+      return path, err, nil, vim.tbl_extend("force", image, { start_row = row, end_row = row })
     end
   end
-  return nil, "No supported image reference on the current line"
+  return nil, "No supported image reference on the current line", "miss"
 end
 
 local image_formats = { "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }

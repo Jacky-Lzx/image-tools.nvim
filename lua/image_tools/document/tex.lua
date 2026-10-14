@@ -78,7 +78,14 @@ function M.find(buf, row, col, opts)
       and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready, opts)
     or nil
   if syntax and syntax.pending then
-    return nil, "Tree-sitter parsing is pending", "pending", nearby[1]
+    local selected = nearby[1]
+    for _, candidate in ipairs(nearby) do
+      if reference.contains(candidate, row, col) then
+        selected = candidate
+        break
+      end
+    end
+    return nil, "Tree-sitter parsing is pending", "pending", selected
   end
   if not syntax then
     syntax = { candidates = {} }
@@ -128,7 +135,7 @@ function M.find(buf, row, col, opts)
       return nil, "Image not found in document root or graphicspath: " .. candidate.src
     end
   end
-  return nil, "No supported image reference on the current line"
+  return nil, "No supported image reference on the current line", "miss"
 end
 
 local image_formats = { "png", "jpg", "jpeg", "pdf" }

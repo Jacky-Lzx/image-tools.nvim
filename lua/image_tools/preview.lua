@@ -78,6 +78,7 @@ function M:open(path, options)
         and vim.api.nvim_get_current_buf() == state.owner_buf
         and vim.api.nvim_buf_get_changedtick(state.owner_buf) == state.changedtick
         and on_reference_row(state)
+        and (not state.reference or vim.api.nvim_win_get_cursor(state.owner_win)[2] == state.cursor[2])
     end,
     stale = function()
       if self.state == state then

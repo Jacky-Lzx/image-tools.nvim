@@ -28,7 +28,8 @@ above the command line and status line. "cursor" places it near the cursor.
 
 COMMANDS                                                   *:ImagePreview*
 
-:ImagePreview [path]    Preview a file, or the first Markdown image on the line.
+:ImagePreview [path]    Preview a file, or the image reference under the cursor.
+                       Outside references, preview the first image on the line.
                        File paths are literal: spaces work without quotes.
                        Explicit relative paths use cwd; Markdown paths use
                        the document directory.
@@ -50,7 +51,8 @@ API                                                        *image-tools-api*
 
 setup(opts)            Configure the plugin; repeated setup replaces handlers.
 preview(path, opts)    Preview a file. opts.silent suppresses notifications.
-hover(opts)            Preview the first Markdown image on the current line.
+hover(opts)            Preview the image reference under the cursor, falling back
+                       to the first image on the current line.
 close()                Close preview; safe to call repeatedly.
 clear_cache()          Close preview and release all owned terminal images.
 toggle()               Toggle automatic preview; returns its new state.

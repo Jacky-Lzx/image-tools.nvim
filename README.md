@@ -33,7 +33,8 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 
 - `:ImagePreview /absolute/or/relative/image.png` opens a file.
   Spaces are accepted literally; do not surround the path with shell quotes.
-- `:ImagePreview` previews the first Markdown/LaTeX/Typst image on the current line.
+- `:ImagePreview` previews the Markdown/LaTeX/Typst image reference under the cursor,
+  falling back to the first image on the current line when outside all references.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
@@ -51,9 +52,11 @@ to the document; changing cwd does not change their meaning. An optional
 return a custom absolute path. Neither path searching nor network access occurs.
 
 Automatic preview starts when the cursor enters an image line, including when
-it is outside the image link. Moving horizontally on that line, entering Insert
-mode or editing surrounding text keeps the same preview and pending conversion.
-If a line has multiple images, its first image is used consistently.
+it is outside the image link. On a line with multiple images, the reference under
+the cursor takes priority; moving onto another image switches the preview. Outside
+all references, the first image is used. Moving within the selected reference,
+entering Insert mode or editing surrounding text keeps its preview and pending
+conversion while the selected source stays unchanged.
 
 Moving to another line closes the previous preview immediately and previews
 the new line if it contains an image. Replacing or removing the image reference
@@ -255,8 +258,9 @@ Macros are not expanded. For example:
 
 Every row of a complete reference, including commented option rows, can trigger
 preview. Moving inside that reference retains its window and pending conversion;
-leaving its range closes it. Multiple references on a shared row select the first
-in document order; `at_cursor` respects the full byte-column range.
+leaving its range closes it. Multiple references on a shared row select the one
+under the cursor, falling back to the first in document order outside all references.
+`at_cursor` respects the full byte-column range.
 `latex.max_reference_lines` (64) and `latex.max_reference_bytes` (16 KiB) bound
 recognition, including compatibility decoding for partial grammar nodes. Lookahead
 also respects `max_scan_lines`. Lua fallback uses a bounded local search plus

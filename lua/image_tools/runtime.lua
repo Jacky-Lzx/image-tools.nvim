@@ -68,7 +68,9 @@ local function on_current_line(state)
     and covers(state.reference_range, vim.api.nvim_win_get_cursor(0)[1], state.cursor[1])
 end
 local function owns_pending(request)
-  return request.buf == vim.api.nvim_get_current_buf()
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  return request.col == cursor[2]
+    and request.buf == vim.api.nvim_get_current_buf()
     and request.win == vim.api.nvim_get_current_win()
     and request.tick == vim.api.nvim_buf_get_changedtick(0)
     and covers(request.range, vim.api.nvim_win_get_cursor(0)[1], request.row)
@@ -219,7 +221,7 @@ function Runtime:hover(opts)
   if pending and owns_pending(pending) then
     return false, "Tree-sitter parsing is pending"
   end
-  local request = { buf = buf, win = win, row = cursor[1], tick = tick }
+  local request = { buf = buf, win = win, row = cursor[1], col = cursor[2], tick = tick }
   self.reference_request = request
   local options = vim.tbl_extend("force", self.options, {
     _treesitter_ready = function()
@@ -229,7 +231,11 @@ function Runtime:hover(opts)
       end
     end,
   })
-  local path, err, status, reference = self:dependency("document").at_line(buf, cursor[1], options)
+  local document = self:dependency("document")
+  local path, err, status, reference = document.at_cursor(buf, cursor[1], cursor[2], options)
+  if status == "miss" then
+    path, err, status, reference = document.at_line(buf, cursor[1], options)
+  end
   request.range = range_of(reference)
   if status == "pending" then
     self.pending_reference = request
@@ -308,8 +314,9 @@ function Runtime:refresh()
     if
       state.changedtick == vim.api.nvim_buf_get_changedtick(0)
       and state.cursor[1] == vim.api.nvim_win_get_cursor(0)[1]
+      and (not state.reference or state.cursor[2] == vim.api.nvim_win_get_cursor(0)[2])
     then
-      return -- Keep both visible and pending previews during horizontal movement.
+      return -- Reference previews recheck horizontal movement for another image.
     end
     if state.reference then
       self:hover({ silent = true })
