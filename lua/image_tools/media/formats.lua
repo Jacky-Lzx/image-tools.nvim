@@ -13,10 +13,22 @@ M.formats = {
   svg = true,
 }
 
-function M.supported(path)
+function M.extension(path)
   local extension = path:match("%.([^./]+)$")
-  extension = extension and extension:lower()
+  return extension and extension:lower()
+end
+function M.supported(path)
+  local extension = M.extension(path)
   return extension == "png" or M.formats[extension] == true
+end
+function M.supports(path, extensions)
+  return vim.tbl_contains(extensions, M.extension(path))
+end
+function M.extensions()
+  local result = vim.tbl_keys(M.formats)
+  result[#result + 1] = "png"
+  table.sort(result)
+  return result
 end
 
 return M

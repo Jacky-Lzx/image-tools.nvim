@@ -137,4 +137,17 @@ function M.find(buf, row, col, opts)
   return nil, "No supported image reference under the cursor"
 end
 
+function M.image_formats()
+  return require("image_tools.media.formats").extensions()
+end
+M.supports_image = require("image_tools.media.formats").supported
+M.insertion_base = require("image_tools.document.paths").base
+function M.markup(path, alt)
+  local encoded = path:gsub("[%%<>%s\\%z]", function(c)
+    return string.format("%%%02X", c:byte())
+  end)
+  alt = (alt or ""):gsub("[\r\n]", " "):gsub("([\\%[%]])", "\\%1")
+  return "![" .. alt .. "](<" .. encoded .. ">)"
+end
+
 return M

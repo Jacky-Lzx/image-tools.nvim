@@ -7,12 +7,14 @@ Document reference processing lives in one subsystem:
 
 ```
 lua/image_tools/document/
-  init.lua          filetype dispatch and existing document API
-  markdown.lua      inline image parsing and fenced-code context
-  tex.lua           includegraphics, graphicspath and excluded environments
-  typst.lua         image calls, lexical context and literal strings
+  init.lua          existing document API
+  formats.lua       canonical filetype aliases and adapter dispatch
+  markdown.lua      Markdown syntax and insertion rules
+  tex.lua           LaTeX syntax, resolution and insertion rules
+  typst.lua         Typst syntax, resolution and insertion rules
   paths.lua         shared resolution, project roots and path validation
   syntax_cache.lua  buffer-scoped results and prefix checkpoints
+  treesitter.lua    async syntax indexing and backend diagnostics
 ```
 
 `require("image_tools.document")` retains `supported`, `parse`, `base`, `resolve`,
@@ -35,7 +37,8 @@ pool. The dependency direction is `transfer -> pixel_pool -> upload -> terminal 
 protocol`. `upload` handles pixel transmission, fallback, versioning and LRU
 storage; it never creates or hides placements. `pixel_pool` owns reference counts,
 independent placement ids and bounded placement retry. It consults the uploader's
-`cached()` method rather than its entry table. Clearing a shared transfer releases only its leases; clearing a standalone
+`cached()` method rather than its entry table. Clearing a shared transfer releases
+only its leases; clearing a standalone
 transfer also frees its private pool. Clearing the pool frees all owned terminal
 pixels.
 
@@ -64,3 +67,16 @@ by Runtime start. Preview and clipboard converters share it. Reducing the budget
 does not abandon running workers: queued work waits for sufficient exits. New
 configuration applies to queued work, while existing insertion operations retain
 their captured document/options. PNG reads and PDF metadata bypass this queue.
+
+## Document format adapters
+
+`document/formats` centralizes filetype aliases and resolves the Markdown, LaTeX
+and Typst adapters. Each adapter owns reference detection, supported insertion
+formats, markup emission and insertion path base; format-specific validation and
+filename sanitation are optional hooks. The picker uses the same format list as
+insertion. Markdown derives its list from the media preview capabilities, so
+variants such as TIFF cannot disappear from the picker while remaining importable.
+`insert` owns capture/extmarks, file publication, rollback and the single text
+transaction. It delegates document rules without branching on filetype.
+`insert.markup`, `insert.supported` and `insert.relative` remain compatibility
+helpers; relative path calculation lives alongside other document path helpers.

@@ -130,4 +130,24 @@ function M.find(buf, row, col, opts)
   end
   return nil, "No supported image reference on the current line"
 end
+
+local image_formats = { "png", "jpg", "jpeg", "pdf" }
+function M.image_formats()
+  return vim.deepcopy(image_formats)
+end
+function M.supports_image(path)
+  return require("image_tools.media.formats").supports(path, image_formats)
+end
+M.insertion_base = require("image_tools.document.paths").base
+function M.sanitize_filename(name)
+  return name:gsub("[%%#&$^~{}\\%c]", "_")
+end
+function M.markup(path, alt)
+  assert(
+    not path:find("[%%#&$^~{}\\%c]"),
+    "LaTeX image paths cannot contain TeX special characters or control characters; rename the file/directory"
+  )
+  return "\\includegraphics[width=\\linewidth]{\\detokenize{" .. path .. "}}"
+end
+
 return M

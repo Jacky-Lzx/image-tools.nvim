@@ -23,6 +23,7 @@ nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/render_session.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/insert.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/clipboard.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/picker.lua"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/formats.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/syntax_cache.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/treesitter.lua"
 if [ -n "${IMAGE_TOOLS_PARSER_ROOT:-}" ]; then

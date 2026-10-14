@@ -50,49 +50,16 @@ local function valid(context)
     and vim.bo[context.buf].filetype == context.filetype
 end
 
-function M.relative(path, base)
-  local a, b = vim.split(absolute(path), "/", { plain = true }), vim.split(absolute(base), "/", { plain = true })
-  while a[1] and a[1] == b[1] do
-    table.remove(a, 1)
-    table.remove(b, 1)
-  end
-  return string.rep("../", #b) .. table.concat(a, "/")
-end
+M.relative = require("image_tools.document.paths").relative
 
 function M.supported(filetype, path)
-  if vim.tbl_contains({ "tex", "latex", "plaintex" }, filetype) then
-    local extension = path:match("%.([^./]+)$")
-    return extension and vim.tbl_contains({ "png", "jpg", "jpeg", "pdf" }, extension:lower())
-  end
-  if filetype == "typst" then
-    local extension = path:match("%.([^./]+)$")
-    return extension and vim.tbl_contains({ "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }, extension:lower())
-  end
-  return require("image_tools.image").supported(path)
+  local format = require("image_tools.document").adapter(filetype)
+  return format ~= nil and format.supports_image(path)
 end
 
 function M.markup(path, alt, filetype)
-  if vim.tbl_contains({ "tex", "latex", "plaintex" }, filetype) then
-    assert(
-      not path:find("[%%#&$^~{}\\%c]"),
-      "LaTeX image paths cannot contain TeX special characters or control characters; rename the file/directory"
-    )
-    return "\\includegraphics[width=\\linewidth]{\\detokenize{" .. path .. "}}"
-  end
-  if filetype == "typst" then
-    assert(not path:find("%c"), "Typst image paths cannot contain control characters")
-    local function quoted(text)
-      return '"' .. text:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
-    end
-    local description = alt and alt ~= "" and ", alt: " .. quoted(alt:gsub("[\r\n]", " ")) or ""
-    return "#image(" .. quoted(path) .. ", width: 100%" .. description .. ")"
-  end
-  assert(filetype == "markdown", "Unsupported image insertion filetype")
-  local encoded = path:gsub("[%%<>%s\\%z]", function(c)
-    return string.format("%%%02X", c:byte())
-  end)
-  alt = (alt or ""):gsub("[\r\n]", " "):gsub("([\\%[%]])", "\\%1")
-  return "![" .. alt .. "](<" .. encoded .. ">)"
+  local format = assert(require("image_tools.document").adapter(filetype), "Unsupported image insertion filetype")
+  return format.markup(path, alt)
 end
 
 -- One text edit gives a batch one undo entry. Never redirect an asynchronous
@@ -151,15 +118,16 @@ function M.files(paths, opts, callback)
   local function fail(message)
     finish(tostring(message))
   end
+  local format
   local ok, err = pcall(function()
     assert(valid(context), "Source buffer is not editable")
-    assert(require("image_tools.document").supported(context.filetype), "Unsupported image insertion filetype")
+    format = assert(require("image_tools.document").adapter(context.filetype), "Unsupported image insertion filetype")
     assert(context.document ~= "", "Save the document before inserting images")
     assert(type(paths) == "table" and #paths > 0, "Choose at least one image file")
     assert(opts.mode == nil or opts.mode == "copy" or opts.mode == "reference", "mode must be copy or reference")
     for _, path in ipairs(paths) do
       assert(type(path) == "string" and path ~= "" and not path:find("[%z\r\n]"), "Invalid source path")
-      assert(M.supported(context.filetype, path), "Unsupported image format for " .. context.filetype .. ": " .. path)
+      assert(format.supports_image(path), "Unsupported image format for " .. context.filetype .. ": " .. path)
     end
   end)
   if not ok then
@@ -178,13 +146,7 @@ function M.files(paths, opts, callback)
       directory = directory(context.document)
     end
     directory = directory:sub(1, 1) == "/" and absolute(directory) or absolute(root .. "/" .. directory)
-    base = require("image_tools.document").base(context.document, { root = opts.reference_root }, context.buf)
-    if context.filetype == "typst" then
-      base = vim.fs.dirname(context.document)
-    end
-    if type(base) == "function" then
-      base = base(context.document)
-    end
+    base = format.insertion_base(context.document, { root = opts.reference_root }, context.buf)
     base = absolute(base)
   end)
   if not ok then
@@ -202,15 +164,10 @@ function M.files(paths, opts, callback)
       local snippets = {}
       local success, message = pcall(function()
         for _, path in ipairs(state.outputs) do
-          if context.filetype == "typst" then
-            local project =
-              require("image_tools.document").base(context.document, { root = opts.reference_root }, context.buf)
-            assert(
-              not M.relative(path, project):match("^%.%./"),
-              "Typst image is outside the project root; copy it or configure root to match typst compile --root"
-            )
+          if format.validate_reference then
+            format.validate_reference(path, context.document, { root = opts.reference_root }, context.buf)
           end
-          snippets[#snippets + 1] = M.markup(M.relative(path, base), opts.alt, context.filetype)
+          snippets[#snippets + 1] = format.markup(M.relative(path, base), opts.alt)
         end
         insert(context, snippets)
       end)
@@ -244,8 +201,8 @@ function M.files(paths, opts, callback)
         fail("Name must be a single filename")
         return
       end
-      if vim.tbl_contains({ "tex", "latex", "plaintex" }, context.filetype) then
-        name = name:gsub("[%%#&$^~{}\\%c]", "_")
+      if format.sanitize_filename then
+        name = format.sanitize_filename(name)
       end
       local extension = source:match("%.([^./]+)$")
       if not name:lower():match("%." .. extension:lower() .. "$") then

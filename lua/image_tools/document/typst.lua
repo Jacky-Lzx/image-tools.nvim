@@ -227,4 +227,32 @@ function M.find(buf, row, col, opts)
   end
   return nil, "No supported image reference on the current line"
 end
+
+local image_formats = { "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }
+function M.image_formats()
+  return vim.deepcopy(image_formats)
+end
+function M.supports_image(path)
+  return require("image_tools.media.formats").supports(path, image_formats)
+end
+function M.insertion_base(document)
+  return vim.fs.dirname(document)
+end
+function M.validate_reference(path, document, opts, buf)
+  local paths = require("image_tools.document.paths")
+  local project = paths.base(document, opts, buf)
+  assert(
+    not paths.relative(path, project):match("^%.%./"),
+    "Typst image is outside the project root; copy it or configure root to match typst compile --root"
+  )
+end
+function M.markup(path, alt)
+  assert(not path:find("%c"), "Typst image paths cannot contain control characters")
+  local function quoted(text)
+    return '"' .. text:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
+  end
+  local description = alt and alt ~= "" and ", alt: " .. quoted(alt:gsub("[\r\n]", " ")) or ""
+  return "#image(" .. quoted(path) .. ", width: 100%" .. description .. ")"
+end
+
 return M

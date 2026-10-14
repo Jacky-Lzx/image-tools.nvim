@@ -5,7 +5,7 @@ function M.base(document, opts, buf)
   if type(root) == "function" then
     root = root(document)
   end
-  if not root and buf and vim.tbl_contains({ "tex", "latex", "plaintex" }, vim.bo[buf].filetype) then
+  if not root and buf and require("image_tools.document.formats").kind(vim.bo[buf].filetype) == "tex" then
     local vimtex = vim.b[buf].vimtex
     if type(vimtex) == "table" then
       root = vimtex.root
@@ -44,6 +44,17 @@ function M.resolve(src, document, opts)
   end
   local base = M.base(document, opts)
   return vim.fs.normalize(base .. "/" .. src)
+end
+
+function M.relative(path, base)
+  local a, b =
+    vim.split(vim.fs.normalize(vim.fn.fnamemodify(path, ":p")), "/", { plain = true }),
+    vim.split(vim.fs.normalize(vim.fn.fnamemodify(base, ":p")), "/", { plain = true })
+  while a[1] and a[1] == b[1] do
+    table.remove(a, 1)
+    table.remove(b, 1)
+  end
+  return string.rep("../", #b) .. table.concat(a, "/")
 end
 
 return M
