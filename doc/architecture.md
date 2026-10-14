@@ -38,3 +38,12 @@ independent placement ids and bounded placement retry. It consults the uploader'
 `cached()` method rather than its entry table. Clearing a shared transfer releases only its leases; clearing a standalone
 transfer also frees its private pool. Clearing the pool frees all owned terminal
 pixels.
+
+## Render sessions
+
+Floating previews, file canvases and Snacks renderers supply their own authority,
+viewport, window policy and error presentation. `render_session` owns the common
+prepare/placement sequence and releases both handles on close, stale completion,
+or drawing failure. It also releases handles returned after a synchronous close.
+`geometry` supplies aspect-ratio fitting; `placeholder` draws the Kitty grid and
+placement highlight. These helpers do not depend on a particular controller.

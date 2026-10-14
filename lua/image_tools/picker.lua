@@ -11,15 +11,10 @@ function Renderer:close()
   if not state then
     return
   end
-  if state.cancel then
-    state.cancel()
+  if state.render then
+    state.render:close()
   end
-  if state.cancel_transfer then
-    state.cancel_transfer()
-  end
-  if state.highlight then
-    vim.api.nvim_set_hl(0, state.highlight, {})
-  end
+  require("image_tools.placeholder").clear(state)
   if vim.api.nvim_buf_is_valid(state.buf) then
     local marks = vim.api.nvim_buf_get_extmarks(state.buf, ns, 0, -1, { limit = 1 })
     vim.api.nvim_buf_clear_namespace(state.buf, ns, 0, -1)
@@ -172,60 +167,43 @@ function Renderer:show(ctx, path)
     self:close()
     ctx.preview:notify(err, "error", { item = false })
   end
-  state.cancel = self:dependency("image").prepare(path, self.opts, function(err, image)
-    if not current() then
+  state.render = require("image_tools.render_session").new(self:dependency("image"), self.transfer)
+  state.render:start(path, self.opts, {
+    current = current,
+    stale = function()
       if self.state == state then
         self:close()
       end
-      return
-    end
-    if err then
-      fail(err)
-      return
-    end
-    state.view_width, state.view_height = self:viewport(state.win)
-    local width, height = require("image_tools.preview").fit(
-      image,
-      terminal.cell_size(self.opts.cell_size),
-      math.min(state.view_width, protocol.max_cells),
-      math.min(state.view_height, protocol.max_cells),
-      true
-    )
-    state.cancel_transfer = self.transfer:acquire(image, width, height, function(transfer_err, entry)
-      if not current() then
-        if entry and entry.cancel then
-          entry.cancel()
-        end
-        if self.state == state then
-          self:close()
-        end
-        return
-      end
-      if transfer_err then
-        fail(transfer_err)
-        return
-      end
-      state.id, state.placement_id = entry.id, entry.placement_id
-      state.highlight = "ImageToolsPicker_" .. entry.id .. "_" .. (entry.placement_id or 0)
-      vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
+    end,
+    error = fail,
+    size = function(image)
+      state.view_width, state.view_height = self:viewport(state.win)
+      return require("image_tools.geometry").fit(
+        image,
+        terminal.cell_size(self.opts.cell_size),
+        math.min(state.view_width, protocol.max_cells),
+        math.min(state.view_height, protocol.max_cells),
+        true
+      )
+    end,
+    draw = function(entry, width, height)
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
-      state.width, state.height, state.top, state.left = width, height, 0, 0
-      local lines = protocol.grid(width, height)
-      for row = height + 1, state.view_height do
-        lines[#lines + 1] = ""
-      end
-      ctx.preview:set_lines(lines)
-      for row = 0, height - 1 do
-        vim.api.nvim_buf_set_extmark(
-          state.buf,
-          ns,
-          row,
-          0,
-          { end_row = row + 1, end_col = 0, hl_group = state.highlight, priority = 1000 }
-        )
-      end
-    end)
-  end)
+      state.top, state.left = 0, 0
+      require("image_tools.placeholder").draw(
+        state,
+        ns,
+        "ImageToolsPicker_",
+        entry,
+        width,
+        height,
+        protocol,
+        function(lines)
+          ctx.preview:set_lines(lines)
+        end,
+        state.view_height
+      )
+    end,
+  })
 end
 
 -- Public custom previewer: uses picker lifecycle, not cursor-line ownership.
