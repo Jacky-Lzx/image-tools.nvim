@@ -12,6 +12,7 @@ local defaults = {
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500,
   terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
+  disk_cache = { enabled = true, max_bytes = 512 * 1024 * 1024, max_files = 256 },
   max_width = 60,
   max_height = 30,
   border = "rounded",
@@ -31,6 +32,13 @@ function M.resolve(opts)
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   assert(vim.tbl_contains({ "auto", "file", "direct" }, options.transport), "transport must be auto, file or direct")
+  assert(type(options.disk_cache.enabled) == "boolean", "disk_cache.enabled must be boolean")
+  for _, name in ipairs({ "max_files", "max_bytes" }) do
+    assert(
+      type(options.disk_cache[name]) == "number" and options.disk_cache[name] >= 0 and options.disk_cache[name] % 1 == 0,
+      "disk_cache." .. name .. " must be a non-negative integer"
+    )
+  end
   for _, name in ipairs({ "max_images", "max_bytes" }) do
     assert(
       type(options.terminal_cache[name]) == "number"

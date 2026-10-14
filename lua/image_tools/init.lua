@@ -35,6 +35,10 @@ function M.clear_cache()
     require("image_tools.picker").clear_all()
   end
 end
+function M.clear_disk_cache(callback)
+  return runtime():clear_disk_cache(callback)
+end
+
 function M.status()
   return instance and instance:status() or { configured = false, auto_preview = false, transport = "auto" }
 end

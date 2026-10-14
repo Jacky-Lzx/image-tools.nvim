@@ -84,6 +84,10 @@ function Runtime:clear_cache()
   end
 end
 
+function Runtime:clear_disk_cache(callback)
+  return self:dependency("disk_cache").clear(self.options, callback)
+end
+
 function Runtime:open_preview(path, opts)
   if type(path) ~= "string" or path == "" then
     return false, "An image path is required"

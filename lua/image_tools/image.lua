@@ -167,7 +167,7 @@ local function prepare(path, opts, callback)
       cancelled = true
     end
   end
-  local cancelled, process = false, nil
+  local cancelled, process, cache_release = false, nil, nil
   local function done(err, image)
     if not cancelled then
       if image then
@@ -177,6 +177,10 @@ local function prepare(path, opts, callback)
         end
       end
       callback(err, image)
+    end
+    if cache_release then
+      cache_release()
+      cache_release = nil
     end
   end
   vim.schedule(function()
@@ -210,88 +214,104 @@ local function prepare(path, opts, callback)
         .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or 144)) or "")
     )
     local output = opts.cache .. "/" .. key .. ".png"
-    if uv.fs_stat(output) then
-      M.read(output, opts, done, metadata_only)
-      return
-    end
-    vim.fn.mkdir(opts.cache, "p")
-    local temporary = output .. "." .. tostring(uv.hrtime()) .. ".tmp.png"
-    local command
-    if use_rsvg then
-      command = {
-        svg_renderer,
-        "--format=png",
-        "--width=1920",
-        "--height=1080",
-        "--keep-aspect-ratio",
-        "--output",
-        temporary,
-        path,
-      }
-    else
-      command = {
-        opts.magick,
-        "-limit",
-        "memory",
-        "128MiB",
-        "-limit",
-        "map",
-        "256MiB",
-        "-limit",
-        "disk",
-        "256MiB",
-      }
-      if extension == "pdf" then
-        vim.list_extend(command, { "-density", tostring(opts.pdf_density or 144) })
+    local function load()
+      if uv.fs_stat(output) then
+        M.read(output, opts, done, metadata_only)
+        return
       end
-      vim.list_extend(command, {
-        (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
-        "-auto-orient",
-        "-resize",
-        "1920x1080>",
-        "png:" .. temporary,
-      })
-    end
-
-    process = vim.system(command, { text = true, timeout = opts.convert_timeout }, function(result)
-      vim.schedule(function()
-        process = nil
-        if cancelled or result.code ~= 0 then
-          uv.fs_unlink(temporary)
-          if not cancelled then
-            done("Image conversion failed: " .. vim.trim(result.stderr or ""))
-          end
-          return
+      vim.fn.mkdir(opts.cache, "p")
+      local temporary = output .. "." .. tostring(uv.hrtime()) .. ".tmp.png"
+      local command
+      if use_rsvg then
+        command = {
+          svg_renderer,
+          "--format=png",
+          "--width=1920",
+          "--height=1080",
+          "--keep-aspect-ratio",
+          "--output",
+          temporary,
+          path,
+        }
+      else
+        command = {
+          opts.magick,
+          "-limit",
+          "memory",
+          "128MiB",
+          "-limit",
+          "map",
+          "256MiB",
+          "-limit",
+          "disk",
+          "256MiB",
+        }
+        if extension == "pdf" then
+          vim.list_extend(command, { "-density", tostring(opts.pdf_density or 144) })
         end
-        M.read(temporary, opts, function(err, image)
-          local after = uv.fs_stat(path)
-          if not err and (not after or M.key(path, after) ~= M.key(path, stat)) then
-            err = "Image source changed during conversion; retry the preview"
+        vim.list_extend(command, {
+          (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
+          "-auto-orient",
+          "-resize",
+          "1920x1080>",
+          "png:" .. temporary,
+        })
+      end
+
+      process = vim.system(command, { text = true, timeout = opts.convert_timeout }, function(result)
+        vim.schedule(function()
+          process = nil
+          if cancelled or result.code ~= 0 then
+            uv.fs_unlink(temporary)
+            if not cancelled then
+              done("Image conversion failed: " .. vim.trim(result.stderr or ""))
+            end
+            return
           end
-          if not err then
-            local renamed, rename_err = uv.fs_rename(temporary, output)
-            if not renamed then
-              err = rename_err
-            else
-              image.path = output
-              local final_stat = uv.fs_stat(output)
-              if final_stat then
-                image.key = M.key(output, final_stat)
+          M.read(temporary, opts, function(err, image)
+            if cancelled then
+              uv.fs_unlink(temporary)
+              return
+            end
+            local after = uv.fs_stat(path)
+            if not err and (not after or M.key(path, after) ~= M.key(path, stat)) then
+              err = "Image source changed during conversion; retry the preview"
+            end
+            if not err then
+              local renamed, rename_err = uv.fs_rename(temporary, output)
+              if not renamed then
+                err = rename_err
               else
-                err = "Converted image disappeared before caching"
+                image.path = output
+                require("image_tools.disk_cache").published(opts, output)
+                local final_stat = uv.fs_stat(output)
+                if final_stat then
+                  image.key = M.key(output, final_stat)
+                else
+                  err = "Converted image disappeared before caching"
+                end
               end
             end
-          end
-          uv.fs_unlink(temporary)
-          done(err, image)
-        end, metadata_only)
+            uv.fs_unlink(temporary)
+            done(err, image)
+          end, metadata_only)
+        end)
       end)
+    end
+    cache_release = require("image_tools.disk_cache").acquire(opts, output, function()
+      if not cancelled then
+        load()
+      end
     end)
   end)
   return function()
     cancelled = true
     if process then
       process:kill(15)
+    end
+    if cache_release then
+      cache_release()
+      cache_release = nil
     end
     -- Let any in-flight read complete to clean its temporary file. done()
     -- suppresses its callback after cancellation.
@@ -304,6 +324,19 @@ local pending = {}
 function M.prepare(path, opts, callback)
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
+  local disk = require("image_tools.disk_cache")
+  if extension == "png" and disk.owns(opts, path) then
+    local cancel_read
+    local release = disk.acquire(opts, path, function()
+      cancel_read = prepare(path, opts, callback)
+    end)
+    return function()
+      if cancel_read then
+        cancel_read()
+      end
+      release()
+    end
+  end
   local stat = convertible[extension] and uv.fs_stat(path)
   if
     not stat
@@ -346,6 +379,9 @@ function M.prepare(path, opts, callback)
       local subscribers = job.subscribers
       job.subscribers = {}
       for consumer, receive in pairs(subscribers) do
+        if image and consumer.active then
+          consumer.release = disk.acquire(opts, image.path, function() end)
+        end
         -- One callback cannot prevent other subscribers from completing.
         vim.schedule(function()
           if consumer.active then
@@ -357,6 +393,10 @@ function M.prepare(path, opts, callback)
     end)
   end
   return function()
+    if subscriber.release then
+      subscriber.release()
+      subscriber.release = nil
+    end
     if not subscriber.active then
       return
     end

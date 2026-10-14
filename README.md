@@ -36,11 +36,12 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImagePreview` previews the first Markdown/LaTeX/Typst image on the current line.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
+- `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
 - `:ImagePreviewToggle` toggles automatic current-line previews.
 - `:checkhealth image_tools` checks the terminal and conversion tools.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
-`clear_cache()`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
+`clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`.
 
 `require("image_tools")` alone registers no handlers.
@@ -76,6 +77,7 @@ require("image_tools").setup({
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500, -- milliseconds to wait for a graphics acknowledgement
   terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
+  disk_cache = { enabled = true, max_files = 256, max_bytes = 512 * 1024 * 1024 },
   max_width = 60, -- terminal cells, capped at 297
   max_height = 30, -- terminal cells, capped at 297
   border = "rounded",
@@ -100,7 +102,14 @@ The default `"cursor"` places it near the cursor.
 
 Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size and nanosecond mtime/ctime.
 Preview PNGs are capped at 1920x1080; originals are never modified.
-Conversion disk-cache cleanup is manual in this first version.
+Converted disk images are managed asynchronously by `disk_cache` limits.
+Unused images are removed in access order; currently used images are protected
+and may temporarily exceed the limits. Set `disk_cache.enabled = false` to
+disable automatic eviction. `:ImageCacheClear` clears unused conversions manually.
+Cleanup selects hash-named PNGs directly inside the configured cache directory.
+Source directories, other filenames, symbolic links and conversion temporaries
+are excluded. After a restart, file modification times provide the
+initial eviction order until images are accessed again.
 
 ## Transmission and terminal cache
 

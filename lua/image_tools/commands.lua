@@ -73,6 +73,13 @@ function M.register(runtime)
     runtime:clear_cache()
   end, { desc = "Close preview and release all image-tools terminal images", force = true })
 
+  command("ImageCacheClear", function()
+    runtime:clear_disk_cache(function(status)
+      local message = status.error
+        or string.format("Removed %d cached files; %d files still in use", status.removed, status.protected)
+      vim.notify(message, status.error and vim.log.levels.ERROR or vim.log.levels.INFO, { title = "image-tools" })
+    end)
+  end, { desc = "Clear unused converted images from disk", force = true })
   command("ImagePreviewToggle", function()
     runtime:toggle()
   end, { desc = "Toggle automatic image preview", force = true })

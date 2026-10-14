@@ -18,3 +18,17 @@ its own metadata and cancellation handle. The worker is killed only when its las
 subscriber cancels; failures release the shared slot so later requests can retry.
 The source version is checked again before publishing converted pixels. PNG
 metadata reads and the per-renderer terminal caches remain independent.
+
+Disk conversions default to a maximum of 256 files and 512 MiB. Directory scans,
+file stats and deletion run asynchronously, with directory traversal batched in
+64-entry chunks. Cleanup only selects the plugin's 64-hex-digit PNG filenames;
+unrelated files, symlinks and temporary conversion files are excluded.
+
+Access order is tracked in memory without modifying the PNG timestamps or changing
+terminal-cache keys. Existing file modification times supply the initial order
+after a restart. Workers and subscribers hold reference-counted file leases; files
+remain protected until their preparation handles are cancelled/closed. Readers
+arriving during a deletion wait for it before checking/recreating the output.
+Active files may temporarily exceed the budget; releasing them triggers deferred
+cleanup. `ImageCacheClear` / `clear_disk_cache(callback)` remove unused disk
+conversions independently of `ImagePreviewClearCache` (terminal graphics).
