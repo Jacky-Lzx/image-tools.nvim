@@ -1,5 +1,5 @@
 local M = {}
-local queued, active, pumping = {}, 0, false
+local queued, active, pumping, limit = {}, 0, false, 2
 
 local function pump()
   if pumping then
@@ -10,7 +10,7 @@ local function pump()
     local job = queued[1]
     if job.cancelled then
       table.remove(queued, 1)
-    elseif active >= job.limit then
+    elseif active >= limit then
       break
     else
       table.remove(queued, 1)
@@ -43,8 +43,8 @@ end
 
 -- A cancelled running process holds its slot until it actually exits.
 -- Queued work can be removed without spawning or creating a partial output.
-function M.run(command, options, limit, callback)
-  local job = { command = command, options = options, limit = limit or 2, callback = callback }
+function M.run(command, options, callback)
+  local job = { command = command, options = options, callback = callback }
   queued[#queued + 1] = job
   pump()
   return function()
@@ -58,6 +58,14 @@ function M.run(command, options, limit, callback)
     pump()
   end
 end
+function M.configure(concurrency)
+  assert(
+    type(concurrency) == "number" and concurrency >= 1 and concurrency % 1 == 0,
+    "Conversion concurrency must be a positive integer"
+  )
+  limit = concurrency
+  pump()
+end
 function M.status()
   local waiting = 0
   for _, job in ipairs(queued) do
@@ -65,6 +73,6 @@ function M.status()
       waiting = waiting + 1
     end
   end
-  return { active = active, queued = waiting }
+  return { active = active, queued = waiting, limit = limit }
 end
 return M

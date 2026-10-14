@@ -47,3 +47,20 @@ prepare/placement sequence and releases both handles on close, stale completion,
 or drawing failure. It also releases handles returned after a synchronous close.
 `geometry` supplies aspect-ratio fitting; `placeholder` draws the Kitty grid and
 placement highlight. These helpers do not depend on a particular controller.
+
+## Media preparation and process budget
+
+`image` is the compatibility facade. `media/png` reads and validates PNG data;
+`media/file_version` identifies source revisions; `media/formats` lists preview
+formats; `media/convert` constructs converters and publishes validated outputs.
+`media/prepare` owns process-scoped coalesced workers. Each request has separate
+`cancel`, `release` and `close` operations: cancellation suppresses pending delivery;
+release unpins delivered files; close performs both. The old `image.prepare`
+cancellation function delegates to close. Successful preparation keeps each
+subscriber's disk lease until the view closes.
+
+The FIFO conversion queue is process-scoped with one explicit budget configured
+by Runtime start. Preview and clipboard converters share it. Reducing the budget
+does not abandon running workers: queued work waits for sufficient exits. New
+configuration applies to queued work, while existing insertion operations retain
+their captured document/options. PNG reads and PDF metadata bypass this queue.

@@ -179,6 +179,10 @@ eq(vim.fn.exists(":ImagePreview"), 0, "Startup failure removes registered comman
 require("image_tools.commands").register = real_register
 api.setup({ auto_preview = false })
 eq(api.status().configured, true, "Setup recovers after startup failure")
+api.setup({ auto_preview = false, convert_concurrency = 1 })
+eq(api.status().conversion_queue.limit, 1, "Setup configures the process-wide conversion budget")
+api.setup({ auto_preview = false, convert_concurrency = 2 })
+eq(api.status().conversion_queue.limit, 2, "Replacement updates the budget rather than storing it per job")
 local waiting, callbacks = true, {}
 local async_dependencies = vim.tbl_extend("force", dependencies, {
   document = {

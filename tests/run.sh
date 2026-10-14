@@ -15,6 +15,7 @@ nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/tex_range_lifecycle.l
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/health.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/disk_cache.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/conversion.lua"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/media_prepare.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/conversion_queue.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/transfer.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/pixel_pool.lua"

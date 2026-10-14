@@ -41,6 +41,9 @@ function M.paste(opts, callback, dependencies)
     if state.job then
       state.job:kill(15)
     end
+    if state.cancel_conversion then
+      state.cancel_conversion()
+    end
     if state.cancel_import then
       state.cancel_import()
     end
@@ -112,7 +115,7 @@ function M.paste(opts, callback, dependencies)
       return
     end
     local output = state.directory .. "/clipboard." .. format
-    state.job = vim.system(
+    state.cancel_conversion = require("image_tools.conversion_queue").run(
       {
         magick,
         "-limit",
@@ -132,6 +135,7 @@ function M.paste(opts, callback, dependencies)
       },
       { timeout = opts.convert_timeout or 10000 },
       vim.schedule_wrap(function(result)
+        state.cancel_conversion = nil
         if state.done then
           cleanup()
           return
@@ -149,6 +153,7 @@ function M.paste(opts, callback, dependencies)
     { executable, png },
     { timeout = opts.clipboard_timeout or 5000 },
     vim.schedule_wrap(function(result)
+      state.job = nil
       if state.done then
         cleanup()
         return

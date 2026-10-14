@@ -181,8 +181,9 @@ vim.system = fail_original
 opts = options("scheduled")
 received, abandoned = false, false
 local pending_callback
-local read = I.read
-I.read = function(path, options, callback, metadata)
+local reader = require("image_tools.media.png")
+local read = reader.read
+reader.read = function(path, options, callback, metadata)
   if path:find(".tmp.png", 1, true) then
     pending_callback = callback
   end
@@ -203,7 +204,7 @@ await(function()
   return received
 end)
 check(not abandoned, "Cancelled subscriber stays silent during completion")
-I.read = read
+reader.read = read
 -- Distinct real sources use the process budget, not just same-source coalescing.
 local active, peak, burst_launches = 0, 0, 0
 vim.system = function(command, settings, callback)
@@ -215,7 +216,7 @@ vim.system = function(command, settings, callback)
   end)
 end
 opts = options("burst")
-opts.convert_concurrency = 1
+require("image_tools.conversion_queue").configure(1)
 completed = 0
 for i = 1, 5 do
   local input = tmp .. "/burst-" .. i .. ".jpg"

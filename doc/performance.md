@@ -17,7 +17,7 @@ renderer, cache directory and validation settings match. Each subscriber receive
 its own metadata and cancellation handle. The worker is killed only when its last
 subscriber cancels; failures release the shared slot so later requests can retry.
 The source version is checked again before publishing converted pixels. PNG
-metadata reads and the per-renderer terminal caches remain independent.
+metadata reads remain independent; terminal pixels share one runtime pool.
 
 Disk conversions default to a maximum of 256 files and 512 MiB. Directory scans,
 file stats and deletion run asynchronously, with directory traversal batched in

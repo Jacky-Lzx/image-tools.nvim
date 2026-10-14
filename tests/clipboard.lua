@@ -64,6 +64,60 @@ vim.wait(50)
 check(done and err == "Cancelled", "Paste cancellation")
 check(#vim.fn.glob(tmp .. "/cancel/*", false, true) == 0, "Cancelled paste produces no assets")
 vim.ui.input = original
+-- Clipboard format conversion shares the preview process budget and can be
+-- cancelled while queued, before any converter process or imported file exists.
+local Q = require("image_tools.conversion_queue")
+Q.configure(1)
+local system, held, launches = vim.system, nil, 0
+vim.system = function(command, settings, callback)
+  if command[1] == "held-preview" then
+    held = callback
+    return { kill = function() end }
+  end
+  if command[1] == "magick" then
+    launches = launches + 1
+  end
+  return system(command, settings, callback)
+end
+Q.run({ "held-preview" }, {}, function() end)
+buffer("queued")
+local received
+cancel = C.paste({ pngpaste = script, format = "jpg", directory = "queued-assets" }, function(e)
+  received = e or "ok"
+end, { macos = true })
+check(
+  vim.wait(2000, function()
+    return Q.status().queued == 1
+  end),
+  "Clipboard conversion queues behind preview"
+)
+check(launches == 0 and not received, "Clipboard does not exceed the shared process budget")
+cancel()
+check(received == "Cancelled" and Q.status().queued == 0, "Queued clipboard cancellation removes its converter")
+held({ code = 0 })
+vim.wait(20)
+check(
+  launches == 0 and #vim.fn.glob(tmp .. "/queued-assets/*", false, true) == 0,
+  "Cancelled queued clipboard creates no imported resource"
+)
+Q.run({ "held-preview" }, {}, function() end)
+buffer("queued-success")
+received = nil
+C.paste({ pngpaste = script, format = "jpg" }, function(e)
+  received = e or "ok"
+end, { macos = true })
+check(
+  vim.wait(2000, function()
+    return Q.status().queued == 1
+  end),
+  "Another clipboard request queues normally"
+)
+held({ code = 0 })
+check(vim.wait(5000, function()
+  return received ~= nil
+end) and received == "ok" and launches == 1, "Clipboard converts and inserts when the shared slot becomes free")
+vim.system = system
+Q.configure(2)
 buffer("missing")
 err = paste({ pngpaste = tmp .. "/absent" })
 check(err and err:match("pngpaste is required"), "Missing executable actionable")

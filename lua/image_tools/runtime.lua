@@ -279,6 +279,7 @@ function Runtime:status()
     transport = self.options and self.options.transport or "auto",
     disk_cache = vim.tbl_extend("force", self.options.disk_cache, { path = self.options.cache }),
     conversion_queue = require("image_tools.conversion_queue").status(),
+    media = require("image_tools.media.prepare").status(),
     treesitter = vim.tbl_extend(
       "force",
       require("image_tools.document.treesitter").status(),
@@ -329,6 +330,7 @@ end
 
 function Runtime:start()
   assert(not self.disposed and not self.group, "Runtime is already started or destroyed")
+  require("image_tools.conversion_queue").configure(self.options.convert_concurrency)
   self.group = vim.api.nvim_create_augroup("image_tools", { clear = true })
 
   self:autocmd({

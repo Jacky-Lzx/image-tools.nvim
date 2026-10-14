@@ -332,11 +332,12 @@ missing conversion/metadata tools show a readable error in the file buffer.
 No terminal responses, stale conversions or page changes can reopen a canvas after
 its source window/buffer is closed. Use `:checkhealth image_tools` to check tools.
 
-Converter processes for distinct image files and PDF pages share a FIFO queue,
+Converter processes for distinct image files, PDF pages and clipboard format conversion share a FIFO queue,
 with `convert_concurrency = 2` by default. Same-source requests still share one
 conversion. Closing a queued preview removes its job; cancelling a running job
 keeps its slot until the process exits. Cache hits and PNG reads bypass the queue.
-`status().conversion_queue` reports active and queued converters.
+`status().conversion_queue` reports active and queued converters and the current process budget.
+Reconfiguration updates that budget; running workers retain their slots until exit.
 
 Terminal pixel data is shared by floating previews, picker previews and file
 buffers within one plugin runtime. Each view has a separate Kitty virtual
