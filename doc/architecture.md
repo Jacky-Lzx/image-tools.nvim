@@ -2,6 +2,11 @@
 
 Implementation modules are grouped by responsibility:
 
+Every implementation Lua file starts with English `Purpose`, `Architecture`
+and `Ownership` notes. They summarize the module's role, its dependency boundary
+and the scope/lifecycle of its state; the sections below describe how the modules
+work together.
+
 ```
 lua/image_tools/
   init.lua                 public API

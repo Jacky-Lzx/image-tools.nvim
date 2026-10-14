@@ -1,3 +1,18 @@
+-- Module: image_tools.render.canvas
+--
+-- Purpose:
+--   Draw an image or PDF page in a canvas bound to a file-viewer window.
+--
+-- Architecture:
+--   Use render/session for preparation/placement and geometry/placeholder for
+--   drawing. Derive a viewport below the file header, excluding owner gutters,
+--   winbar and statusline; allow viewport upscaling.
+--
+-- Ownership:
+--   Own one canvas state and transfer manager. Authority follows the owner
+--   buffer/window/tab and page generation; close releases session/window
+--   resources without managing document metadata.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   protocol = "image_tools.terminal.protocol",

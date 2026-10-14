@@ -1,3 +1,19 @@
+-- Module: image_tools.render.placeholder
+--
+-- Purpose:
+--   Populate a render buffer with Kitty placeholder grids and placement
+--   highlights.
+--
+-- Architecture:
+--   Shared by floating previews, file canvases and picker renderers. Use the
+--   supplied protocol to encode pixels/placement selection, then write lines
+--   and apply namespace-specific extmarks.
+--
+-- Ownership:
+--   Record dimensions, ids and highlight name on caller-owned state. Clear
+--   removes the highlight definition; controllers own buffer/window cleanup and
+--   terminal placement leases.
+
 local M = {}
 
 function M.draw(state, namespace, prefix, entry, width, height, protocol, set_lines, rows)

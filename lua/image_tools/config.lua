@@ -1,3 +1,17 @@
+-- Module: image_tools.config
+--
+-- Purpose:
+--   Define defaults and resolve independent, validated option tables.
+--
+-- Architecture:
+--   Used by the public facade and internal services. Consult the image facade
+--   for supported buffer formats; leave handler registration and resource
+--   allocation to runtime.
+--
+-- Ownership:
+--   Keep private defaults and deep-copy caller options. Resolving configuration
+--   does not change an active Runtime.
+
 local M = {}
 local defaults = {
   auto_preview = true,

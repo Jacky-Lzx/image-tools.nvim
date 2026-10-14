@@ -1,3 +1,18 @@
+-- Module: image_tools.media.conversion_queue
+--
+-- Purpose:
+--   Enforce a shared FIFO process budget for image and clipboard conversion.
+--
+-- Architecture:
+--   Accept process commands/options and run them through vim.system. Runtime
+--   configuration sets the process-wide limit; media and clipboard workers
+--   share it, while PNG reads/PDF metadata bypass it.
+--
+-- Ownership:
+--   Own queued jobs and the active count. Queued cancellation avoids spawning;
+--   a cancelled running job keeps its slot until exit, and callbacks resume
+--   queue pumping.
+
 local M = {}
 local queued, active, pumping, limit = {}, 0, false, 2
 

@@ -1,3 +1,18 @@
+-- Module: image_tools.terminal.transfer
+--
+-- Purpose:
+--   Expose a view-scoped placement manager over a terminal pixel pool.
+--
+-- Architecture:
+--   Use an injected shared pixel_pool when provided, otherwise create a private
+--   pool. Render controllers consume acquire/clear/status without handling
+--   upload/cache implementation details.
+--
+-- Ownership:
+--   Own one manager and record pool ownership. Clear releases this view's
+--   leases and clears pixels only when the pool is private; statistics come
+--   from the underlying pool.
+
 -- A view's placement manager. Pixel storage and upload are owned by its pool.
 local M = {}
 M.__index = M

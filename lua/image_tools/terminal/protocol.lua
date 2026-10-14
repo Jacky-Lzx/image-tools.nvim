@@ -1,3 +1,18 @@
+-- Module: image_tools.terminal.protocol
+--
+-- Purpose:
+--   Encode Kitty graphics commands, Unicode placeholder coordinates and
+--   highlights.
+--
+-- Architecture:
+--   Build file/direct uploads, virtual placements, hide/delete commands and
+--   placeholder grids for terminal services and renderers. Foreground selects
+--   the image id; underline color selects placement.
+--
+-- Ownership:
+--   Keep static coordinate data only. Perform no terminal writes and allocate
+--   no image/placement ids; callers own transmission and resource lifecycle.
+
 local M = {}
 local esc = "\27"
 

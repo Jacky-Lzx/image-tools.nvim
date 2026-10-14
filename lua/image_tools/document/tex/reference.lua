@@ -1,3 +1,18 @@
+-- Module: image_tools.document.tex.reference
+--
+-- Purpose:
+--   Decode bounded literal includegraphics commands and their original buffer
+--   ranges.
+--
+-- Architecture:
+--   Shared by the LaTeX adapter and Tree-sitter compatibility decoding. Exclude
+--   comments/inline verbatim, decode literal paths and locate covering commands
+--   within line/byte scan budgets.
+--
+-- Ownership:
+--   Own no persistent parser state. Preserve byte columns and row coordinates;
+--   filename contents must stay on one line.
+
 local M = {}
 local function escaped(line, pos)
   local count = 0

@@ -1,3 +1,18 @@
+-- Module: image_tools.media.prepare
+--
+-- Purpose:
+--   Coordinate media preparation and coalesce matching conversion requests.
+--
+-- Architecture:
+--   Dispatch native PNG reads or media/convert workers behind the image facade.
+--   Share a convertible-source worker while delivering independent metadata and
+--   cancel/release/close handles to subscribers.
+--
+-- Ownership:
+--   Own process-scoped pending jobs and subscriber file leases. Cancelling the
+--   last pending subscriber stops work; delivered outputs stay pinned until
+--   their handles release or close.
+
 local M = {}
 local uv = vim.uv
 local disk = require("image_tools.media.disk_cache")

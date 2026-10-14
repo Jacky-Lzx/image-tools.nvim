@@ -1,3 +1,19 @@
+-- Module: image_tools.runtime
+--
+-- Purpose:
+--   Coordinate one editor configuration, its services, commands and event
+--   lifecycle.
+--
+-- Architecture:
+--   Compose render controllers, workflow services and a shared terminal pixel
+--   pool. Resolve logical dependency keys to subsystem modules, while injected
+--   dependencies take priority.
+--
+-- Ownership:
+--   Own handlers, preview authority, pending reference selection and picker
+--   renderers. Disposal disables callbacks before delegating resource cleanup
+--   to services.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   preview = "image_tools.render.preview",

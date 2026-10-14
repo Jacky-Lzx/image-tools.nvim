@@ -1,3 +1,18 @@
+-- Module: image_tools.document.tex
+--
+-- Purpose:
+--   Recognize literal LaTeX image references and define LaTeX insertion rules.
+--
+-- Architecture:
+--   Combine tex/reference decoding with Tree-sitter or cached Lua environment
+--   context. Resolve document/project roots, graphicspath directories and
+--   omitted extensions; emit graphicx markup.
+--
+-- Ownership:
+--   Store syntax context in the shared backends, not this adapter. References
+--   carry multiline ranges; dynamic macros are not expanded and file
+--   preparation remains outside document lookup.
+
 local M = {}
 local reference = require("image_tools.document.tex.reference")
 local clean, group, space, literal, escaped =

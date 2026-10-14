@@ -1,3 +1,18 @@
+-- Module: image_tools.media.pdf
+--
+-- Purpose:
+--   Read PDF page counts and source revision metadata for file-buffer viewing.
+--
+-- Architecture:
+--   Run pdfinfo asynchronously with the configured timeout and validate the
+--   source version before returning metadata. Page rasterization is handled
+--   separately by media/convert.
+--
+-- Ownership:
+--   Each request owns one process and cancellation flag. The file-buffer
+--   controller owns the resulting page state; metadata reads bypass the
+--   converter queue.
+
 local M = {}
 
 function M.info(path, opts, callback)

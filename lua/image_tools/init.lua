@@ -1,3 +1,17 @@
+-- Module: image_tools
+--
+-- Purpose:
+--   Expose the supported plugin API and manage the single active Runtime.
+--
+-- Architecture:
+--   Validate options through config before constructing runtime. Delegate
+--   preview, file-buffer and import operations to that instance; module loading
+--   itself installs no handlers.
+--
+-- Ownership:
+--   Own the module-local Runtime reference. Reconfiguration destroys the
+--   previous instance; status and close remain safe before setup.
+
 local M = {}
 local instance
 

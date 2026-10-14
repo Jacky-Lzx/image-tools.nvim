@@ -1,3 +1,18 @@
+-- Module: image_tools.document
+--
+-- Purpose:
+--   Dispatch document reference lookup through the canonical format adapters.
+--
+-- Architecture:
+--   Use document/formats for filetype selection and enforce the scan ceiling
+--   before lookup. Retain path helpers and the Markdown-line parse
+--   compatibility API without making adapters import this dispatcher.
+--
+-- Ownership:
+--   Own no syntax cache. at_cursor selects by byte column; at_line requests the
+--   first covering reference, with parsing and resolution delegated to the
+--   adapter.
+
 local M = {}
 
 local paths = require("image_tools.document.paths")

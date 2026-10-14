@@ -1,3 +1,18 @@
+-- Module: image_tools.render.buffer
+--
+-- Purpose:
+--   Provide read-only named image/PDF buffers and their per-window viewers.
+--
+-- Architecture:
+--   Install file interception, manage PDF metadata via media/pdf and delegate
+--   drawing to render/canvas. Synchronize visible regular windows, source
+--   revisions, page changes and viewer errors.
+--
+-- Ownership:
+--   Own buffer metadata, window views, saved options and handlers. PDF page
+--   state is shared per buffer; canvases have independent placements and are
+--   cleaned up on hide, teardown or suspension.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   pdf = "image_tools.media.pdf",

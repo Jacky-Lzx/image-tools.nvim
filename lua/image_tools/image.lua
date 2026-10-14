@@ -1,3 +1,17 @@
+-- Module: image_tools.image
+--
+-- Purpose:
+--   Preserve the image helper API while delegating to the media subsystem.
+--
+-- Architecture:
+--   Forward format checks, PNG inspection/reads and file-version keys to media
+--   helpers. Adapt media/prepare request handles into the existing preparation
+--   cancellation function.
+--
+-- Ownership:
+--   Own no cache or worker state. The returned preparation cancel function
+--   performs close, cancelling delivery and releasing any file lease.
+
 local M = {}
 
 function M.supported(path)

@@ -1,3 +1,19 @@
+-- Module: image_tools.terminal.upload
+--
+-- Purpose:
+--   Upload versioned pixels and retain inactive terminal images in an LRU
+--   cache.
+--
+-- Architecture:
+--   Use terminal I/O and protocol encoding for file/direct transmission with
+--   acknowledgement and auto fallback. Expose readiness to pixel_pool; do not
+--   create or hide placements.
+--
+-- Ownership:
+--   Each uploader owns pixel entries, pin state and counters; image ids come
+--   from a process-scoped allocator. Cancellation releases uploads/reads, and
+--   cache limits evict only inactive retained entries.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   protocol = "image_tools.terminal.protocol",

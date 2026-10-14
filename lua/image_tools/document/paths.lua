@@ -1,3 +1,17 @@
+-- Module: image_tools.document.paths
+--
+-- Purpose:
+--   Resolve local image paths, document/project bases and relative references.
+--
+-- Architecture:
+--   Shared by document adapters and insertion. Apply literal or Markdown
+--   decoding, optional custom resolution and configured roots; LaTeX base
+--   lookup can consult VimTeX when a buffer is supplied.
+--
+-- Ownership:
+--   Keep no path cache: evaluate roots and resolvers on each call. Reject
+--   remote schemes and invalid path bytes without fetching resources.
+
 local M = {}
 
 function M.base(document, opts, buf)

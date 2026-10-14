@@ -1,3 +1,18 @@
+-- Module: image_tools.media.convert
+--
+-- Purpose:
+--   Prepare validated cached PNGs from convertible image formats and PDF pages.
+--
+-- Architecture:
+--   Select rsvg-convert or ImageMagick, derive a versioned disk output, and
+--   submit processes through conversion_queue. Validate temporary output with
+--   png before atomic publication and disk-cache bookkeeping.
+--
+-- Ownership:
+--   Each operation owns its queued/running process, temporary output and disk
+--   lease. Cancellation suppresses delivery; source changes prevent publication
+--   and originals are never overwritten.
+
 local M = {}
 local uv = vim.uv
 local png = require("image_tools.media.png")

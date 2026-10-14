@@ -1,3 +1,19 @@
+-- Module: image_tools.document.treesitter
+--
+-- Purpose:
+--   Index LaTeX/Typst reference syntax with native buffer parsers and
+--   diagnostics.
+--
+-- Architecture:
+--   Use grammar capture queries, adapter decoders and context exclusions.
+--   Pending parses are authoritative; failures report lexer fallback reasons,
+--   while valid empty results remain authoritative.
+--
+-- Ownership:
+--   Own buffer indexes, parse waiters, shared queries and diagnostic counters.
+--   Ignore stale text versions; edits invalidate affected suffixes and
+--   overlapping reference ranges.
+
 local M = {}
 local entries, attached, queries = {}, {}, {}
 local diagnostics = {}

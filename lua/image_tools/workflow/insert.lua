@@ -1,3 +1,19 @@
+-- Module: image_tools.workflow.insert
+--
+-- Purpose:
+--   Import or reference image files and insert format-specific markup as one
+--   transaction.
+--
+-- Architecture:
+--   Capture the originating document with an extmark, delegate rules to
+--   document adapters and publish copies without overwriting existing files.
+--   Runtime, clipboard and picker workflows reuse this service.
+--
+-- Ownership:
+--   Each operation owns captured context, imported files and temporaries.
+--   Cancellation or validation failure rolls back new files; successful text
+--   insertion releases the mark and leaves assets available for undo.
+
 local M = {}
 local uv = vim.uv
 local ns = vim.api.nvim_create_namespace("image_tools.insert")

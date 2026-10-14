@@ -1,3 +1,19 @@
+-- Module: image_tools.media.disk_cache
+--
+-- Purpose:
+--   Manage converted-file leases, bounded eviction and read-only usage
+--   inspection.
+--
+-- Architecture:
+--   Share managers by canonical cache directory. Scan managed hash-named PNGs
+--   asynchronously, evict unused files in access order and coordinate readers
+--   with in-flight deletions.
+--
+-- Ownership:
+--   Own process-scoped pins, access records and cleanup state. Active leases
+--   protect files; clear removes unused outputs, while inspect leaves directory
+--   contents and access order unchanged.
+
 local M = {}
 local uv, managers = vim.uv, {}
 local defaults = { enabled = true, max_bytes = 512 * 1024 * 1024, max_files = 256 }

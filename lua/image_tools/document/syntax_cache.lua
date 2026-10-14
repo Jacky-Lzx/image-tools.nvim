@@ -1,3 +1,18 @@
+-- Module: image_tools.document.syntax_cache
+--
+-- Purpose:
+--   Cache Lua-scanner prefix context and queried rows for loaded buffers.
+--
+-- Architecture:
+--   Accept an adapter-provided scanner and initial context. Build 128-line
+--   checkpoints and retain up to 128 query results per buffer; leave filesystem
+--   resolution outside the cache.
+--
+-- Ownership:
+--   Own per-buffer entries and attachments. Edits/reloads invalidate cached
+--   context, and detach releases entries; Tree-sitter indexing is managed
+--   separately.
+
 local M = {}
 local entries, attached = {}, {}
 local block_size, max_queries = 128, 128

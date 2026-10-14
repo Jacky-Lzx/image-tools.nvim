@@ -1,3 +1,19 @@
+-- Module: image_tools.render.session
+--
+-- Purpose:
+--   Own the common asynchronous preparation-to-placement lifecycle for one
+--   view.
+--
+-- Architecture:
+--   Bridge the image facade and a transfer manager. Controllers supply
+--   authority checks, size, drawing and error callbacks, keeping window policy
+--   outside the shared lifecycle.
+--
+-- Ownership:
+--   Track preparation/placement stages and cancellation handles. Close releases
+--   handles in reverse order, including handles returned after synchronous
+--   closure; stale results cannot draw.
+
 -- One preparation handle and one placement lease, bounded by view authority.
 local M = {}
 M.__index = M

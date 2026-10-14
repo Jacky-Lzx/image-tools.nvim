@@ -1,3 +1,18 @@
+-- Module: image_tools.render.geometry
+--
+-- Purpose:
+--   Fit image pixel dimensions into a terminal-cell viewport with preserved
+--   aspect ratio.
+--
+-- Architecture:
+--   A shared calculation for floating previews, file canvases and picker panes.
+--   Convert pixels through cell geometry and apply caller-supplied bounds;
+--   upscaling is an explicit caller choice.
+--
+-- Ownership:
+--   Own no mutable state or editor resources. Callers determine viewport policy
+--   and protocol coordinate limits.
+
 local M = {}
 
 function M.fit(image, cell, max_width, max_height, upscale)

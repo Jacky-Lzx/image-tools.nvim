@@ -1,3 +1,17 @@
+-- Module: image_tools.media.formats
+--
+-- Purpose:
+--   Define preview format capabilities and normalize filename extensions.
+--
+-- Architecture:
+--   Used by the image facade, converters, document insertion rules and
+--   file-buffer validation. Treat PNG as the native path and expose the other
+--   supported formats for conversion.
+--
+-- Ownership:
+--   Keep a static format registry and allocate result lists on demand; perform
+--   no file reads or conversions.
+
 local M = {}
 M.formats = {
   jpg = true,

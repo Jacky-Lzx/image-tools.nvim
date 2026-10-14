@@ -1,3 +1,19 @@
+-- Module: image_tools.terminal.pixel_pool
+--
+-- Purpose:
+--   Share uploaded pixels while allocating an independent placement for each
+--   view.
+--
+-- Architecture:
+--   Compose an uploader and per-view managers. Coalesce pixel ownership,
+--   acknowledge placements and retry lost pixels only when the requester is the
+--   sole owner, protecting other views.
+--
+-- Ownership:
+--   Each pool owns consumer sets and upload leases; placement ids are
+--   process-scoped. Releasing the last consumer unpins pixels, manager clearing
+--   releases its leases, and pool clearing frees shared data.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   protocol = "image_tools.terminal.protocol",

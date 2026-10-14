@@ -1,3 +1,19 @@
+-- Module: image_tools.workflow.picker
+--
+-- Purpose:
+--   Integrate Snacks selection and existing preview panes with independent
+--   image rendering.
+--
+-- Architecture:
+--   Capture insertion context, filter through document adapters and confirm
+--   through workflow/insert. Render image items through render/session and
+--   shared transfer resources; non-image items use Snacks file preview.
+--
+-- Ownership:
+--   Own picker-specific renderer state, wrapped callbacks and event groups,
+--   plus a weak registry for cleanup. Selection changes invalidate pending
+--   work; closing releases placements and cancels unconfirmed import context.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   protocol = "image_tools.terminal.protocol",

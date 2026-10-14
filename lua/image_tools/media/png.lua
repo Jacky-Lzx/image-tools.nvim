@@ -1,3 +1,18 @@
+-- Module: image_tools.media.png
+--
+-- Purpose:
+--   Read PNG bytes or lightweight metadata and enforce image resource limits.
+--
+-- Architecture:
+--   Serve native PNG preparation, converter output validation and direct
+--   terminal transmission. Check signature, IHDR/IEND, dimensions and source
+--   version; terminal acknowledgement handles decoding validation.
+--
+-- Ownership:
+--   Each read owns its file descriptor and cancellation flag. Schedule
+--   delivery, close descriptors after reads and suppress callbacks after
+--   cancellation; no shared PNG cache is kept here.
+
 local M = {}
 local uv = vim.uv
 local signature = "\137PNG\13\10\26\10"

@@ -1,3 +1,17 @@
+-- Module: image_tools.document.markdown
+--
+-- Purpose:
+--   Recognize same-line Markdown images and define Markdown insertion rules.
+--
+-- Architecture:
+--   Parse literal destinations, exclude code contexts using syntax_cache, and
+--   resolve paths through document/paths. Derive insertion formats from
+--   media/formats and emit escaped image markup.
+--
+-- Ownership:
+--   Delegate persistent prefix context to syntax_cache. This adapter owns no
+--   preview windows, converters or terminal resources.
+
 local M = {}
 
 local function escaped(text, pos)

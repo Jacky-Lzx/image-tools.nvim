@@ -1,3 +1,19 @@
+-- Module: image_tools.terminal
+--
+-- Purpose:
+--   Detect terminal support, measure cell geometry and exchange Kitty
+--   acknowledgements.
+--
+-- Architecture:
+--   Provide terminal I/O primitives to upload and placement services. Write
+--   through Neovim UI transport and match TermResponse replies by
+--   image/placement id with bounded timers.
+--
+-- Ownership:
+--   Each request owns its handler/timer and cancellation cleanup. Pixel caches
+--   and placement ownership live in upload/pixel_pool; cell geometry falls back
+--   when ioctl data is unavailable.
+
 local M = {}
 
 function M.supports(opts)

@@ -1,3 +1,18 @@
+-- Module: image_tools.workflow.clipboard
+--
+-- Purpose:
+--   Read a macOS clipboard image, optionally convert its format and import it.
+--
+-- Architecture:
+--   Capture insertion context, run pngpaste, validate PNG data and submit
+--   optional conversion to the shared queue. Delegate final text/file
+--   publication to workflow/insert, always in copy mode.
+--
+-- Ownership:
+--   Each paste owns subprocess/read cancellation, a temporary directory and
+--   import context. Completion or cancellation cleans temporary resources
+--   without changing clipboard contents.
+
 local M = {}
 local uv = vim.uv
 local formats = { png = true, jpg = true, webp = true, avif = true }

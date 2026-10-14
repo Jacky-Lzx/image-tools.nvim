@@ -1,3 +1,18 @@
+-- Module: image_tools.health
+--
+-- Purpose:
+--   Provide Neovim checkhealth diagnostics for terminal, tools and plugin
+--   resources.
+--
+-- Architecture:
+--   Read terminal capabilities, the public status snapshot and media/disk_cache
+--   inspection. Tool detection uses standard executable names; diagnostics do
+--   not start a parser or initialize the Runtime.
+--
+-- Ownership:
+--   Own only the current inspection callback and its bounded wait. Disk
+--   inspection is read-only and does not create or evict cache files.
+
 local M = {}
 
 local function size(bytes)

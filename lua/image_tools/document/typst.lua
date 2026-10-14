@@ -1,3 +1,18 @@
+-- Module: image_tools.document.typst
+--
+-- Purpose:
+--   Recognize literal Typst image calls and define Typst insertion rules.
+--
+-- Architecture:
+--   Use Tree-sitter or a context-aware Lua scanner, with shared path helpers.
+--   Decode string escapes, resolve project-root paths and validate inserted
+--   resources against the project boundary.
+--
+-- Ownership:
+--   Delegate cached context to the syntax backends. Dynamic expressions and
+--   multiline image calls are not evaluated; rendering is handled by downstream
+--   services.
+
 local M = {}
 local function escaped(text, pos)
   local n = 0

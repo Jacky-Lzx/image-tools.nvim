@@ -1,3 +1,17 @@
+-- Module: image_tools.commands
+--
+-- Purpose:
+--   Register user commands against a particular Runtime.
+--
+-- Architecture:
+--   Translate command arguments into Runtime operations and bind callbacks
+--   through its disposal guard. Command implementations reuse services rather
+--   than owning separate preview state.
+--
+-- Ownership:
+--   Record registered names on the Runtime so destruction can remove them. This
+--   module keeps no active editor instance.
+
 local M = {}
 
 function M.register(runtime)

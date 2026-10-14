@@ -1,3 +1,18 @@
+-- Module: image_tools.render.preview
+--
+-- Purpose:
+--   Control a nonfocusable floating preview for a file or selected reference.
+--
+-- Architecture:
+--   Compose render/session, geometry, placeholder and a terminal transfer
+--   manager. Decide viewport, window position and notifications; the Runtime
+--   supplies current-reference selection and refresh events.
+--
+-- Ownership:
+--   Own one preview state and generation. Buffer/window/version/range authority
+--   rejects stale work; close releases the session and window, while destroy
+--   also clears the transfer manager.
+
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
   protocol = "image_tools.terminal.protocol",
