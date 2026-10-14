@@ -75,9 +75,17 @@ end
 
 -- Bounded lexer: literal same-line image calls, including calls in a multiline
 -- #figure/code expression. Skip strings, raw text and nested block comments.
-function M.scan(lines)
-  local result, stack, mode, raw, block, transient, statement = {}, {}, "markup", nil, 0, false, false
-  local in_string = false
+function M.scan(lines, previous)
+  previous = previous or {}
+  local result, stack, mode, raw, block, transient, statement =
+    {},
+    previous.stack or {},
+    previous.mode or "markup",
+    previous.raw,
+    previous.block or 0,
+    previous.transient or false,
+    previous.statement or false
+  local in_string = previous.in_string or false
   for row, line in ipairs(lines) do
     local pos = 1
     while pos <= #line do
@@ -173,11 +181,25 @@ function M.scan(lines)
       mode, transient, statement = "markup", false, false
     end
   end
-  return result
+  return result,
+    {
+      stack = stack,
+      mode = mode,
+      raw = raw,
+      block = block,
+      transient = transient,
+      statement = statement,
+      in_string = in_string,
+    }
 end
 function M.find(buf, row, col, opts)
+  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+  if not line:find("image%s*%(") then
+    return nil, "No supported image reference on the current line"
+  end
+  local candidates = require("image_tools.syntax_cache").query(buf, row, "typst", {}, M.scan)
   local document = vim.api.nvim_buf_get_name(buf)
-  for _, image in ipairs(M.scan(vim.api.nvim_buf_get_lines(buf, 0, row, false))) do
+  for _, image in ipairs(candidates) do
     if col == nil or col >= image.start_col and col < image.end_col then
       if image.src:find("%c") then
         return nil, "Invalid Typst image path"

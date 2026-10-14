@@ -168,22 +168,28 @@ local function find(buf, row, col, opts)
   if #candidates == 0 then
     return nil, "No supported image reference on the current line"
   end
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, row, false)
-  local fence, length
-  for i = 1, row do
-    local run = lines[i]:match("^ ? ? ?(```+)") or lines[i]:match("^ ? ? ?(~~~+)")
-    if run then
-      if not fence then
-        fence, length = run:sub(1, 1), #run
-      elseif run:sub(1, 1) == fence and #run >= length and lines[i]:match("^%s*[`~]+%s*$") then
-        fence = nil
+  local syntax = require("image_tools.syntax_cache").query(buf, row, "markdown", {}, function(lines, state)
+    local fence, length = state.fence, state.length
+    local blocked
+    for i, line in ipairs(lines) do
+      local run = line:match("^ ? ? ?(```+)") or line:match("^ ? ? ?(~~~+)")
+      if run then
+        if not fence then
+          fence, length = run:sub(1, 1), #run
+        elseif run:sub(1, 1) == fence and #run >= length and line:match("^%s*[`~]+%s*$") then
+          fence = nil
+        end
+        if i == #lines then
+          blocked = "Cursor is inside a fenced code block"
+        end
+      elseif i == #lines and (fence or line:match("^    ") or line:match("^\t")) then
+        blocked = "Cursor is inside a code block"
       end
-      if i == row then
-        return nil, "Cursor is inside a fenced code block"
-      end
-    elseif i == row and (fence or lines[i]:match("^    ") or lines[i]:match("^\t")) then
-      return nil, "Cursor is inside a code block"
     end
+    return { blocked = blocked }, { fence = fence, length = length }
+  end)
+  if syntax.blocked then
+    return nil, syntax.blocked
   end
   for _, image in ipairs(candidates) do
     if col == nil or (col >= image.start_col and col < image.end_col) then
