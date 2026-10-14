@@ -37,10 +37,19 @@ package.loaded["image_tools.terminal"] = {
 local image = require("image_tools")
 image.setup({ auto_preview = false, cache = tmp .. "/cache" })
 local function ready(win)
-  win = win or vim.api.nvim_get_current_win()
+  local windows = type(win) == "table" and win or { win or vim.api.nvim_get_current_win() }
   return vim.wait(12000, function()
     local status = image.status().buffer
-    return status and status.views[win] and status.views[win].window ~= nil and status.views[win].page == status.page
+    if not status then
+      return false
+    end
+    for _, owner in ipairs(windows) do
+      local view = status.views[owner]
+      if not view or not view.window or not vim.api.nvim_win_is_valid(view.window) or view.page ~= status.page then
+        return false
+      end
+    end
+    return true
   end)
 end
 vim.cmd.edit(png)
@@ -109,7 +118,8 @@ check(
 )
 vim.cmd.vsplit()
 local second = vim.api.nvim_get_current_win()
-check(ready(second), "Same image can preview in second split")
+-- Splitting also resizes the first window; both asynchronous refits must finish.
+check(ready({ win, second }), "Same image can preview in both splits")
 local status = image.status().buffer
 check(status.views[win].window ~= status.views[second].window, "Each split has its own placement")
 check(
