@@ -1,5 +1,62 @@
 local M = {}
 
+local function size(bytes)
+  local units, index = { "B", "KiB", "MiB", "GiB", "TiB" }, 1
+  while bytes >= 1024 and index < #units do
+    bytes, index = bytes / 1024, index + 1
+  end
+  return string.format(index == 1 and "%.0f %s" or "%.2f %s", bytes, units[index])
+end
+local function disk_health(state)
+  vim.health.start("image-tools: disk cache")
+  local opts
+  if state.disk_cache then
+    opts = { cache = state.disk_cache.path, disk_cache = state.disk_cache }
+  else
+    opts = require("image_tools.config").resolve()
+    vim.health.info("Plugin is not configured; showing default disk-cache settings")
+  end
+  local report
+  local cancel = require("image_tools.disk_cache").inspect(opts, function(snapshot)
+    report = snapshot
+  end)
+  if not vim.wait(3000, function()
+    return report ~= nil
+  end, 10) then
+    cancel()
+    vim.health.info("Directory: " .. opts.cache)
+    vim.health.warn("Disk-cache inspection timed out; current usage is unavailable")
+    return
+  end
+  vim.health.info("Directory: " .. report.path)
+  vim.health.info("Automatic eviction: " .. (report.enabled and "enabled" or "disabled"))
+  vim.health.info(string.format("Limits: %d file(s) / %s", report.max_files, size(report.max_bytes)))
+  if report.error then
+    vim.health.warn("Cannot inspect disk cache: " .. report.error)
+    return
+  end
+  vim.health.info(
+    string.format("Current usage: %d file(s) / %s (%d bytes)", report.files, size(report.bytes), report.bytes)
+  )
+  vim.health.info(
+    string.format("Protected files in use: %d file(s) / %s", report.protected, size(report.protected_bytes))
+  )
+  if not report.exists then
+    vim.health.info("Cache directory has not been created yet")
+  end
+  vim.health.info("Cleanup: " .. (report.cleanup_running and "running or queued" or "idle"))
+  if report.enabled and (report.files > report.max_files or report.bytes > report.max_bytes) then
+    if report.cleanup_running then
+      vim.health.info("Cache currently exceeds limits; cleanup is in progress")
+    elseif report.protected > 0 then
+      vim.health.info("Cache currently exceeds limits; files in use are retained until previews close")
+    else
+      vim.health.warn("Cache exceeds configured limits; automatic cleanup may be pending")
+    end
+  end
+  vim.health.info("Run :ImageCacheClear to remove unused converted images from disk")
+end
+
 function M.check()
   vim.health.start("image-tools")
   local supported, reason = require("image_tools.terminal").supports({})
@@ -51,6 +108,7 @@ function M.check()
       vim.health.warn(state.terminal_cache.last_error)
     end
   end
+  disk_health(state)
 end
 
 return M

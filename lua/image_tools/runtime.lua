@@ -229,6 +229,7 @@ function Runtime:status()
     path = self.preview and self.preview.state and self.preview.state.path or nil,
     window = self.preview and self.preview.state and self.preview.state.win or nil,
     transport = self.options and self.options.transport or "auto",
+    disk_cache = vim.tbl_extend("force", self.options.disk_cache, { path = self.options.cache }),
     terminal_cache = self.preview and self.preview.transfer:status() or nil,
   }
 end

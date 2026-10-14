@@ -32,3 +32,10 @@ arriving during a deletion wait for it before checking/recreating the output.
 Active files may temporarily exceed the budget; releasing them triggers deferred
 cleanup. `ImageCacheClear` / `clear_disk_cache(callback)` remove unused disk
 conversions independently of `ImagePreviewClearCache` (terminal graphics).
+
+`:checkhealth image_tools` reads the current managed disk-cache file count and
+bytes, configured limits, protected usage, directory path and cleanup state.
+Inspection is read-only and batched, with a three-second timeout: it does not
+create cache directories, initialize the plugin, change access order or evict
+files. Missing directories are reported as unused caches; unreadable directories
+and timed-out inspections produce diagnostics instead of an estimated usage.

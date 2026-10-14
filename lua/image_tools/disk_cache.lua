@@ -20,6 +20,72 @@ end
 local function managed(name)
   return #name == 68 and name:match("^%x+%.png$") ~= nil
 end
+-- Read-only batched traversal shared by eviction and health diagnostics.
+local function scan(root, receive, callback)
+  local cancelled = false
+  uv.fs_scandir(
+    root,
+    vim.schedule_wrap(function(err, directory)
+      if cancelled then
+        return
+      end
+      if err then
+        callback(err)
+        return
+      end
+      local stat_error
+      local function batch()
+        if cancelled then
+          return
+        end
+        local pending, ended = 0, false
+        local function proceed()
+          if cancelled then
+            return
+          end
+          if ended then
+            callback(stat_error)
+          else
+            vim.schedule(batch)
+          end
+        end
+        for _ = 1, 64 do
+          local name, kind = uv.fs_scandir_next(directory)
+          if not name then
+            ended = true
+            break
+          end
+          if managed(name) and (not kind or kind == "file") then
+            pending = pending + 1
+            local path = root .. "/" .. name
+            uv.fs_lstat(path, function(read_err, stat)
+              if cancelled then
+                return
+              end
+              if read_err and not tostring(read_err):find("ENOENT", 1, true) then
+                stat_error = read_err
+              end
+              if stat and stat.type == "file" then
+                receive(path, stat)
+              end
+              pending = pending - 1
+              if pending == 0 then
+                vim.schedule(proceed)
+              end
+            end)
+          end
+        end
+        if pending == 0 then
+          proceed()
+        end
+      end
+      batch()
+    end)
+  )
+  return function()
+    cancelled = true
+  end
+end
 local function get(opts)
   local root = canonical(opts.cache)
   local manager = managers[root]
@@ -99,53 +165,19 @@ run = function(manager)
     end
     next_file()
   end
-  uv.fs_scandir(
-    manager.root,
-    vim.schedule_wrap(function(err, directory)
-      if err then
-        if not tostring(err):find("ENOENT", 1, true) then
-          status.error = tostring(err)
-        end
-        finish(manager, status, callbacks)
-        return
+  scan(manager.root, function(path, stat)
+    files[#files + 1] = { path = path, size = stat.size, used = manager.used[path] or stat.mtime.sec }
+    status.files, status.bytes = status.files + 1, status.bytes + stat.size
+  end, function(err)
+    if err then
+      if not tostring(err):find("ENOENT", 1, true) then
+        status.error = tostring(err)
       end
-      local function batch()
-        local pending, ended = 0, false
-        local function proceed()
-          if ended then
-            evict()
-          else
-            vim.schedule(batch)
-          end
-        end
-        for _ = 1, 64 do
-          local name, kind = uv.fs_scandir_next(directory)
-          if not name then
-            ended = true
-            break
-          end
-          if managed(name) and (not kind or kind == "file") then
-            pending = pending + 1
-            local path = manager.root .. "/" .. name
-            uv.fs_lstat(path, function(_, stat)
-              if stat and stat.type == "file" then
-                files[#files + 1] = { path = path, size = stat.size, used = manager.used[path] or stat.mtime.sec }
-                status.files, status.bytes = status.files + 1, status.bytes + stat.size
-              end
-              pending = pending - 1
-              if pending == 0 then
-                vim.schedule(proceed)
-              end
-            end)
-          end
-        end
-        if pending == 0 then
-          proceed()
-        end
-      end
-      batch()
-    end)
-  )
+      finish(manager, status, callbacks)
+    else
+      evict()
+    end
+  end)
 end
 schedule = function(manager, force, callback)
   if force then
@@ -220,5 +252,38 @@ function M.prune(opts, callback)
 end
 function M.clear(opts, callback)
   schedule(get(opts), true, callback)
+end
+-- Inspection never creates a manager, changes access order or triggers eviction.
+function M.inspect(opts, callback)
+  local root = canonical(opts.cache)
+  local limits = vim.tbl_extend("force", defaults, opts.disk_cache or {})
+  local manager = managers[root]
+  local status = {
+    path = root,
+    enabled = limits.enabled,
+    max_files = limits.max_files,
+    max_bytes = limits.max_bytes,
+    files = 0,
+    bytes = 0,
+    protected = 0,
+    protected_bytes = 0,
+    exists = true,
+  }
+  return scan(root, function(path, stat)
+    status.files, status.bytes = status.files + 1, status.bytes + stat.size
+    if manager and manager.pins[path] then
+      status.protected, status.protected_bytes = status.protected + 1, status.protected_bytes + stat.size
+    end
+  end, function(err)
+    if err then
+      if tostring(err):find("ENOENT", 1, true) then
+        status.exists = false
+      else
+        status.error = tostring(err)
+      end
+    end
+    status.cleanup_running = manager and (manager.running or manager.scheduled) or false
+    callback(status)
+  end)
 end
 return M
