@@ -82,6 +82,31 @@ vim.api.nvim_exec_autocmds("ColorScheme", { group = "image_tools.buffers" })
 check(vim.api.nvim_get_hl(0, { name = highlight }).fg == foreground, "Colorscheme reload restores the image id color")
 check(not pcall(vim.cmd, "write!"), "Forced write cannot overwrite original")
 check(vim.fn.sha256(table.concat(vim.fn.readfile(png, "b"), "\n")) == original_hash, "Source bytes preserved")
+local before_winbar = image.status().buffer.views[win].cache.uploads
+local prior_frame = image.status().buffer.views[win].window
+vim.cmd("setlocal winbar=ImagePreviewTitle")
+check(
+  vim.wait(2000, function()
+    local current = image.status().buffer.views[win]
+    return current and current.window and current.window ~= prior_frame
+  end),
+  "Winbar change refits file canvas"
+)
+local bar_frame = image.status().buffer.views[win].window
+check(
+  vim.api.nvim_win_get_position(bar_frame)[1] + vim.api.nvim_win_get_height(bar_frame)
+    <= vim.api.nvim_win_get_position(win)[1] + vim.api.nvim_win_get_height(win),
+  "Canvas stops above statusline with winbar enabled"
+)
+check(image.status().buffer.views[win].cache.uploads == before_winbar, "Winbar refit reuses uploaded image")
+vim.cmd("setlocal winbar=")
+check(
+  vim.wait(2000, function()
+    local current = image.status().buffer.views[win]
+    return current and current.window and current.window ~= bar_frame
+  end),
+  "Removing winbar restores available height"
+)
 vim.cmd.vsplit()
 local second = vim.api.nvim_get_current_win()
 check(ready(second), "Same image can preview in second split")

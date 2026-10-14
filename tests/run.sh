@@ -18,6 +18,7 @@ nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/picker.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/tex.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/typst.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/buffer.lua"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/canvas_bounds.lua"
 if command -v python3 >/dev/null 2>&1; then
   python3 "$root/tests/tui.py"
 fi

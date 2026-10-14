@@ -397,6 +397,13 @@ function M:setup()
       self:schedule()
     end,
   })
+  vim.api.nvim_create_autocmd("OptionSet", {
+    group = self.group,
+    pattern = "winbar",
+    callback = function()
+      self:schedule()
+    end,
+  })
   vim.api.nvim_create_autocmd("ColorScheme", {
     group = self.group,
     callback = function()

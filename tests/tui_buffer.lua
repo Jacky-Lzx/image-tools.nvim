@@ -2,9 +2,29 @@
 local root, tmp = assert(vim.env.IMAGE_TOOLS_ROOT), assert(vim.env.IMAGE_TOOLS_TEST_TMP)
 vim.opt.rtp:prepend(root)
 vim.o.termguicolors, vim.o.swapfile, vim.o.hidden = true, false, true
+vim.o.winbar, vim.o.statusline, vim.o.laststatus = "PDF owner winbar", "PDF_STATUSLINE_VISIBLE", 2
+vim.o.showtabline = 2
 local image = require("image_tools")
 image.setup({ auto_preview = false, transport = "auto" })
 local results, win, source_buf, id = { buffer = true }, nil, nil, nil
+local function within_owner()
+  assert(vim.fn.getwininfo(win)[1].winbar == 1, "PDF test needs an owner winbar")
+  local canvas = assert(image.status().buffer.views[win].window)
+  local top = vim.api.nvim_win_get_position(canvas)[1]
+  local first = vim.fn.screenpos(win, 1, 1).row - 1
+  local last = vim.api.nvim_win_get_position(win)[1] + vim.api.nvim_win_get_height(win)
+  assert(top == first + 1, "Canvas covers winbar or PDF header")
+  assert(top + vim.api.nvim_win_get_height(canvas) <= last, "Canvas covers statusline")
+  vim.cmd.redraw()
+  local cells = {}
+  for column = 1, vim.api.nvim_win_get_width(win) do
+    cells[column] = vim.fn.screenstring(last + 1, vim.api.nvim_win_get_position(win)[2] + column)
+  end
+  assert(
+    table.concat(cells):find("PDF_STATUSLINE_VISIBLE", 1, true),
+    "PDF statusline is not visible on screen: " .. vim.inspect(table.concat(cells))
+  )
+end
 local steps = {
   function()
     win, source_buf = vim.api.nvim_get_current_win(), vim.api.nvim_get_current_buf()
@@ -19,17 +39,21 @@ local steps = {
     local status = assert(image.status().buffer)
     assert(status.pages == 2 and status.page == 1, "Wrong PDF metadata")
     assert(status.views[win].window and status.views[win].page == 1, "Page one not displayed")
+    within_owner()
     vim.api.nvim_input("]p")
   end,
   function()
     local status = image.status().buffer
     assert(status.views[win].window and status.views[win].page == 2, "Page two not displayed")
+    within_owner()
     assert(not image.page(3), "Out-of-bounds page accepted")
     vim.api.nvim_input("2[p")
   end,
   function()
     local status = image.status().buffer
     assert(status.views[win].window and status.views[win].page == 1, "Back to page one failed")
+    within_owner()
+    results.statusline = true
     assert(
       status.views[win].cache.uploads == 2 and status.views[win].cache.hits >= 1,
       "PDF paging did not reuse uploaded pixels"

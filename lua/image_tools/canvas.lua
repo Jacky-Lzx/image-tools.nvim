@@ -40,9 +40,12 @@ end
 
 function M.viewport(win)
   local info = vim.fn.getwininfo(win)[1] or {}
-  local header = vim.api.nvim_win_get_height(win) > 1 and 1 or 0
+  -- API height includes winbar; relative="win" starts below it. getwininfo()
+  -- reports text height, already excluding winbar, statusline and separators.
+  local height = info.height or (vim.api.nvim_win_get_height(win) - (info.winbar or 0))
+  local header = height > 1 and 1 or 0
   return math.max(1, vim.api.nvim_win_get_width(win) - (info.textoff or 0)),
-    math.max(1, vim.api.nvim_win_get_height(win) - header),
+    math.max(1, height - header),
     info.textoff or 0,
     header
 end

@@ -130,7 +130,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False):
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
             if buffer:
-                assert result["buffer"] and result["lifecycle"], result
+                assert result["buffer"] and result["lifecycle"] and result["statusline"], result
             elif picker:
                 assert result["picker"] and result["inserted"], result
             else:
