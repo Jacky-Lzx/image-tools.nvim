@@ -126,6 +126,7 @@ function M.files(paths, opts, callback)
         vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
       end
     end
+
   local context = opts.context or M.capture(opts)
   local state = { created = {}, temporaries = {}, outputs = {}, done = false }
   local function finish(err)

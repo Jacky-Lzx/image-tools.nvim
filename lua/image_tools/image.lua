@@ -58,6 +58,7 @@ end
 
 function M.read(path, opts, callback, metadata_only)
   local cancelled, fd = false, nil
+
   local function done(err, image)
     vim.schedule(function()
       if not cancelled then
@@ -65,6 +66,7 @@ function M.read(path, opts, callback, metadata_only)
       end
     end)
   end
+
   uv.fs_stat(path, function(err, stat)
     if cancelled then
       return
@@ -81,6 +83,7 @@ function M.read(path, opts, callback, metadata_only)
       done("Not a complete PNG image")
       return
     end
+
     uv.fs_open(path, "r", 0, function(open_err, handle)
       if open_err then
         done(open_err)
@@ -92,6 +95,7 @@ function M.read(path, opts, callback, metadata_only)
         fd = nil
         return
       end
+
       local function finish(read_err, data)
         uv.fs_close(fd)
         fd = nil
@@ -102,11 +106,13 @@ function M.read(path, opts, callback, metadata_only)
           done(read_err or "Could not read image")
           return
         end
+
         local info, info_err = M.info(data, opts)
         if not info then
           done(info_err)
           return
         end
+
         uv.fs_stat(path, function(stat_err, after)
           if stat_err or not after or M.key(path, after) ~= M.key(path, stat) then
             done("Image file changed while reading; retry the preview")
@@ -122,6 +128,7 @@ function M.read(path, opts, callback, metadata_only)
           })
         end)
       end
+
       uv.fs_read(fd, metadata_only and 33 or stat.size, 0, function(read_err, data)
         if read_err or not data or cancelled or not metadata_only then
           finish(read_err, data)
@@ -133,6 +140,7 @@ function M.read(path, opts, callback, metadata_only)
       end)
     end)
   end)
+
   return function()
     cancelled = true
   end

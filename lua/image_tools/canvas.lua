@@ -7,27 +7,34 @@ function M.new(opts, dependencies)
   self.transfer = require("image_tools.transfer").new(opts, self.dependencies)
   return self
 end
+
 function M:dependency(name)
   return self.dependencies[name] or require("image_tools." .. name)
 end
+
 function M:close()
   local state = self.state
   self.state = nil
   if not state then
     return
   end
+
   if state.cancel then
     state.cancel()
   end
+
   if state.cancel_transfer then
     state.cancel_transfer()
   end
+
   if state.win and vim.api.nvim_win_is_valid(state.win) then
     vim.api.nvim_win_close(state.win, true)
   end
+
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     vim.api.nvim_buf_delete(state.buf, { force = true })
   end
+
   if state.highlight then
     vim.api.nvim_set_hl(0, state.highlight, {})
   end
@@ -38,6 +45,7 @@ function M:destroy()
   self.transfer:clear()
 end
 
+--- Return: width, height , column, row
 function M.viewport(win)
   local info = vim.fn.getwininfo(win)[1] or {}
   -- API height includes winbar; relative="win" starts below it. getwininfo()
@@ -52,12 +60,14 @@ end
 
 function M:open(meta, owner_buf, owner_win, callback)
   self:close()
+
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   local supported, reason = terminal.supports(self.opts)
   if not supported then
     callback(reason)
     return
   end
+
   local width, height, col, row = M.viewport(owner_win)
   local state = {
     owner_buf = owner_buf,
@@ -71,6 +81,7 @@ function M:open(meta, owner_buf, owner_win, callback)
     row = row,
   }
   self.state = state
+
   local function current()
     return self.state == state
       and meta.generation == state.generation
@@ -83,6 +94,7 @@ function M:open(meta, owner_buf, owner_win, callback)
     self:close()
     callback(err)
   end
+
   state.cancel = self
     :dependency("image")
     .prepare(meta.path, vim.tbl_extend("force", self.opts, { page = meta.page }), function(err, image)
@@ -96,6 +108,7 @@ function M:open(meta, owner_buf, owner_win, callback)
         fail(err)
         return
       end
+
       width, height, col, row = M.viewport(owner_win)
       state.view_width, state.view_height, state.col, state.row = width, height, col, row
       width, height = require("image_tools.preview").fit(
@@ -105,6 +118,7 @@ function M:open(meta, owner_buf, owner_win, callback)
         math.min(height, protocol.max_cells),
         true
       )
+
       state.cancel_transfer = self.transfer:acquire(image, width, height, function(transfer_err, entry)
         if not current() then
           if entry and entry.cancel then
@@ -119,6 +133,7 @@ function M:open(meta, owner_buf, owner_win, callback)
           fail(transfer_err)
           return
         end
+
         state.id, state.width, state.height = entry.id, width, height
         state.highlight = "ImageToolsCanvas_" .. entry.id
         vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", entry.id) })
@@ -150,8 +165,10 @@ function M:open(meta, owner_buf, owner_win, callback)
         })
         vim.wo[state.win].wrap, vim.wo[state.win].list, vim.wo[state.win].spell = false, false, false
         vim.wo[state.win].winblend, vim.wo[state.win].conceallevel = 0, 0
+
         callback(nil)
       end)
     end)
 end
+
 return M

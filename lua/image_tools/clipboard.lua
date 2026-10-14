@@ -12,10 +12,12 @@ function M.paste(opts, callback, dependencies)
         vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
       end
     end
+
   local I = require("image_tools.insert")
   local context = opts.context or I.capture(opts)
   opts = vim.tbl_extend("force", opts, { context = context })
   local state = {}
+
   local function cleanup()
     if state.directory then
       vim.fn.delete(state.directory, "rf")
@@ -46,30 +48,37 @@ function M.paste(opts, callback, dependencies)
     I.release(context)
     callback("Cancelled")
   end
+
   if not (dependencies.macos == true or vim.fn.has("mac") == 1) then
     finish("Clipboard image paste currently supports macOS only")
     return cancel
   end
+
   local format = opts.format or "png"
   if not formats[format] then
     finish("Clipboard format must be png, jpg, webp or avif")
     return cancel
   end
+
   if not I.supported(context.filetype, "clipboard." .. format) then
     finish("Unsupported clipboard format for " .. context.filetype .. "; use PNG or JPG")
     return cancel
   end
+
   local executable = opts.pngpaste or "pngpaste"
   if vim.fn.executable(executable) ~= 1 then
     finish("pngpaste is required for clipboard images (brew install pngpaste)")
     return cancel
   end
+
   state.directory = uv.fs_mkdtemp(vim.fn.tempname() .. "-image-tools-XXXXXX")
   if not state.directory then
     finish("Cannot create a clipboard temporary directory")
     return cancel
   end
+
   local png = state.directory .. "/clipboard.png"
+
   local function imported(path)
     if state.done then
       cleanup()
@@ -90,11 +99,13 @@ function M.paste(opts, callback, dependencies)
     })
     state.cancel_import = I.files({ path }, insertion, finish)
   end
+
   local function convert()
     if format == "png" then
       imported(png)
       return
     end
+
     local magick = opts.magick or "magick"
     if vim.fn.executable(magick) ~= 1 then
       finish("ImageMagick is required for clipboard conversion")
@@ -133,6 +144,7 @@ function M.paste(opts, callback, dependencies)
       end)
     )
   end
+
   state.job = vim.system(
     { executable, png },
     { timeout = opts.clipboard_timeout or 5000 },
@@ -150,6 +162,7 @@ function M.paste(opts, callback, dependencies)
         finish("Clipboard image missing or exceeds max_bytes")
         return
       end
+
       -- Validate PNG before copying it into the user's document resources.
       state.cancel_read = require("image_tools.image").read(png, {
         max_bytes = opts.max_bytes or 32 * 1024 * 1024,
@@ -168,6 +181,7 @@ function M.paste(opts, callback, dependencies)
       end, true)
     end)
   )
+
   return function()
     if state.cancel_read then
       state.cancel_read()
