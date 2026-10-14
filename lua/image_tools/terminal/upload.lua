@@ -186,9 +186,11 @@ function M:acquire(image, callback)
 
   -- Drop obsolete versions of the same file, rather than filling the cache
   -- with every edit. The active image is released before the next acquire.
-  for _, old in pairs(vim.tbl_extend("force", {}, self.entries)) do
-    if source and old.source == source and old.key ~= key and not old.pinned then
-      self:discard(old)
+  if source then
+    for _, old in pairs(vim.tbl_extend("force", {}, self.entries)) do
+      if old.source == source and old.key ~= key and not old.pinned then
+        self:discard(old)
+      end
     end
   end
 
