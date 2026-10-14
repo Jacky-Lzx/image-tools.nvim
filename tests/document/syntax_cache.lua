@@ -28,7 +28,10 @@ for _, ft in ipairs({ "tex", "typst" }) do
   local buf = buffer(ft, lines)
   calls = {}
   check(not D.at_line(buf, 10000, opts), "No image in " .. ft)
-  check(#calls == 1 and calls[1][1] == 9999 and calls[1][2] == 10000, "Plain line reads no prefix in " .. ft)
+  check(
+    #calls == 1 and calls[1][2] == 10000 and calls[1][1] >= (ft == "tex" and 9936 or 9999),
+    "Plain line performs bounded local reads in " .. ft
+  )
 end
 -- Warm candidate syntax reuses checkpoints; dynamic resolution is never cached.
 local lines = {}

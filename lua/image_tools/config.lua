@@ -2,6 +2,7 @@ local M = {}
 local defaults = {
   auto_preview = true,
   treesitter = true,
+  latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   buffer = {
     enabled = true,
     formats = { "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" },
@@ -65,6 +66,12 @@ function M.resolve(opts)
     assert(
       type(options[name]) == "number" and options[name] >= 1 and options[name] % 1 == 0,
       name .. " must be a positive integer"
+    )
+  end
+  for _, name in ipairs({ "max_reference_lines", "max_reference_bytes" }) do
+    assert(
+      type(options.latex[name]) == "number" and options.latex[name] >= 1 and options.latex[name] % 1 == 0,
+      "latex." .. name .. " must be a positive integer"
     )
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")

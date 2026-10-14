@@ -27,6 +27,7 @@ if [ -n "${IMAGE_TOOLS_PARSER_ROOT:-}" ]; then
   nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/incremental.lua"
 fi
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/tex.lua"
+nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/tex_multiline.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/typst.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/buffer.lua"
 nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/canvas_bounds.lua"

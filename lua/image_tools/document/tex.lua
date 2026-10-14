@@ -1,105 +1,13 @@
 local M = {}
-local function escaped(line, pos)
-  local count = 0
-  while pos > 1 and line:sub(pos - 1, pos - 1) == "\\" do
-    count, pos = count + 1, pos - 1
-  end
-  return count % 2 == 1
-end
-local function group(line, pos, opening, ending)
-  if line:sub(pos, pos) ~= opening then
-    return
-  end
-  local depth = 1
-  for i = pos + 1, #line do
-    local char = line:sub(i, i)
-    if not escaped(line, i) then
-      if char == opening then
-        depth = depth + 1
-      elseif char == ending then
-        depth = depth - 1
-        if depth == 0 then
-          return i
-        end
-      end
-    end
-  end
-end
-local function space(line, pos)
-  while line:sub(pos, pos):match("%s") do
-    pos = pos + 1
-  end
-  return pos
-end
-local function clean(line)
-  local pos = 1
-  while pos <= #line do
-    if not escaped(line, pos) and line:sub(pos, pos) == "%" then
-      return line:sub(1, pos - 1)
-    end
-    if not escaped(line, pos) and line:sub(pos, pos + 4) == "\\verb" and not line:sub(pos + 5, pos + 5):match("%a") then
-      local delimiter = pos + 5
-      if line:sub(delimiter, delimiter) == "*" then
-        delimiter = delimiter + 1
-      end
-      local finish = line:find(line:sub(delimiter, delimiter), delimiter + 1, true)
-      if not finish then
-        return line:sub(1, pos - 1)
-      end
-      line = line:sub(1, pos - 1) .. string.rep(" ", finish - pos + 1) .. line:sub(finish + 1)
-      pos = finish + 1
-    else
-      pos = pos + 1
-    end
-  end
-  return line
-end
-local function literal(src)
-  src = vim.trim(src)
-  local first = src:find("\\detokenize", 1, true)
-  if first == 1 then
-    local start = space(src, 12)
-    local finish = group(src, start, "{", "}")
-    if finish and vim.trim(src:sub(finish + 1)) == "" then
-      return src:sub(start + 1, finish - 1)
-    end
-    return nil
-  end
-  src = src:gsub("\\([#$%%&_{} ])", "%1")
-  if src:find("\\", 1, true) then
-    return nil
-  end -- Macros are not expanded.
-  return src
-end
+local reference = require("image_tools.document.tex.reference")
+local clean, group, space, literal, escaped =
+  reference.clean, reference.group, reference.space, reference.literal, reference.escaped
 function M.parse(line)
-  line = clean(line)
-  local result, pos = {}, 1
-  while pos <= #line do
-    local start = line:find("\\includegraphics", pos, true)
-    if not start then
-      break
-    end
-    pos = start + 16
-    if not escaped(line, start) and not line:sub(pos, pos):match("%a") then
-      if line:sub(pos, pos) == "*" then
-        pos = pos + 1
-      end
-      pos = space(line, pos)
-      if line:sub(pos, pos) == "[" then
-        local finish = group(line, pos, "[", "]")
-        pos = finish and space(line, finish + 1) or #line + 1
-      end
-      local finish = group(line, pos, "{", "}")
-      if finish then
-        local src = literal(line:sub(pos + 1, finish - 1))
-        if src and src ~= "" then
-          result[#result + 1] = { src = src, start_col = start - 1, end_col = finish }
-        end
-        pos = finish + 1
-      end
-    end
+  local results = reference.parse(line)
+  for _, candidate in ipairs(results) do
+    candidate.start_row, candidate.end_row = nil, nil
   end
-  return result
+  return results
 end
 
 local excluded = { verbatim = true, ["verbatim*"] = true, lstlisting = true, minted = true, comment = true }
@@ -162,9 +70,9 @@ local function scan(lines, previous)
   }, { environment = environment, directories = directories }
 end
 function M.find(buf, row, col, opts)
-  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
-  if not line:find("\\includegraphics", 1, true) then
-    return nil, "No supported image reference on the current line"
+  local nearby, nearby_error = reference.nearby(buf, row, opts)
+  if #nearby == 0 then
+    return nil, nearby_error or "No supported image reference on the current line"
   end
   local syntax = opts.treesitter ~= false
       and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready)
@@ -172,9 +80,15 @@ function M.find(buf, row, col, opts)
   if syntax and syntax.pending then
     return nil, "Tree-sitter parsing is pending", "pending"
   end
-  syntax = syntax or require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
-  if syntax.blocked then
-    return nil, "Cursor is inside a verbatim/comment environment"
+  if not syntax then
+    syntax = { candidates = {} }
+    for _, candidate in ipairs(nearby) do
+      local context = require("image_tools.document.syntax_cache").query(buf, candidate.start_row, "tex", {}, scan)
+      if not context.blocked then
+        candidate.directories = context.directories
+        syntax.candidates[#syntax.candidates + 1] = candidate
+      end
+    end
   end
   local document = vim.api.nvim_buf_get_name(buf)
   local resolve_opts = vim.tbl_extend(
@@ -183,14 +97,14 @@ function M.find(buf, row, col, opts)
     { literal = true, root = require("image_tools.document.paths").base(document, opts, buf) }
   )
   for _, candidate in ipairs(syntax.candidates) do
-    if col == nil or col >= candidate.start_col and col < candidate.end_col then
+    if reference.contains(vim.tbl_extend("keep", candidate, { start_row = row, end_row = row }), row, col) then
       local path, err = require("image_tools.document.paths").resolve(candidate.src, document, resolve_opts)
       if not path then
         return nil, err
       end
       local paths = { path }
       if candidate.src:sub(1, 1) ~= "/" then
-        for _, directory in ipairs(syntax.directories) do
+        for _, directory in ipairs(candidate.directories or syntax.directories or {}) do
           local resolved =
             require("image_tools.document.paths").resolve(directory .. "/" .. candidate.src, document, resolve_opts)
           if resolved then
@@ -201,13 +115,13 @@ function M.find(buf, row, col, opts)
       for _, target in ipairs(paths) do
         local stat = vim.uv.fs_stat(target)
         if stat and stat.type == "file" then
-          return target
+          return target, nil, nil, candidate
         end
         for _, extension in ipairs({ "pdf", "png", "jpg", "jpeg" }) do
           local extended = target .. "." .. extension
           stat = vim.uv.fs_stat(extended)
           if stat and stat.type == "file" then
-            return extended
+            return extended, nil, nil, candidate
           end
         end
       end
