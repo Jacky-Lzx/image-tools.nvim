@@ -118,7 +118,7 @@ function M.parse(text, first, opts)
       pos = space(text, pos)
       if text:sub(pos, pos) == "[" then
         local finish = group(text, pos, "[", "]")
-        pos = finish and space(text, finish + 1) or #text + 1
+        pos = finish and space(text, finish + 1) or start + 16
       end
       local finish = group(text, pos, "{", "}")
       if finish then

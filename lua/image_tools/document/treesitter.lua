@@ -213,6 +213,12 @@ function M.query(buf, row, lang, ready, options)
   local entry = entries[buf]
   options = options or {}
   local max_lines, max_bytes = require("image_tools.document.tex.reference").limits(options)
+  -- Cache syntax policy only; runtime callbacks/resolvers must not be retained
+  -- by a loaded buffer's parser cache after setup replacement or teardown.
+  options = {
+    latex = { max_reference_lines = max_lines, max_reference_bytes = max_bytes },
+    max_scan_lines = options.max_scan_lines or 10000,
+  }
   local policy = lang == "latex" and table.concat({ max_lines, max_bytes, options.max_scan_lines or 10000 }, ":") or ""
   if entry and entry.tree and entry.policy ~= policy then
     entry.rows, entry.directories, entry.errors, entry.references, entry.seen, entry.frontier = {}, {}, {}, {}, {}, 0

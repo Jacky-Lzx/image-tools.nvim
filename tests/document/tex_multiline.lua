@@ -95,4 +95,12 @@ local mixed = buffer({ [[\includegraphics[a]{a.png} \includegraphics[b]{b.png}]]
 check(D.at_line(mixed, 1, opts) == tmp .. "/a.png", "First reference wins")
 check(D.at_cursor(mixed, 1, 40, opts) == tmp .. "/b.png", "Column selects second reference")
 check(not D.at_line(mixed, 2, opts), "Completed previous reference does not match later row")
+local malformed = buffer({ [[\includegraphics[]], "unfinished", [[\includegraphics{b.png}]] })
+check(not D.at_line(malformed, 1, opts), "Unclosed earlier option is not guessed")
+check(
+  D.at_line(malformed, 3, opts) == tmp .. "/b.png",
+  "Unclosed earlier command does not hide a later complete reference"
+)
+local limits = { latex = { max_reference_bytes = 4 } }
+check(#R.parse([[\includegraphics{a.png}]], 1, limits) == 0, "Decoder applies byte budget to actual command")
 print("multiline LaTeX lexer: " .. checks .. " assertions passed")

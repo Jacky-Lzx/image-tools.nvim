@@ -47,6 +47,12 @@ function M:destroy()
   self.transfer:clear()
 end
 
+local function on_reference_row(state)
+  local row = vim.api.nvim_win_get_cursor(state.owner_win)[1]
+  local range = state.reference_range
+  return range and row >= range.start_row and row <= range.end_row or not range and row == state.cursor[1]
+end
+
 function M:open(path, options)
   options = options or {}
   self:close()
@@ -66,6 +72,7 @@ function M:open(path, options)
     path = path,
     automatic = options.silent or false,
     reference = options.reference or false,
+    reference_range = options.reference_range,
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   self.state = state
@@ -79,7 +86,7 @@ function M:open(path, options)
       or vim.api.nvim_get_current_win() ~= state.owner_win
       or vim.api.nvim_get_current_buf() ~= state.owner_buf
       or vim.api.nvim_buf_get_changedtick(state.owner_buf) ~= state.changedtick
-      or vim.api.nvim_win_get_cursor(state.owner_win)[1] ~= state.cursor[1]
+      or not on_reference_row(state)
     then
       self:close()
       return
@@ -114,13 +121,14 @@ function M:open(path, options)
       if
         vim.api.nvim_get_current_win() ~= state.owner_win
         or vim.api.nvim_get_current_buf() ~= state.owner_buf
-        or vim.api.nvim_win_get_cursor(0)[1] ~= state.cursor[1]
+        or not on_reference_row(state)
         or vim.api.nvim_buf_get_changedtick(0) ~= state.changedtick
       then
         entry.cancel()
         self:close()
         return
       end
+      state.cursor = vim.api.nvim_win_get_cursor(state.owner_win)
       state.id, state.placement_id = entry.id, entry.placement_id
       state.buf = vim.api.nvim_create_buf(false, true)
       vim.bo[state.buf].buftype = "nofile"

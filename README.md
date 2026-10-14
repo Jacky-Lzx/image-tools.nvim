@@ -71,6 +71,7 @@ release all retained terminal images and cancel pending requests.
 require("image_tools").setup({
   auto_preview = true,
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
+  latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   buffer = { enabled = true }, -- automatic binary image/PDF file buffers
   pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
   pdf_density = 144,
@@ -148,7 +149,7 @@ cached images use fresh ids, preventing late replies from matching the retry.
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
-Reference-style images, Obsidian wikilinks, multiline image calls, remote URLs
+Reference-style images, Obsidian wikilinks, multiline Markdown image calls, remote URLs
 and inline rendering are future work.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
@@ -239,9 +240,28 @@ starting a parser. Parse timing includes time yielded to the event loop.
 
 
 Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
-same-line `\includegraphics[options]{path}` (including starred form and
+literal `\includegraphics[options]{path}` (including starred form and
 `\detokenize{path}`) is parsed. Comments, `\verb` and verbatim/lstlisting/minted/
-comment environments are excluded; macros and multiline references are not expanded.
+comment environments are excluded. The command, optional arguments and path
+argument may be on different lines; filename contents must stay on one line.
+Macros are not expanded. For example:
+
+```latex
+\includegraphics[
+  % width=\linewidth,
+  keepaspectratio
+]{Figures/example.pdf}
+```
+
+Every row of a complete reference, including commented option rows, can trigger
+preview. Moving inside that reference retains its window and pending conversion;
+leaving its range closes it. Multiple references on a shared row select the first
+in document order; `at_cursor` respects the full byte-column range.
+`latex.max_reference_lines` (64) and `latex.max_reference_bytes` (16 KiB) bound
+recognition, including compatibility decoding for partial grammar nodes. Lookahead
+also respects `max_scan_lines`. Lua fallback uses a bounded local search plus
+cached prefix context. Editing any covered row invalidates the full reference.
+Unclosed or oversized commands and filenames split over lines are not guessed.
 Literal `\graphicspath{{dir/}{other/}}` in preceding lines and omitted extensions
 (PDF/PNG/JPG/JPEG) are resolved. Resolution uses `root` (string/function), then an
 existing `b:vimtex.root`, then the document directory. No VimTeX dependency is added.

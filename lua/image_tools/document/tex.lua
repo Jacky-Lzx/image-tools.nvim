@@ -78,7 +78,7 @@ function M.find(buf, row, col, opts)
       and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready, opts)
     or nil
   if syntax and syntax.pending then
-    return nil, "Tree-sitter parsing is pending", "pending"
+    return nil, "Tree-sitter parsing is pending", "pending", nearby[1]
   end
   if not syntax then
     syntax = { candidates = {} }

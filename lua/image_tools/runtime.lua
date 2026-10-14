@@ -58,11 +58,30 @@ function Runtime:destroy()
   self.buffers:destroy()
 end
 
+local function covers(range, row, original)
+  return range and row >= range.start_row and row <= range.end_row or not range and row == original
+end
 local function on_current_line(state)
   return state
     and state.owner_buf == vim.api.nvim_get_current_buf()
     and state.owner_win == vim.api.nvim_get_current_win()
-    and state.cursor[1] == vim.api.nvim_win_get_cursor(0)[1]
+    and covers(state.reference_range, vim.api.nvim_win_get_cursor(0)[1], state.cursor[1])
+end
+local function owns_pending(request)
+  return request.buf == vim.api.nvim_get_current_buf()
+    and request.win == vim.api.nvim_get_current_win()
+    and request.tick == vim.api.nvim_buf_get_changedtick(0)
+    and covers(request.range, vim.api.nvim_win_get_cursor(0)[1], request.row)
+end
+local function range_of(reference)
+  if reference and reference.start_row and reference.end_row then
+    return {
+      start_row = reference.start_row,
+      start_col = reference.start_col,
+      end_row = reference.end_row,
+      end_col = reference.end_col,
+    }
+  end
 end
 
 function Runtime:close()
@@ -197,27 +216,21 @@ function Runtime:hover(opts)
   local buf, win, tick =
     vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win(), vim.api.nvim_buf_get_changedtick(0)
   local pending = self.pending_reference
-  if pending and pending.buf == buf and pending.win == win and pending.row == cursor[1] and pending.tick == tick then
+  if pending and owns_pending(pending) then
     return false, "Tree-sitter parsing is pending"
   end
   local request = { buf = buf, win = win, row = cursor[1], tick = tick }
   self.reference_request = request
   local options = vim.tbl_extend("force", self.options, {
     _treesitter_ready = function()
-      if
-        not self.disposed
-        and self.reference_request == request
-        and vim.api.nvim_get_current_buf() == buf
-        and vim.api.nvim_get_current_win() == win
-        and vim.api.nvim_win_get_cursor(win)[1] == cursor[1]
-        and vim.api.nvim_buf_get_changedtick(buf) == tick
-      then
+      if not self.disposed and self.reference_request == request and owns_pending(request) then
         self.pending_reference = nil
         self:hover(opts)
       end
     end,
   })
-  local path, err, status = self:dependency("document").at_line(buf, cursor[1], options)
+  local path, err, status, reference = self:dependency("document").at_line(buf, cursor[1], options)
+  request.range = range_of(reference)
   if status == "pending" then
     self.pending_reference = request
     self.preview:close()
@@ -235,9 +248,11 @@ function Runtime:hover(opts)
     -- conversion when the resolved image source is unchanged.
     self.preview.state.changedtick = vim.api.nvim_buf_get_changedtick(0)
     self.preview.state.reference = true
+    self.preview.state.reference_range = request.range
+    self.preview.state.cursor = cursor
     return true
   end
-  return self:open_preview(path, vim.tbl_extend("force", opts, { reference = true }))
+  return self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
 end
 
 function Runtime:toggle()
@@ -277,13 +292,22 @@ function Runtime:refresh()
   if self.disposed then
     return
   end
+  if self.pending_reference then
+    if owns_pending(self.pending_reference) then
+      return
+    end
+    self:close()
+  end
   local state = self.preview.state
   if state and not on_current_line(state) then
     self:close()
     state = nil
   end
   if state then
-    if state.changedtick == vim.api.nvim_buf_get_changedtick(0) then
+    if
+      state.changedtick == vim.api.nvim_buf_get_changedtick(0)
+      and state.cursor[1] == vim.api.nvim_win_get_cursor(0)[1]
+    then
       return -- Keep both visible and pending previews during horizontal movement.
     end
     if state.reference then
