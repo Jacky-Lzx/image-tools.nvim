@@ -1,7 +1,4 @@
-# Module layout
-
-The public `image_tools` API stays in `init.lua`. Configuration, commands and
-runtime lifecycle are provided by `config.lua`, `commands.lua` and `runtime.lua`.
+# Module Layout
 
 Implementation modules are grouped by responsibility:
 
@@ -51,45 +48,35 @@ lua/image_tools/
     picker.lua             Snacks selection and preview integration
 ```
 
-`require("image_tools.document")` retains `supported`, `parse`, `base`, `resolve`, `at_line` and `at_cursor`.
-Format modules use the path and syntax-cache helpers directly, without importing the dispatcher.
-Format tests live in `tests/document/`; shared image/PDF fixtures remain in `tests/`.
+`require("image_tools.document")` retains `supported`, `parse`, `base`,
+`resolve`, `at_line` and `at_cursor`. Format modules use the path and
+syntax-cache helpers directly, without importing the dispatcher. Format tests
+live in `tests/document/`; shared image/PDF fixtures remain in `tests/`.
 
-`require("image_tools")`, `require("image_tools.document")` and the existing
-`image_tools.image` facade retain their APIs. `image_tools.terminal` resolves to
-`terminal/init.lua`. Internal imports and test mocks use the grouped module paths;
-the former top-level implementation paths are no longer provided.
+## Terminal Ownership
 
-Dependency injection still uses logical keys such as `preview`, `buffer`,
-`protocol`, `pdf` and `picker`. Controllers map moved defaults to their module
-paths while checking supplied dependencies first. Neovim namespaces, highlight
-groups and autocmd group names remain independent of these paths.
-Tests retain their existing filenames and runner groups; only implementation
-imports, mocks and the isolated terminal source lookup change.
+`terminal/transfer.new()` always constructs a view placement manager. A
+supplied `pixel_pool` shares uploads across managers; a standalone manager owns
+a private pool. Within `terminal/`, the dependency direction is `transfer ->
+pixel_pool -> upload -> init / protocol`. `upload` handles pixel transmission,
+fallback, versioning and LRU storage; it never creates or hides placements.
+`pixel_pool` owns reference counts, independent placement ids and bounded
+placement retry. It consults the uploader's `cached()` method rather than its
+entry table. Clearing a shared transfer releases only its leases; clearing a
+standalone transfer also frees its private pool. Clearing the pool frees all
+owned terminal pixels.
 
-## Terminal ownership
+## Render Sessions
 
-`terminal/transfer.new()` always constructs a view placement manager. A supplied
-`pixel_pool` shares uploads across managers; a standalone manager owns a private
-pool. Within `terminal/`, the dependency direction is `transfer -> pixel_pool ->
-upload -> init / protocol`. `upload` handles pixel transmission, fallback, versioning and LRU
-storage; it never creates or hides placements. `pixel_pool` owns reference counts,
-independent placement ids and bounded placement retry. It consults the uploader's
-`cached()` method rather than its entry table. Clearing a shared transfer releases
-only its leases; clearing a standalone
-transfer also frees its private pool. Clearing the pool frees all owned terminal
-pixels.
+Floating previews, file canvases and Snacks renderers supply their own
+authority, viewport, window policy and error presentation. `render/session`
+owns the common prepare/placement sequence and releases both handles on close,
+stale completion, or drawing failure. It also releases handles returned after a
+synchronous close. `render/geometry` supplies aspect-ratio fitting;
+`render/placeholder` draws the Kitty grid and placement highlight. These
+helpers do not depend on a particular controller.
 
-## Render sessions
-
-Floating previews, file canvases and Snacks renderers supply their own authority,
-viewport, window policy and error presentation. `render/session` owns the common
-prepare/placement sequence and releases both handles on close, stale completion,
-or drawing failure. It also releases handles returned after a synchronous close.
-`render/geometry` supplies aspect-ratio fitting; `render/placeholder` draws the Kitty grid and
-placement highlight. These helpers do not depend on a particular controller.
-
-## Media preparation and process budget
+## Media Preparation and Process Budget
 
 `image` is the compatibility facade. `media/png` reads and validates PNG data;
 `media/file_version` identifies source revisions; `media/formats` lists preview
@@ -107,7 +94,7 @@ The new concurrency limit applies when queued processes start; each job retains
 the command and options captured when queued. Existing insertion operations retain
 their captured document/options. PNG reads and PDF metadata bypass this queue.
 
-## Document format adapters
+## Document Format Adapters
 
 `document/formats` centralizes filetype aliases and resolves the Markdown, LaTeX
 and Typst adapters. Each adapter owns reference detection, supported insertion
