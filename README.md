@@ -85,6 +85,7 @@ require("image_tools").setup({
   cell_size = { width = 10, height = 20 }, -- fallback when ioctl has no pixel size
   magick = "magick",
   convert_timeout = 10000,
+  convert_concurrency = 2, -- simultaneous converter processes
   max_bytes = 32 * 1024 * 1024,
   max_dimension = 16384,
   max_pixels = 64 * 1024 * 1024,
@@ -308,3 +309,9 @@ Unsupported terminals, invalid/oversized files, encrypted/unreadable PDFs and
 missing conversion/metadata tools show a readable error in the file buffer.
 No terminal responses, stale conversions or page changes can reopen a canvas after
 its source window/buffer is closed. Use `:checkhealth image_tools` to check tools.
+
+Converter processes for distinct image files and PDF pages share a FIFO queue,
+with `convert_concurrency = 2` by default. Same-source requests still share one
+conversion. Closing a queued preview removes its job; cancelling a running job
+keeps its slot until the process exits. Cache hits and PNG reads bypass the queue.
+`status().conversion_queue` reports active and queued converters.

@@ -204,5 +204,31 @@ await(function()
 end)
 check(not abandoned, "Cancelled subscriber stays silent during completion")
 I.read = read
+-- Distinct real sources use the process budget, not just same-source coalescing.
+local active, peak, burst_launches = 0, 0, 0
+vim.system = function(command, settings, callback)
+  active, burst_launches = active + 1, burst_launches + 1
+  peak = math.max(peak, active)
+  return original(command, settings, function(result)
+    active = active - 1
+    callback(result)
+  end)
+end
+opts = options("burst")
+opts.convert_concurrency = 1
+completed = 0
+for i = 1, 5 do
+  local input = tmp .. "/burst-" .. i .. ".jpg"
+  assert(vim.uv.fs_copyfile(source, input))
+  I.prepare(input, opts, function(err)
+    check(not err, err)
+    completed = completed + 1
+  end)
+end
+await(function()
+  return completed == 5
+end)
+check(burst_launches == 5 and peak == 1, "Five actual distinct converters obey configured concurrency")
+check(require("image_tools.conversion_queue").status().active == 0, "All actual workers release slots")
 vim.system = original
 print("conversion sharing: " .. checks .. " assertions passed")

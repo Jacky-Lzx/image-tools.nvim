@@ -116,6 +116,11 @@ function M.check()
       vim.health.warn(state.terminal_cache.last_error)
     end
   end
+  if state.conversion_queue then
+    vim.health.info(
+      string.format("Converters: %d active, %d queued", state.conversion_queue.active, state.conversion_queue.queued)
+    )
+  end
   if state.treesitter then
     local syntax = state.treesitter
     vim.health.start("image-tools: reference syntax")

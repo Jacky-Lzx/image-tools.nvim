@@ -24,6 +24,7 @@ local defaults = {
   max_pixels = 64 * 1024 * 1024,
   max_scan_lines = 10000,
   convert_timeout = 10000,
+  convert_concurrency = 2,
   magick = "magick",
   rsvg = "rsvg-convert",
 }
@@ -57,6 +58,7 @@ function M.resolve(opts)
     "max_pixels",
     "max_scan_lines",
     "convert_timeout",
+    "convert_concurrency",
     "terminal_timeout",
     "pdf_density",
   }) do

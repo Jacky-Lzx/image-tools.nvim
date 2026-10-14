@@ -10,6 +10,7 @@ SETUP                                                      *image-tools-setup*
 >
   require("image_tools").setup({
     auto_preview = true,
+    convert_concurrency = 2, -- simultaneous converter processes
     treesitter = true, -- LaTeX/Typst parsers, with automatic Lua scanner fallback
     position = "bottom_right", -- default: "cursor"
     transport = "auto", -- prefer local file transfer; fall back to direct data
@@ -184,3 +185,8 @@ readable errors in the file buffer. buffer.enabled=false disables automatic
 interception; :ImageOpen still works. buffer.formats controls automatic extensions.
 
 API: open(path), page(n), next_page(delta), reload(), status().buffer.
+
+Converter processes share a FIFO queue controlled by convert_concurrency
+(default 2). Queued cancellation does not spawn a process; running cancellation
+holds its slot until exit. PNG reads and cache hits bypass the queue.
+status().conversion_queue reports active and queued processes.
