@@ -76,7 +76,14 @@ local grid = protocol.grid(3, 2)
 eq(vim.fn.strdisplaywidth(grid[1]), 3)
 eq(vim.fn.strdisplaywidth(grid[2]), 3)
 eq(grid[1]:sub(1, 8), vim.fn.nr2char(0x10EEEE) .. vim.fn.nr2char(0x305) .. vim.fn.nr2char(0x305))
-eq(protocol.max_cells, 64)
+eq(protocol.max_cells, 297)
+local wide_grid = protocol.grid(120, 80)
+eq(vim.fn.strdisplaywidth(wide_grid[80]), 120, "large grids preserve cell widths")
+eq(
+  wide_grid[65]:sub(1, 8),
+  vim.fn.nr2char(0x10EEEE) .. vim.fn.nr2char(0x659) .. vim.fn.nr2char(0x305),
+  "coordinate 64 uses the official diacritic"
+)
 local payload = string.rep("abcdef", 2000)
 local uploaded, decoded = protocol.upload(123, payload), {}
 local chunks = 0
@@ -163,6 +170,14 @@ local width, height = require("image_tools.preview").fit(
   30
 )
 eq({ width, height }, { 40, 13 })
+local fit = require("image_tools.preview").fit
+local function fitted(image, max_width, max_height, upscale)
+  return { fit(image, { width = 10, height = 20 }, max_width, max_height, upscale) }
+end
+eq(fitted({ width = 160, height = 100 }, 100, 40, true), { 100, 32 }, "picker upscales to pane width")
+eq(fitted({ width = 100, height = 400 }, 100, 40, true), { 20, 40 }, "portrait fills height without stretching")
+eq(fitted({ width = 160, height = 100 }, 100, 40), { 16, 5 }, "floating preview retains native-size cap")
+eq(fitted({ width = 1600, height = 1000 }, 20, 4, true), { 13, 4 }, "small pane bounds")
 preview:open(fixture)
 preview:close()
 callbacks[1](nil, prepared)

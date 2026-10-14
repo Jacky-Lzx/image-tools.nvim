@@ -6,7 +6,7 @@ if not snacks or not vim.uv.fs_stat(snacks .. "/lua/snacks/init.lua") then
 end
 vim.opt.rtp:prepend(snacks)
 vim.o.termguicolors = true
-vim.o.columns, vim.o.lines = 120, 40
+vim.o.columns, vim.o.lines = 180, 80
 local pending, requests, writes = {}, {}, {}
 package.loaded["image_tools.terminal"] = {
   supports = function()
@@ -70,12 +70,38 @@ check(
 )
 local renderer, win = picker._image_tools_preview, picker.preview.win.win
 check(renderer.state.win == win, "Rendered in existing picker preview window")
+local function has_grid(state)
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)) do
+    if line:find(vim.fn.nr2char(0x10EEEE), 1, true) then
+      return true
+    end
+  end
+end
+check(has_grid(renderer.state), "Own centered placeholders")
+check(renderer.state.width > 16 and renderer.state.height > 5, "Small image is enlarged to pane")
 check(
-  vim.api.nvim_buf_get_lines(renderer.state.buf, 0, 1, false)[1]:find(vim.fn.nr2char(0x10EEEE), 1, true),
-  "Own placeholders"
+  renderer.state.width == renderer.state.view_width or renderer.state.height == renderer.state.view_height,
+  "One image edge fills the pane"
 )
+local id = renderer.state.id
+vim.api.nvim_win_set_config(win, { width = 100, height = 40 })
+vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
+check(
+  vim.wait(1000, function()
+    return renderer.state and renderer.state.id and renderer.state.width == 100 and renderer.state.height == 32
+  end),
+  "Resize adapts beyond the old 60/64-column caps"
+)
+check(renderer.state.id == id and renderer.transfer:status().uploads == 1, "Resizing reuses uploaded image")
+check(renderer.state.top == 4 and renderer.state.left == 0, "Wide image centered vertically")
+local lines = vim.api.nvim_buf_get_lines(renderer.state.buf, 0, -1, false)
+check(lines[1] == "" and vim.fn.strdisplaywidth(lines[5]) == 100 and #lines == 40, "Centered grid fits pane bounds")
+local hits = renderer.transfer:status().hits
+vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
+vim.wait(30)
+check(renderer.transfer:status().hits == hits, "Unchanged geometry does not redraw")
 check(package.loaded["snacks.image"] == nil, "Snacks.image not loaded for own preview")
-local before = #requests
+local before, prior_hits = #requests, renderer.transfer:status().hits
 picker.preview:show(picker, { force = true })
 check(
   vim.wait(1000, function()
@@ -83,7 +109,7 @@ check(
   end),
   "Preview redraw"
 )
-check(#requests == before + 1 and renderer.transfer:status().hits == 1, "Picker reuses uploaded image")
+check(#requests == before + 1 and renderer.transfer:status().hits == prior_hits + 1, "Picker reuses uploaded image")
 -- Actual confirm closes picker and uses origin context even with subsequent edits.
 vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "before source" })
 picker.opts.actions.confirm(picker)

@@ -75,6 +75,34 @@ function M.new(picker, opts, dependencies)
       end
     end,
   })
+  vim.api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
+    group = self.group,
+    callback = function()
+      local state = self.state
+      if not state or self.resize_pending then
+        return
+      end
+      self.resize_pending = true
+      vim.schedule(function()
+        self.resize_pending = false
+        if
+          not self.group
+          or self.state ~= state
+          or self.picker.closed
+          or not vim.api.nvim_win_is_valid(state.win)
+          or not vim.api.nvim_buf_is_valid(state.buf)
+          or vim.api.nvim_win_get_buf(state.win) ~= state.buf
+          or self.picker.preview.item ~= state.item
+        then
+          return
+        end
+        local width, height = self:viewport(state.win)
+        if width ~= state.view_width or height ~= state.view_height then
+          self.picker.preview:show(self.picker, { force = true })
+        end
+      end)
+    end,
+  })
   vim.api.nvim_create_autocmd("BufWipeout", {
     group = self.group,
     callback = function(event)
@@ -113,6 +141,11 @@ function Renderer:dependency(name)
   return self.dependencies[name] or require("image_tools." .. name)
 end
 
+function Renderer:viewport(win)
+  local info = vim.fn.getwininfo(win)[1] or {}
+  return math.max(1, vim.api.nvim_win_get_width(win) - (info.textoff or 0)), vim.api.nvim_win_get_height(win)
+end
+
 function Renderer:show(ctx, path)
   self:close()
   ctx.preview:reset()
@@ -124,7 +157,8 @@ function Renderer:show(ctx, path)
     ctx.preview:notify(reason, "warn", { item = false })
     return
   end
-  local state = { buf = ctx.buf, win = ctx.win, item = ctx.item }
+  local view_width, view_height = self:viewport(ctx.win)
+  local state = { buf = ctx.buf, win = ctx.win, item = ctx.item, view_width = view_width, view_height = view_height }
   self.state = state
   local function current()
     return self.state == state
@@ -149,11 +183,13 @@ function Renderer:show(ctx, path)
       fail(err)
       return
     end
+    state.view_width, state.view_height = self:viewport(state.win)
     local width, height = require("image_tools.preview").fit(
       image,
       terminal.cell_size(self.opts.cell_size),
-      math.min(vim.api.nvim_win_get_width(state.win), self.opts.max_width, protocol.max_cells),
-      math.min(vim.api.nvim_win_get_height(state.win), self.opts.max_height, protocol.max_cells)
+      math.min(state.view_width, protocol.max_cells),
+      math.min(state.view_height, protocol.max_cells),
+      true
     )
     state.cancel_transfer = self.transfer:acquire(image, width, height, function(transfer_err, entry)
       if not current() then
@@ -172,14 +208,27 @@ function Renderer:show(ctx, path)
       state.id, state.highlight = entry.id, "ImageToolsPicker_" .. entry.id
       vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", entry.id) })
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
-      ctx.preview:set_lines(protocol.grid(width, height))
+      local top = math.floor((state.view_height - height) / 2)
+      local left = math.floor((state.view_width - width) / 2)
+      state.width, state.height, state.top, state.left = width, height, top, left
+      local lines = {}
+      for row = 1, top do
+        lines[#lines + 1] = ""
+      end
+      for _, line in ipairs(protocol.grid(width, height)) do
+        lines[#lines + 1] = string.rep(" ", left) .. line
+      end
+      for row = top + height + 1, state.view_height do
+        lines[#lines + 1] = ""
+      end
+      ctx.preview:set_lines(lines)
       for row = 0, height - 1 do
         vim.api.nvim_buf_set_extmark(
           state.buf,
           ns,
-          row,
-          0,
-          { end_row = row + 1, end_col = 0, hl_group = state.highlight, priority = 1000 }
+          top + row,
+          left,
+          { end_row = top + row + 1, end_col = 0, hl_group = state.highlight, priority = 1000 }
         )
       end
     end)

@@ -109,7 +109,11 @@ PICKER                                                    *image-tools-picker*
 insertion defaults; opts.picker overrides file picker options. Confirmation
 imports selected files at the original extmark position. Closing cancels.
 Images render in the existing preview pane with this plugin's transport/cache.
-Selection changes cancel stale conversions; closing frees images and handlers.
+Images scale up/down to fit and center in the pane, preserving their aspect ratio.
+Pane/terminal resizing refreshes placement and reuses pixels. Floating preview
+max_width/max_height do not limit picker size; protocol coordinates cap each axis
+at 297 cells. Selection changes cancel stale conversions; closing frees images
+and handlers.
 For regular file pickers/explorer, configure Snacks picker.preview as:
 >
   function(ctx) require("image_tools").snacks_preview(ctx) end

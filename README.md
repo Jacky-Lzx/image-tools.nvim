@@ -71,8 +71,8 @@ require("image_tools").setup({
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500, -- milliseconds to wait for a graphics acknowledgement
   terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
-  max_width = 60, -- terminal cells, capped at 64
-  max_height = 30, -- terminal cells, capped at 64
+  max_width = 60, -- terminal cells, capped at 297
+  max_height = 30, -- terminal cells, capped at 297
   border = "rounded",
   cell_size = { width = 10, height = 20 }, -- fallback when ioctl has no pixel size
   magick = "magick",
@@ -180,6 +180,10 @@ stops pending reads/processes and removes temporary files.
 
 Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
 preview in the existing picker window using this plugin's Kitty transport/cache.
+Picker previews scale up or down to fit the pane, preserve the aspect ratio and
+center the image. They follow pane/terminal resizing and layout changes. The
+floating-preview `max_width`/`max_height` limits do not cap the picker; the Kitty
+coordinate table permits up to 297 cells per axis. Resizing reuses uploaded pixels.
 Confirm imports the selected images in order into the original document; closing
 without confirming cancels. Selection changes cancel pending conversions and
 placements; closing releases the picker cache and handlers. Use `pick({ insert =

@@ -11,10 +11,11 @@ function M:dependency(name)
   return self.dependencies[name] or require("image_tools." .. name)
 end
 
-function M.fit(image, cell, max_width, max_height)
+function M.fit(image, cell, max_width, max_height, upscale)
   local columns, rows = image.width / cell.width, image.height / cell.height
-  local scale = math.min(1, max_width / columns, max_height / rows)
-  return math.max(1, math.ceil(columns * scale)), math.max(1, math.ceil(rows * scale))
+  local scale = math.min(upscale and math.huge or 1, max_width / columns, max_height / rows)
+  return math.max(1, math.min(max_width, math.ceil(columns * scale))),
+    math.max(1, math.min(max_height, math.ceil(rows * scale)))
 end
 
 function M:close()

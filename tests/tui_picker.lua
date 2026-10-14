@@ -16,7 +16,7 @@ local picker = image.pick(
     done, err, paths = true, e, p
   end
 )
-local results, renderer = { picker = true }
+local results, renderer, initial_width, initial_height = { picker = true }
 local steps = {
   function()
     renderer = assert(picker._image_tools_preview, "Picker preview did not start")
@@ -24,10 +24,30 @@ local steps = {
     local win = picker.preview.win.win
     assert(renderer.state.win == win, "Wrong preview window")
     assert(package.loaded["snacks.image"] == nil, "Snacks image was used")
-    picker.preview:show(picker, { force = true })
+    local width, height = renderer.state.width, renderer.state.height
+    assert(width == renderer.state.view_width or height == renderer.state.view_height, "Image does not fill pane")
+    assert(width > 16 or height > 5, "Small image did not upscale")
+    initial_width, initial_height = width, height
+    picker:set_layout({
+      reverse = picker.list.reverse,
+      layout = {
+        box = "vertical",
+        width = 0.95,
+        height = 0.95,
+        border = "rounded",
+        { win = "preview", height = 24 },
+        { win = "list", height = 3 },
+        { win = "input", height = 1 },
+      },
+    })
   end,
   function()
     assert(renderer.state and renderer.state.id, "Preview redraw failed")
+    local state = renderer.state
+    assert(state.width ~= initial_width or state.height ~= initial_height, "Layout change did not resize the image")
+    assert(state.width == state.view_width or state.height == state.view_height, "Resized image does not fill pane")
+    assert(math.abs(state.left * 2 + state.width - state.view_width) <= 1, "Image is not centered horizontally")
+    assert(math.abs(state.top * 2 + state.height - state.view_height) <= 1, "Image is not centered vertically")
     results.cache = renderer.transfer:status()
     picker.opts.actions.confirm(picker)
   end,
