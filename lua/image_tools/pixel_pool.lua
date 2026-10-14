@@ -7,16 +7,17 @@ local function next_placement()
 end
 function Pool.new(options, dependencies)
   dependencies = vim.tbl_extend("force", {}, dependencies or {})
-  dependencies.pixel_pool = nil
-  local master = require("image_tools.transfer").new(options, dependencies)
-  master.pixels_only = true
-  return setmetatable({ master = master, states = {}, hits = 0 }, Pool)
+  local uploader = require("image_tools.upload").new(options, dependencies)
+  return setmetatable({ uploader = uploader, opts = options, dependencies = dependencies, states = {}, hits = 0 }, Pool)
+end
+function Pool:dependency(name)
+  return self.dependencies[name] or require("image_tools." .. name)
 end
 function Pool:manager()
   return setmetatable({ pool = self, leases = {} }, Handle)
 end
 function Pool:status()
-  local status = self.master:status()
+  local status = self.uploader:status()
   status.hits = status.hits + self.hits
   status.last_error = self.last_error or status.last_error
   status.placements = 0
@@ -35,7 +36,7 @@ function Pool:clear()
       consumer.cancel()
     end
   end
-  self.master:clear()
+  self.uploader:clear()
 end
 function Handle:status()
   return self.pool:status()
@@ -46,13 +47,13 @@ function Handle:clear()
   end
 end
 function Handle:acquire(image, width, height, callback, retried)
-  local pool, master = self.pool, self.pool.master
-  local terminal, protocol = master:dependency("terminal"), master:dependency("protocol")
+  local pool, uploader = self.pool, self.pool.uploader
+  local terminal, protocol = pool:dependency("terminal"), pool:dependency("protocol")
   local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
   local state = pool.states[key]
   local fresh = not state
   if fresh then
-    state = { consumers = {}, reused = master.entries[key] and master.entries[key].uploaded }
+    state = { consumers = {}, reused = uploader:cached(key) }
     pool.states[key] = state
   end
   local consumer = { active = true, placement = next_placement(), shared = not fresh }
@@ -103,7 +104,7 @@ function Handle:acquire(image, width, height, callback, retried)
     local cancellation = terminal.request(
       state.pixel.id,
       protocol.place(state.pixel.id, width, height, 0, consumer.placement),
-      master.opts.terminal_timeout or 1500,
+      pool.opts.terminal_timeout or 1500,
       function(place_err)
         done = true
         consumer.request = nil
@@ -120,7 +121,7 @@ function Handle:acquire(image, width, height, callback, retried)
             and next(state.consumers) == consumer
           then
             cancel()
-            master:discard(state.pixel)
+            uploader:discard(state.pixel)
             replacement = self:acquire(image, width, height, callback, true)
           else
             fail(place_err)
@@ -141,7 +142,7 @@ function Handle:acquire(image, width, height, callback, retried)
     end
   end
   if fresh then
-    local cancellation = master:acquire(image, 1, 1, function(err, entry)
+    local cancellation = uploader:acquire(image, function(err, entry)
       state.pixel = entry
       for waiting in pairs(vim.tbl_extend("force", {}, state.consumers)) do
         waiting.ready(err)

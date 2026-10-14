@@ -26,3 +26,15 @@ controllers (`preview`, `buffer`, `canvas`); media preparation and disk storage
 `transfer`); and import/clipboard/picker workflows (`insert`, `clipboard`, `picker`).
 They remain at the top level in this change so their dependency-injection names
 and existing integration entry points are unchanged.
+
+## Terminal ownership
+
+`transfer.new()` always constructs a view placement manager. A supplied
+`pixel_pool` shares uploads across managers; a standalone manager owns a private
+pool. The dependency direction is `transfer -> pixel_pool -> upload -> terminal /
+protocol`. `upload` handles pixel transmission, fallback, versioning and LRU
+storage; it never creates or hides placements. `pixel_pool` owns reference counts,
+independent placement ids and bounded placement retry. It consults the uploader's
+`cached()` method rather than its entry table. Clearing a shared transfer releases only its leases; clearing a standalone
+transfer also frees its private pool. Clearing the pool frees all owned terminal
+pixels.
