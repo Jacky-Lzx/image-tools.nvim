@@ -65,6 +65,8 @@ local function on_current_line(state)
 end
 
 function Runtime:close()
+  self.reference_request = nil
+  self.pending_reference = nil
   if self.preview then
     self.preview:close()
   end
@@ -189,7 +191,35 @@ end
 function Runtime:hover(opts)
   opts = opts or {}
   local cursor = vim.api.nvim_win_get_cursor(0)
-  local path, err = self:dependency("document").at_line(0, cursor[1], self.options)
+  local buf, win, tick =
+    vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win(), vim.api.nvim_buf_get_changedtick(0)
+  local pending = self.pending_reference
+  if pending and pending.buf == buf and pending.win == win and pending.row == cursor[1] and pending.tick == tick then
+    return false, "Tree-sitter parsing is pending"
+  end
+  local request = { buf = buf, win = win, row = cursor[1], tick = tick }
+  self.reference_request = request
+  local options = vim.tbl_extend("force", self.options, {
+    _treesitter_ready = function()
+      if
+        not self.disposed
+        and self.reference_request == request
+        and vim.api.nvim_get_current_buf() == buf
+        and vim.api.nvim_get_current_win() == win
+        and vim.api.nvim_win_get_cursor(win)[1] == cursor[1]
+        and vim.api.nvim_buf_get_changedtick(buf) == tick
+      then
+        self.pending_reference = nil
+        self:hover(opts)
+      end
+    end,
+  })
+  local path, err, status = self:dependency("document").at_line(buf, cursor[1], options)
+  if status == "pending" then
+    self.pending_reference = request
+    self.preview:close()
+    return false, err
+  end
   if not path then
     self:close()
     if not opts.silent then

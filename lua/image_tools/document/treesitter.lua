@@ -36,9 +36,7 @@ local function allowed(node)
   return true
 end
 
-local function index(buf, lang, tick, parser, query)
-  -- Reuse Neovim's buffer parser; do not parse injected languages/raw examples.
-  local trees = parser:parse()
+local function index(buf, lang, tick, trees, query)
   if not trees or not trees[1] then
     return
   end
@@ -110,25 +108,25 @@ local function index(buf, lang, tick, parser, query)
   return entry
 end
 
--- nil means the backend is unavailable. An empty candidate table is a valid
--- Tree-sitter result and must not fall back to lexical guesses.
-function M.query(buf, row, lang)
+-- Pending parses are authoritative too: never scan the buffer synchronously
+-- while Neovim is yielding a large parse back to the event loop.
+function M.query(buf, row, lang, ready)
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = entries[buf]
   if not entry or entry.tick ~= tick or entry.lang ~= lang then
-    local ok, result = pcall(function()
+    local ok, parser, query = pcall(function()
       local parser = vim.treesitter.get_parser(buf, lang)
       if not parser then
         return
       end
       queries[lang] = queries[lang] or vim.treesitter.query.parse(lang, sources[lang])
-      return index(buf, lang, tick, parser, queries[lang])
+      return parser, queries[lang]
     end)
-    if not ok or not result then
+    if not ok or not parser then
       return
     end
-    entry = result
+    entry = { tick = tick, lang = lang, pending = true, waiters = {} }
     entries[buf] = entry
     if not attached[buf] then
       attached[buf] = vim.api.nvim_buf_attach(buf, false, {
@@ -143,6 +141,46 @@ function M.query(buf, row, lang)
         end,
       })
     end
+    local function complete(err, trees)
+      if not entry.pending then
+        return
+      end
+      if
+        entries[buf] ~= entry
+        or not vim.api.nvim_buf_is_loaded(buf)
+        or vim.api.nvim_buf_get_changedtick(buf) ~= tick
+      then
+        return
+      end
+      local success, result = pcall(index, buf, lang, tick, trees, query)
+      entry.pending = false
+      entries[buf] = not err and success and result or { tick = tick, lang = lang, failed = true }
+      for _, callback in ipairs(entry.waiters) do
+        vim.schedule(function()
+          if vim.api.nvim_buf_is_loaded(buf) and vim.api.nvim_buf_get_changedtick(buf) == tick then
+            callback()
+          end
+        end)
+      end
+      entry.waiters = {}
+    end
+    -- nil range parses only the root language, excluding injected examples.
+    local success, result = pcall(parser.parse, parser, nil, complete)
+    if not success then
+      complete(tostring(result))
+    elseif result then
+      complete(nil, result)
+    end
+    entry = entries[buf]
+  end
+  if entry.pending then
+    if ready then
+      entry.waiters[#entry.waiters + 1] = ready
+    end
+    return { pending = true, candidates = {} }
+  end
+  if entry.failed then
+    return
   end
   local candidates = entry.rows[row] or {}
   for _, err in ipairs(entry.errors) do

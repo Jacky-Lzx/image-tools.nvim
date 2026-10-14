@@ -198,7 +198,12 @@ function M.find(buf, row, col, opts)
   if not line:find("image%s*%(") then
     return nil, "No supported image reference on the current line"
   end
-  local syntax = opts.treesitter ~= false and require("image_tools.document.treesitter").query(buf, row, "typst") or nil
+  local syntax = opts.treesitter ~= false
+      and require("image_tools.document.treesitter").query(buf, row, "typst", opts._treesitter_ready)
+    or nil
+  if syntax and syntax.pending then
+    return nil, "Tree-sitter parsing is pending", "pending"
+  end
   local candidates = syntax and syntax.candidates
     or require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
   local document = vim.api.nvim_buf_get_name(buf)

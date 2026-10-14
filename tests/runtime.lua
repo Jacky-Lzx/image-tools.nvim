@@ -179,4 +179,39 @@ eq(vim.fn.exists(":ImagePreview"), 0, "Startup failure removes registered comman
 require("image_tools.commands").register = real_register
 api.setup({ auto_preview = false })
 eq(api.status().configured, true, "Setup recovers after startup failure")
+local waiting, callbacks = true, {}
+local async_dependencies = vim.tbl_extend(
+  "force",
+  dependencies,
+  {
+    document = {
+      at_line = function(_, _, options)
+        if waiting then
+          callbacks[#callbacks + 1] = options._treesitter_ready
+          return nil, "pending", "pending"
+        end
+        return "/private/tmp/ready.png"
+      end,
+    },
+  }
+)
+local async = Runtime.new(config.resolve({ auto_preview = false }), async_dependencies)
+async:hover({ silent = true })
+async:hover({ silent = true })
+eq(#callbacks, 1, "Repeated movement coalesces pending reference subscriptions")
+waiting = false
+callbacks[1]()
+eq(async.preview.opens, 1, "Manual hover resumes with automatic preview disabled")
+waiting = true
+async:hover({ silent = true })
+async:close()
+waiting = false
+callbacks[2]()
+eq(async.preview.opens, 1, "Closing cancels delayed preview")
+waiting = true
+async:hover({ silent = true })
+async:destroy()
+waiting = false
+callbacks[3]()
+eq(async.preview.opens, 1, "Destroyed runtime cannot reopen delayed preview")
 print("image-tools runtime: " .. count .. " assertions passed")

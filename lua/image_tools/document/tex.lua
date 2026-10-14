@@ -166,7 +166,12 @@ function M.find(buf, row, col, opts)
   if not line:find("\\includegraphics", 1, true) then
     return nil, "No supported image reference on the current line"
   end
-  local syntax = opts.treesitter ~= false and require("image_tools.document.treesitter").query(buf, row, "latex") or nil
+  local syntax = opts.treesitter ~= false
+      and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready)
+    or nil
+  if syntax and syntax.pending then
+    return nil, "Tree-sitter parsing is pending", "pending"
+  end
   syntax = syntax or require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
   if syntax.blocked then
     return nil, "Cursor is inside a verbatim/comment environment"
