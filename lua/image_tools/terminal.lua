@@ -33,6 +33,7 @@ end
 function M.request(id, command, timeout, callback)
   local finished, autocmd = false, nil
   local timer = vim.uv.new_timer()
+
   local function cleanup()
     finished = true
     if autocmd then
@@ -44,6 +45,7 @@ function M.request(id, command, timeout, callback)
       timer:close()
     end
   end
+
   local function done(err)
     if finished then
       return
@@ -51,6 +53,7 @@ function M.request(id, command, timeout, callback)
     cleanup()
     callback(err)
   end
+
   autocmd = vim.api.nvim_create_autocmd("TermResponse", {
     callback = function(event)
       local sequence = event.data and event.data.sequence or vim.v.termresponse
@@ -71,6 +74,7 @@ function M.request(id, command, timeout, callback)
       end
     end,
   })
+
   timer:start(
     timeout,
     0,
@@ -78,10 +82,12 @@ function M.request(id, command, timeout, callback)
       done("ETIMEDOUT: no Kitty graphics response")
     end)
   )
+
   local ok, err = pcall(M.write, command)
   if not ok then
     done(tostring(err))
   end
+
   return function()
     if not finished then
       cleanup()
@@ -95,18 +101,22 @@ function M.cell_size(fallback)
   local ok, result = pcall(function()
     local ffi = require("ffi")
     pcall(ffi.cdef, "int ioctl(int fd, unsigned long request, ...);")
+
     local size = ffi.new("unsigned short[4]")
     local system = vim.uv.os_uname().sysname
     local request = system == "Darwin" and 0x40087468 or (system == "Linux" and 0x5413 or nil)
     if not request then
       return
     end
+
     local fd = vim.uv.fs_open("/dev/tty", "r", 0)
     if not fd then
       return
     end
+
     local status = ffi.C.ioctl(fd, request, size)
     vim.uv.fs_close(fd)
+
     if status == 0 and size[0] > 0 and size[1] > 0 and size[2] > 0 and size[3] > 0 then
       return { width = tonumber(size[2]) / tonumber(size[1]), height = tonumber(size[3]) / tonumber(size[0]) }
     end

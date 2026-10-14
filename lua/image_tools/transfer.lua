@@ -32,6 +32,7 @@ function M:trim()
       count, bytes = count + 1, bytes + entry.bytes
     end
   end
+
   local limits = self.opts.terminal_cache or { max_images = 32, max_bytes = 64 * 1024 * 1024 }
   while count > limits.max_images or bytes > limits.max_bytes do
     local oldest
@@ -66,6 +67,7 @@ function M:status()
       images, bytes = images + 1, bytes + entry.bytes
     end
   end
+
   return {
     images = images,
     bytes = bytes,
