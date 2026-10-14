@@ -32,10 +32,12 @@ function M:close()
     vim.api.nvim_set_hl(0, state.highlight, {})
   end
 end
+
 function M:destroy()
   self:close()
   self.transfer:clear()
 end
+
 function M.viewport(win)
   local info = vim.fn.getwininfo(win)[1] or {}
   local header = vim.api.nvim_win_get_height(win) > 1 and 1 or 0
@@ -44,6 +46,7 @@ function M.viewport(win)
     info.textoff or 0,
     header
 end
+
 function M:open(meta, owner_buf, owner_win, callback)
   self:close()
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")

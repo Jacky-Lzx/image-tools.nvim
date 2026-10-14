@@ -1,18 +1,19 @@
 # image-tools.nvim
 
-Independent image previews and insertion for Neovim. Uses the Kitty graphics protocol directly;
-no Snacks or image.nvim dependency. Preview windows use Unicode placeholders so
-Neovim controls clipping and overlapping windows.
+Independent image previews and insertion for Neovim.
+Uses the Kitty graphics protocol directly.
+Preview windows use Unicode placeholders so Neovim controls clipping and overlapping windows.
 
 ## Requirements
 
 - Neovim 0.12+ with `termguicolors` enabled (APC graphics response handling).
-- Kitty 0.28+ in a direct terminal session. Other terminals, multiplexers, SSH and
-  GUI frontends have not been validated. Multiplexers are currently rejected.
-- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF, PDF and SVG. PDF preview shows the first page; ImageMagick
-  needs its Ghostscript delegate for PDF. SVG prefers `rsvg-convert`, with
-  ImageMagick MSVG as fallback. GIF previews
-  show the first frame. PNG preview does not require an external converter.
+- Kitty 0.28+ in a direct terminal session.
+  Other terminals, multiplexers, SSH and GUI frontends have not been validated.
+- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF, PDF and SVG.
+  - PDF preview shows the first page; ImageMagick needs its Ghostscript delegate for PDF.
+  - SVG prefers `rsvg-convert`, with ImageMagick MSVG as fallback.
+  - GIF previews show the first frame.
+  - PNG preview does not require an external converter.
 
 ## Local installation
 
@@ -26,13 +27,12 @@ Neovim controls clipping and overlapping windows.
 }
 ```
 
-Set `image = { enabled = false }` in Snacks opts and remove any direct
-`Snacks.image` mappings. Restart Neovim to remove its existing handlers.
+Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.image` mappings.
 
 ## Usage
 
-- `:ImagePreview /absolute/or/relative/image.png` opens a file. Spaces are accepted
-  literally; do not surround the path with shell quotes.
+- `:ImagePreview /absolute/or/relative/image.png` opens a file.
+  Spaces are accepted literally; do not surround the path with shell quotes.
 - `:ImagePreview` previews the first Markdown/LaTeX/Typst image on the current line.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
@@ -41,7 +41,9 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
-`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`. `require("image_tools")` alone registers no handlers.
+`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`.
+
+`require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd. Markdown references are relative
 to the document; changing cwd does not change their meaning. An optional
 `root` replaces the document directory, or `resolve(document, source)` can
@@ -91,13 +93,14 @@ require("image_tools").setup({
 })
 ```
 
-Set `position = "bottom_right"` to anchor the preview to the editor's bottom-right
-corner, above the command line and status line. The position is independent of
-the cursor and split layout. The default `"cursor"` places it near the cursor.
+Set `position = "bottom_right"` to anchor the preview to the editor's bottom-right corner, above the command line and
+status line.
+The position is independent of the cursor and split layout.
+The default `"cursor"` places it near the cursor.
 
-Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size
-and nanosecond mtime/ctime. Preview PNGs are capped at 1920x1080; originals are never
-modified. Conversion disk-cache cleanup is manual in this first version.
+Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size and nanosecond mtime/ctime.
+Preview PNGs are capped at 1920x1080; originals are never modified.
+Conversion disk-cache cleanup is manual in this first version.
 
 ## Transmission and terminal cache
 

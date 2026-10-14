@@ -12,9 +12,11 @@ function Runtime.new(options, dependencies)
   self.buffers = self:dependency("buffer").new(options, self.dependencies)
   return self
 end
+
 function Runtime:dependency(name)
   return self.dependencies[name] or require("image_tools." .. name)
 end
+
 function Runtime:bind(callback)
   return function(...)
     if not self.disposed then
@@ -22,6 +24,7 @@ function Runtime:bind(callback)
     end
   end
 end
+
 function Runtime:schedule_refresh()
   if self.disposed or self.refresh_pending then
     return
@@ -34,6 +37,7 @@ function Runtime:schedule_refresh()
     end
   end)
 end
+
 function Runtime:destroy()
   if self.disposed then
     return
@@ -48,6 +52,7 @@ function Runtime:destroy()
     pcall(vim.api.nvim_del_user_command, name)
   end
   self.commands = nil
+
   self:clear_cache()
   self.buffers:destroy()
 end
@@ -253,9 +258,11 @@ function Runtime:autocmd(events, opts)
   opts.callback = self:bind(opts.callback)
   vim.api.nvim_create_autocmd(events, opts)
 end
+
 function Runtime:start()
   assert(not self.disposed and not self.group, "Runtime is already started or destroyed")
   self.group = vim.api.nvim_create_augroup("image_tools", { clear = true })
+
   self:autocmd({
     "CursorMoved",
     "CursorMovedI",
@@ -270,11 +277,13 @@ function Runtime:start()
       self:refresh()
     end,
   })
+
   self:autocmd({ "BufEnter", "WinEnter", "VimResume" }, {
     callback = function()
       self:schedule_refresh()
     end,
   })
+
   self:autocmd({
     "BufLeave",
     "WinLeave",
@@ -283,17 +292,20 @@ function Runtime:start()
       self:close()
     end,
   })
+
   self:autocmd({ "VimSuspend", "ExitPre", "VimLeavePre" }, {
     callback = function()
       self:clear_cache()
     end,
   })
+
   self:autocmd({ "VimResized", "ColorScheme" }, {
     callback = function()
       self:close()
       self:schedule_refresh()
     end,
   })
+
   self:autocmd({ "WinResized", "WinScrolled" }, {
     callback = function()
       if self.preview.state then
@@ -307,6 +319,7 @@ function Runtime:start()
       end
     end,
   })
+
   self:autocmd("WinClosed", {
     callback = function(event)
       if
@@ -317,6 +330,7 @@ function Runtime:start()
       end
     end,
   })
+
   self:autocmd({ "BufDelete", "BufWipeout" }, {
     callback = function(event)
       if self.preview.state and (event.buf == self.preview.state.owner_buf or event.buf == self.preview.state.buf) then
@@ -324,6 +338,7 @@ function Runtime:start()
       end
     end,
   })
+
   require("image_tools.commands").register(self)
   self.buffers:setup()
   self:schedule_refresh()

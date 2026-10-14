@@ -15,9 +15,11 @@ local window_options = {
 function M.new(opts, dependencies)
   return setmetatable({ opts = opts, dependencies = dependencies or {}, buffers = {}, views = {} }, M)
 end
+
 function M:dependency(name)
   return self.dependencies[name] or require("image_tools." .. name)
 end
+
 function M:header(buf)
   local meta = self.buffers[buf]
   if not meta or not vim.api.nvim_buf_is_loaded(buf) then
@@ -36,6 +38,7 @@ function M:header(buf)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable, vim.bo[buf].modified, vim.bo[buf].readonly = false, false, true
 end
+
 function M:drop_view(win)
   local view = self.views[win]
   if not view then
@@ -52,6 +55,7 @@ function M:drop_view(win)
     end
   end
 end
+
 function M:release(buf)
   local meta = self.buffers[buf]
   self.buffers[buf] = nil
@@ -64,6 +68,7 @@ function M:release(buf)
     end
   end
 end
+
 function M:clear_cache()
   self.paused = true
   for _, view in pairs(self.views) do
@@ -71,6 +76,7 @@ function M:clear_cache()
     view.failed = nil
   end
 end
+
 function M:destroy()
   if self.group then
     vim.api.nvim_del_augroup_by_id(self.group)
@@ -83,6 +89,7 @@ function M:destroy()
     self:release(buf)
   end
 end
+
 function M:schedule()
   if self.pending or not self.group then
     return
@@ -95,17 +102,21 @@ function M:schedule()
     end
   end)
 end
+
 function M:reload(buf)
   self.paused = false
   local meta = self.buffers[buf]
   if not meta then
     return false, "Current buffer is not an image/PDF preview"
   end
+
   if meta.cancel_info then
     meta.cancel_info()
     meta.cancel_info = nil
   end
+
   meta.generation, meta.error = meta.generation + 1, nil
+
   local stat = vim.uv.fs_stat(meta.path)
   if not stat or stat.type ~= "file" then
     meta.error = "File is missing or not a regular file"
@@ -114,6 +125,7 @@ function M:reload(buf)
   else
     meta.key = require("image_tools.image").key(meta.path, stat)
   end
+
   if meta.pdf and not meta.error then
     meta.pages = nil
     local generation = meta.generation
@@ -128,33 +140,42 @@ function M:reload(buf)
         meta.pages, meta.key = info.pages, info.key
         meta.page = math.min(meta.page, meta.pages)
       end
+
       self:header(buf)
       self:schedule()
     end)
   end
+
   self:header(buf)
   self:schedule()
   return true
 end
+
 function M:page(page, buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
+
   if not meta or not meta.pdf then
     return false, "Current buffer is not a PDF preview"
   end
+
   if not meta.pages then
     return false, meta.error or "PDF metadata is still loading"
   end
+
   if type(page) ~= "number" or page % 1 ~= 0 or page < 1 or page > meta.pages then
     return false, "PDF page must be between 1 and " .. meta.pages
   end
+
   if page ~= meta.page then
     meta.page, meta.error, meta.generation = page, nil, meta.generation + 1
     self:header(buf)
     self:schedule()
   end
+
   return true
 end
+
 function M:step(delta, buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
@@ -163,10 +184,12 @@ function M:step(delta, buf)
   end
   return self:page(math.max(1, math.min(meta.pages, meta.page + delta)), buf)
 end
+
 function M:attach(buf, path)
   if self.buffers[buf] then
     self:release(buf)
   end
+
   local meta = { path = path, pdf = path:lower():sub(-4) == ".pdf", page = 1, generation = 0 }
   self.buffers[buf] = meta
   vim.b[buf].image_tools_view = true
@@ -175,9 +198,11 @@ function M:attach(buf, path)
   vim.bo[buf].undolevels, vim.bo[buf].readonly = -1, true
   self:header(buf)
   vim.bo[buf].filetype = "image_tools"
+
   local function mapping(key, callback, desc)
     vim.keymap.set("n", key, callback, { buffer = buf, silent = true, desc = desc })
   end
+
   mapping("r", function()
     self:reload(buf)
   end, "Reload image/PDF preview")
@@ -191,21 +216,25 @@ function M:attach(buf, path)
   end
   self:reload(buf)
 end
+
 function M:sync()
   if self.paused then
     return
   end
+
   local visible, visible_buffers = {}, {}
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.api.nvim_win_is_valid(win) then
       local buf = vim.api.nvim_win_get_buf(win)
       local meta = self.buffers[buf]
+
       if meta and vim.api.nvim_win_get_config(win).relative == "" then
         visible[win], visible_buffers[buf] = true, true
         if vim.api.nvim_buf_get_name(buf) ~= meta.path then
           meta.error = "Preview buffer was renamed; reopen the image/PDF"
           self:header(buf)
         end
+
         local stat = vim.uv.fs_stat(meta.path)
         if
           stat and (not meta.key or require("image_tools.image").key(meta.path, stat) ~= meta.key)
@@ -216,6 +245,7 @@ function M:sync()
         if meta.pdf and not meta.pages and not meta.cancel_info and not meta.error then
           self:reload(buf)
         end
+
         local view = self.views[win]
         if view and view.buf ~= buf then
           self:drop_view(win)
@@ -229,11 +259,13 @@ function M:sync()
           view = { buf = buf, saved = saved, canvas = require("image_tools.canvas").new(self.opts, self.dependencies) }
           self.views[win] = view
         end
+
         if meta.error or (meta.pdf and not meta.pages) then
           view.canvas:close()
         else
           local width, height, col, row = require("image_tools.canvas").viewport(win)
           local state = view.canvas.state
+
           if
             view.failed ~= meta.generation
             and (
@@ -263,11 +295,13 @@ function M:sync()
       end
     end
   end
+
   for win in pairs(vim.tbl_extend("force", {}, self.views)) do
     if not visible[win] then
       self:drop_view(win)
     end
   end
+
   for buf, meta in pairs(self.buffers) do
     if not visible_buffers[buf] and meta.cancel_info then
       meta.cancel_info()
@@ -275,6 +309,7 @@ function M:sync()
     end
   end
 end
+
 function M:open(path)
   self.paused = false
   if type(path) ~= "string" or path == "" or not require("image_tools.image").supported(path) then
@@ -306,6 +341,7 @@ function M:open(path)
   self:schedule()
   return true
 end
+
 function M:status(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
@@ -324,6 +360,7 @@ function M:status(buf)
   end
   return { path = meta.path, page = meta.page, pages = meta.pages, error = meta.error, views = views }
 end
+
 function M:setup()
   self.group = vim.api.nvim_create_augroup("image_tools.buffers", { clear = true })
   if self.opts.buffer.enabled then
@@ -420,4 +457,5 @@ function M:setup()
   end
   self:schedule()
 end
+
 return M
