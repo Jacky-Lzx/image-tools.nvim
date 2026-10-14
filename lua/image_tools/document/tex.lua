@@ -103,6 +103,32 @@ function M.parse(line)
 end
 
 local excluded = { verbatim = true, ["verbatim*"] = true, lstlisting = true, minted = true, comment = true }
+-- Shared literal argument handling for the lexer and Tree-sitter nodes.
+function M.graphicspath(original, start)
+  local line = clean(original)
+  start = start or line:find("\\graphicspath", 1, true)
+  if not start or line:sub(start, start + 12) ~= "\\graphicspath" or escaped(line, start) then
+    return
+  end
+  local first = space(line, start + 13)
+  local last = group(line, first, "{", "}")
+  if not last then
+    return
+  end
+  local directories, p = {}, space(line, first + 1)
+  while p < last do
+    local finish = group(line, p, "{", "}")
+    if not finish then
+      break
+    end
+    local directory = literal(line:sub(p + 1, finish - 1))
+    if directory then
+      directories[#directories + 1] = directory
+    end
+    p = space(line, finish + 1)
+  end
+  return directories
+end
 local function scan(lines, previous)
   local environment, directories = previous.environment, previous.directories or {}
   local blocked = false
@@ -125,26 +151,7 @@ local function scan(lines, previous)
           blocked = true
         end
       else
-        local start = line:find("\\graphicspath", 1, true)
-        if start and not escaped(line, start) then
-          local first = space(line, start + 13)
-          local last = group(line, first, "{", "}")
-          if last then
-            directories = {}
-            local p = space(line, first + 1)
-            while p < last do
-              local finish = group(line, p, "{", "}")
-              if not finish then
-                break
-              end
-              local directory = literal(line:sub(p + 1, finish - 1))
-              if directory then
-                directories[#directories + 1] = directory
-              end
-              p = space(line, finish + 1)
-            end
-          end
-        end
+        directories = M.graphicspath(line) or directories
       end
     end
   end
@@ -159,7 +166,8 @@ function M.find(buf, row, col, opts)
   if not line:find("\\includegraphics", 1, true) then
     return nil, "No supported image reference on the current line"
   end
-  local syntax = require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
+  local syntax = opts.treesitter ~= false and require("image_tools.document.treesitter").query(buf, row, "latex") or nil
+  syntax = syntax or require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
   if syntax.blocked then
     return nil, "Cursor is inside a verbatim/comment environment"
   end

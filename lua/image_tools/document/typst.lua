@@ -39,6 +39,7 @@ local function quoted(line, start)
     end
   end
 end
+M.quoted = quoted
 local function string_end(line, start)
   for pos = start + 1, #line do
     if line:sub(pos, pos) == '"' and not escaped(line, pos) then
@@ -197,7 +198,9 @@ function M.find(buf, row, col, opts)
   if not line:find("image%s*%(") then
     return nil, "No supported image reference on the current line"
   end
-  local candidates = require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
+  local syntax = opts.treesitter ~= false and require("image_tools.document.treesitter").query(buf, row, "typst") or nil
+  local candidates = syntax and syntax.candidates
+    or require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
   local document = vim.api.nvim_buf_get_name(buf)
   for _, image in ipairs(candidates) do
     if col == nil or col >= image.start_col and col < image.end_col then

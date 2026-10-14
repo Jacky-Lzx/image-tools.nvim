@@ -1,6 +1,7 @@
 local M = {}
 local defaults = {
   auto_preview = true,
+  treesitter = true,
   buffer = {
     enabled = true,
     formats = { "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" },
@@ -31,6 +32,7 @@ function M.resolve(opts)
   local options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), vim.deepcopy(opts or {}))
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
+  assert(type(options.treesitter) == "boolean", "treesitter must be boolean")
   assert(vim.tbl_contains({ "auto", "file", "direct" }, options.transport), "transport must be auto, file or direct")
   assert(type(options.disk_cache.enabled) == "boolean", "disk_cache.enabled must be boolean")
   for _, name in ipairs({ "max_files", "max_bytes" }) do

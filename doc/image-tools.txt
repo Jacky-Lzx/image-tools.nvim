@@ -10,6 +10,7 @@ SETUP                                                      *image-tools-setup*
 >
   require("image_tools").setup({
     auto_preview = true,
+    treesitter = true, -- LaTeX/Typst parsers, with automatic Lua scanner fallback
     position = "bottom_right", -- default: "cursor"
     transport = "auto", -- prefer local file transfer; fall back to direct data
     terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
@@ -121,6 +122,14 @@ For regular file pickers/explorer, configure Snacks picker.preview as:
 Keep Snacks.image disabled. Non-image entries use the regular Snacks file preview.
 
 LATEX                                                     *image-tools-latex*
+
+LaTeX and Typst use Neovim's Tree-sitter buffer parser by default. Install the
+latex/typst language parsers; nvim-treesitter is not a required dependency.
+Missing parsers, incompatible queries, parsing failures or syntax errors in
+preceding context fall back to the cached Lua scanner. Valid empty results do not
+fall back. Set treesitter=false to always
+use the scanner. Syntax is cached until edits; path resolution stays live.
+Markdown uses its existing scanner. Formula preview is not included.
 
 tex/latex/plaintex: same-line \includegraphics[options]{path}, starred form,
 \detokenize paths, literal \graphicspath entries, and omitted PDF/PNG/JPG/JPEG

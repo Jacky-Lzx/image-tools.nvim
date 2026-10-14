@@ -70,6 +70,7 @@ release all retained terminal images and cancel pending requests.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
   buffer = { enabled = true }, -- automatic binary image/PDF file buffers
   pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
   pdf_density = 144,
@@ -215,6 +216,16 @@ for actual picker window, finder, confirmation, cancellation and TUI integration
 
 ## LaTeX
 
+LaTeX and Typst references use Neovim's Tree-sitter buffer parser by default
+(`latex` and `typst` languages). Install the corresponding parser to enable this
+path; no dependency on nvim-treesitter is required. If the parser, grammar query,
+or parsing is unavailable (including syntax errors in preceding context),
+recognition falls back to the existing cached Lua scanner. A valid syntax tree
+with no supported reference does not trigger fallback.
+Set `treesitter = false` to always use the Lua scanner. Syntax results are cached
+until the buffer changes; project roots, custom resolvers and file checks remain
+live. Markdown continues to use its existing scanner.
+
 Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
 same-line `\includegraphics[options]{path}` (including starred form and
 `\detokenize{path}`) is parsed. Comments, `\verb` and verbatim/lstlisting/minted/
@@ -222,6 +233,9 @@ comment environments are excluded; macros and multiline references are not expan
 Literal `\graphicspath{{dir/}{other/}}` in preceding lines and omitted extensions
 (PDF/PNG/JPG/JPEG) are resolved. Resolution uses `root` (string/function), then an
 existing `b:vimtex.root`, then the document directory. No VimTeX dependency is added.
+Tree-sitter determines command locations and excluded contexts; literal argument
+decoding remains shared with the Lua scanner for starred and `\detokenize` forms
+that LaTeX grammars do not consistently represent. Formula preview is not included.
 
 Insertion emits `\includegraphics[width=\linewidth]{\detokenize{path}}`; load
 `graphicx` in your document. PNG/JPEG/PDF imports preserve original formats.
