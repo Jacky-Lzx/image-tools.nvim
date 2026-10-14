@@ -173,4 +173,29 @@ eq(api.status().window, window, "Typst same-line persistence")
 vim.api.nvim_win_set_cursor(0, { 2, 0 })
 vim.api.nvim_exec_autocmds("CursorMoved", {})
 eq(api.status().window, nil, "Typst leaving line closes preview")
+-- Reconfiguration cancels old conversion and isolates retained event callbacks.
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+vim.api.nvim_exec_autocmds("CursorMoved", {})
+local old_request = requests[#requests]
+local old_handler = vim.api.nvim_get_autocmds({ group = "image_tools", event = "CursorMoved" })[1].callback
+local cancellations_before = cancelled
+api.setup({ auto_preview = false })
+eq(cancelled > cancellations_before, true, "Replacing runtime cancels its pending conversion")
+local writes_before = #writes
+old_request.callback(nil, fixture)
+eq(#writes, writes_before, "Old conversion cannot upload after reconfiguration")
+eq(api.status().window, nil, "Old conversion cannot restore preview")
+api.hover()
+requests[#requests].callback(nil, fixture)
+window = assert(api.status().window)
+old_handler({})
+eq(api.status().window, window, "Old event callback cannot close replacement preview")
+eq(api.status().auto_preview, false, "Old callback cannot alter replacement configuration")
+local request_count = #requests
+api.setup({ auto_preview = true })
+api.setup({ auto_preview = false })
+vim.wait(30, function()
+  return false
+end)
+eq(#requests, request_count, "Queued refresh from replaced runtime cannot run")
 print("image-tools line lifecycle: " .. checks .. " assertions passed")
