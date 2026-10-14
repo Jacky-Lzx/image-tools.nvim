@@ -20,6 +20,35 @@ import time
 
 root = Path(__file__).resolve().parents[1]
 pattern = re.compile(rb"\x1b_G([^;\x1b]+)(?:;([^\x1b]*))?\x1b\\")
+sgr_pattern = re.compile(rb"\x1b\[([0-9;:]*)m")
+
+
+def has_rgb_color(output, channel, value):
+    """Match an exact RGB SGR parameter, independent of terminfo separators."""
+    red, green, blue = value >> 16, (value >> 8) & 255, value & 255
+    # Semicolon form: 38;2;R;G;B. Colon form: 38:2:R:G:B, optionally
+    # including an empty/default color-space field (38:2::R:G:B).
+    color = re.compile(
+        rb"(?:^|;)%d(?:;2;%d;%d;%d|:2:(?:[0-9]*:)?%d:%d:%d)(?:;|$)"
+        % (channel, red, green, blue, red, green, blue)
+    )
+    return any(color.search(match[1]) for match in sgr_pattern.finditer(output))
+
+
+def test_rgb_colors():
+    # Keep both terminfo encodings covered even when the host emits only one.
+    for channel in (38, 58):
+        for parameters in (
+            b"%d;2;12;34;56", b"%d:2:12:34:56",
+            b"%d:2::12:34:56", b"%d:2:0:12:34:56",
+        ):
+            output = b"\x1b[0;" + parameters % channel + b";4m"
+            assert has_rgb_color(output, channel, 0x0C2238), output
+            assert not has_rgb_color(output, channel, 0x0C2239), output
+        for output in (b"38;2;12;34;56", b"\x1b[38;5;56m", b"\x1b[38;2;12;34;560m"):
+            assert not has_rgb_color(output, channel, 0x0C2238), output
+    assert not has_rgb_color(b"\x1b[48;2;12;34;56m", 38, 0x0C2238)
+    print("image-tools TUI: RGB SGR matching regressions passed")
 
 
 def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False):
@@ -56,7 +85,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()
         offset, pending, rejected, evicted = 0, None, False, False
-        underline_reported = False
+        underline_query_answered = False
 
         def reply(identifier, message, quiet, placement=None):
             if quiet != b"2":
@@ -120,12 +149,13 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     if not data:
                         break
                     output.extend(data)
-                    # Kitty answers Neovim's DECRQSS query with the active
-                    # extended underline style. Without this handshake the TUI
-                    # deliberately suppresses SGR 58, even when sp is defined.
-                    if not underline_reported and b"\x1bP$qm\x1b\\" in output:
+                    # When terminfo lacks extended underline capabilities,
+                    # Neovim probes them with DECRQSS. Simulate Kitty's reply.
+                    # A complete Kitty terminfo enables SGR 58 without a probe;
+                    # assertions below check emitted colors in either case.
+                    if not underline_query_answered and b"\x1bP$qm\x1b\\" in output:
                         os.write(master, b"\x1bP1$r0;4:3m\x1b\\")
-                        underline_reported = True
+                        underline_query_answered = True
                     for match in pattern.finditer(output, offset):
                         offset = match.end()
                         fields = dict(part.split(b"=", 1) for part in match[1].split(b","))
@@ -151,8 +181,12 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             elif buffer:
                 assert result["buffer"] and result["lifecycle"] and result["statusline"] and result["shared"], result
                 for placement in result["shared_placements"]:
-                    color = rb"58[;:]2[;:]+%d[;:]%d[;:]%d" % (placement >> 16, (placement >> 8) & 255, placement & 255)
-                    assert underline_reported and re.search(color, output), "TUI did not emit independent placement as underline color"
+                    observed = [match[1] for match in sgr_pattern.finditer(output) if b"58" in match[1]]
+                    assert has_rgb_color(output, 58, placement), (
+                        "TUI did not emit independent placement as underline color: "
+                        + f"placement={placement}, query_answered={underline_query_answered}, "
+                        + f"observed SGR={observed[-20:]!r}"
+                    )
             elif picker:
                 assert result["picker"] and result["inserted"], result
             else:
@@ -171,8 +205,12 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             successful = uploads[1:] if reject_file else uploads
             for fields, _ in successful:
                 identifier = int(fields[b"i"])
-                color = b"38;2;%d;%d;%d" % (identifier >> 16, (identifier >> 8) & 255, identifier & 255)
-                assert color in output, "TUI did not emit the image id as true color"
+                observed = [match[1] for match in sgr_pattern.finditer(output) if b"38" in match[1]]
+                assert has_rgb_color(output, 38, identifier), (
+                    "TUI did not emit the image id as true color: "
+                    + f"id={identifier}, rgb={(identifier >> 16, (identifier >> 8) & 255, identifier & 255)}, "
+                    + f"observed SGR={observed[-20:]!r}"
+                )
                 assert any(f.get(b"a") == b"p" and f.get(b"U") == b"1" and f.get(b"i") == fields[b"i"] for f, _ in commands)
             assert chr(0x10EEEE).encode() in output
             if reject_file:
@@ -187,6 +225,8 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             process.wait()
             os.close(master)
 
+
+test_rgb_colors()
 
 run_case("auto")
 run_case("direct")

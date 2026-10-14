@@ -184,6 +184,42 @@ and uses a protocol responder to check file/direct transmission, fallback,
 terminal eviction, replies, cache reuse, true-color ids, placeholders and cleanup.
 Actual terminal rendering must additionally be checked in Kitty.
 
+The runner uses a fresh Neovim process for each Lua test, without user config or
+automatically loaded plugins. It isolates generated files, caches and logs in a
+temporary directory and removes it on exit. The first failure stops the run;
+`[run]` identifies the current file and `[skip]` explains omitted optional suites.
+Status labels use cyan for `[run]`, yellow for `[skip]`, green for `[done]` and red
+for `[fail]`. Colors are disabled when stdout is redirected, `TERM` is unset or
+`dumb`, or `NO_COLOR` is set. A failing suite retains its original exit status.
+Individual Lua scripts can also report skipped checks, so a successful exit does
+not imply that every optional integration was exercised.
+
+The commented groups in `tests/run.sh` cover:
+
+1. Public API, preview windows, cursor/reference lifecycle and health diagnostics.
+2. Image conversion, caches, queues, terminal transfer and rendering resources.
+3. Insertion, simulated clipboard commands and optional Snacks picker integration.
+4. Document format dispatch, scanner caches and Tree-sitter queries/fallback.
+5. Optional real-parser asynchronous, incremental and multiline LaTeX checks.
+6. LaTeX/Typst syntax and paths, optional real compilation, image buffers and bounds.
+7. Real Neovim TUI with a simulated Kitty protocol responder.
+
+Neovim and ImageMagick (`magick`, with Ghostscript support for PDF conversion)
+are required for the suite. Optional coverage is enabled as follows:
+
+- `IMAGE_TOOLS_PARSER_ROOT`: runtime directory containing both `parser/latex.*`
+  and `parser/typst.*`; enables real-parser suites and additional lifecycle cases.
+- `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables picker integration checks.
+- `pdflatex` / `typst`: enable real compilation in the corresponding document tests.
+  `pdfimages`, when available, additionally checks embedded image dimensions.
+- `python3`: enables the PTY/TUI protocol tests (uses Unix PTY APIs).
+
+Document path assertions prove reference recognition and resolution; lifecycle
+tests additionally assert preview windows and cleanup. The TUI responder verifies
+protocol traffic, while visible pixels still require a real Kitty check.
+`tests/clipboard_native.lua` is a separate opt-in test requiring a prepared system
+clipboard; the automatic runner only exercises simulated clipboard commands.
+
 Protocol reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
 
 ## macOS clipboard

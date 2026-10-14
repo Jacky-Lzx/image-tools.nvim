@@ -1,42 +1,137 @@
 #!/bin/sh
+# Run with: sh tests/run.sh.
+# Groups run in order; the first failure stops the run.
+# Required: Neovim and ImageMagick (magick), with Ghostscript for PDF conversion.
+# Optional: python3, LaTeX/Typst compilers, Tree-sitter parsers and a Snacks checkout.
 set -eu
+
+# Color only status labels on interactive terminals. Keep redirected logs plain,
+# and honor NO_COLOR (including an empty value) and terminals without color support.
+log_run_color=''
+log_skip_color=''
+log_done_color=''
+log_fail_color=''
+log_reset=''
+if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ] && [ "${NO_COLOR+x}" != x ]; then
+  log_run_color='\033[36m'
+  log_skip_color='\033[33m'
+  log_done_color='\033[32m'
+  log_fail_color='\033[31m'
+  log_reset='\033[0m'
+fi
+
+log() {
+  case "$1" in
+  run) log_color=$log_run_color ;;
+  skip) log_color=$log_skip_color ;;
+  done) log_color=$log_done_color ;;
+  fail) log_color=$log_fail_color ;;
+  *) log_color='' ;;
+  esac
+  printf '\n%b[%s]%b %s\n' "$log_color" "$1" "$log_reset" "$2"
+}
+
+# Preserve each suite's output and exit status, and identify a failing file.
+run_suite() {
+  suite_name=$1
+  shift
+  log run "$suite_name"
+  if "$@"; then
+    :
+  else
+    suite_status=$?
+    log fail "$suite_name (exit $suite_status)" >&2
+    exit "$suite_status"
+  fi
+}
+
+# Locate the repository relative to this script, regardless of the working directory.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
+# Keep fixture copies, converted files, caches and logs in a temporary directory.
+# Remove that directory when the runner exits.
 test_tmp=$(mktemp -d "${TMPDIR:-/tmp}/image-tools-test.XXXXXX")
 trap 'rm -rf "$test_tmp"' EXIT HUP INT TERM
+
+# Lua tests use these two variables to locate plugin sources and temporary files.
 export IMAGE_TOOLS_ROOT="$root"
 export IMAGE_TOOLS_TEST_TMP="$test_tmp"
 export XDG_CACHE_HOME="$test_tmp/cache"
 export XDG_STATE_HOME="$test_tmp/state"
 export NVIM_LOG_FILE="$test_tmp/nvim.log"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/spec.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/runtime.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/line_lifecycle.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/cursor_lifecycle.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/tex_range_lifecycle.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/health.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/disk_cache.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/conversion.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/media_prepare.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/conversion_queue.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/transfer.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/pixel_pool.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/render_session.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/insert.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/clipboard.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/picker.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/formats.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/syntax_cache.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/treesitter.lua"
+
+# Run each Lua file in a fresh Neovim process to isolate mocks and global state.
+# --headless: no terminal UI, but real buffers, windows and events remain available.
+# -u NONE / -i NONE / --noplugin: disable user config, ShaDa and plugin autoloading.
+# -l: execute the Lua file; a failed assertion produces a nonzero exit status.
+run_test() {
+  run_suite "tests/$1" nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/$1"
+}
+
+# 1. Core API, preview lifecycle and diagnostics.
+run_test spec.lua # general regressions
+run_test runtime.lua
+run_test line_lifecycle.lua # reference entry/exit, edits and async cancellation
+run_test cursor_lifecycle.lua
+run_test tex_range_lifecycle.lua # asserts that a preview stays open within a multiline reference and closes on exit
+run_test health.lua
+
+# 2. Image preparation and rendering resources: disk cache, conversion, queues,
+# protocol transfer and pixel reuse. These suites use both controlled mocks and
+# real conversions, so headless execution also covers integration behavior.
+run_test disk_cache.lua
+run_test conversion.lua
+run_test media_prepare.lua
+run_test conversion_queue.lua
+run_test transfer.lua
+run_test pixel_pool.lua
+run_test render_session.lua
+
+# 3. Image insertion, clipboard adapters and picker integration.
+# clipboard.lua uses fake commands without accessing the system clipboard.
+# picker.lua checks IMAGE_TOOLS_SNACKS_ROOT and reports a skip when unconfigured.
+# clipboard_native.lua requires a prepared system clipboard and runs separately.
+run_test insert.lua
+run_test clipboard.lua
+run_test picker.lua
+
+# 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter
+# queries/fallback. treesitter.lua always runs and reports skipped real-language
+# checks when the corresponding parsers are unavailable.
+run_test document/formats.lua
+run_test document/syntax_cache.lua
+run_test document/treesitter.lua
+
+# 5. Dedicated real-parser suites (require both latex and typst parsers).
+# IMAGE_TOOLS_PARSER_ROOT is a runtime directory with parser/latex.* and parser/typst.*.
+# async covers asynchronous parsing, incremental covers index updates, and
+# tex_multiline_ts covers multiline ranges. This variable also enables Tree-sitter
+# cases in the earlier cursor and LaTeX lifecycle suites.
 if [ -n "${IMAGE_TOOLS_PARSER_ROOT:-}" ]; then
-  nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/async.lua"
-  nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/incremental.lua"
-  nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/tex_multiline_ts.lua"
+  run_test document/async.lua
+  run_test document/incremental.lua
+  run_test document/tex_multiline_ts.lua
+else
+  log skip 'Real-parser suites: set IMAGE_TOOLS_PARSER_ROOT (latex + typst)'
 fi
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/tex.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/tex_multiline.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/document/typst.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/buffer.lua"
-nvim --headless -u NONE -i NONE --noplugin -l "$root/tests/canvas_bounds.lua"
+
+# 6. LaTeX/Typst syntax, path resolution and insertion, plus image buffers and bounds.
+# tex_multiline forces the Lua scanner; tex/typst also compile real documents when
+# their compilers are available. Path assertions here cover recognition/resolution;
+# the lifecycle suites in group 1 additionally assert preview windows.
+run_test document/tex.lua
+run_test document/tex_multiline.lua
+run_test document/typst.lua
+run_test buffer.lua
+run_test canvas_bounds.lua
+
+# 7. Real Neovim TUI: Python starts Neovim in a PTY and simulates Kitty replies.
+# Checks uploads, placeholders, caches and window lifecycle. Visible pixels still
+# require a real Kitty check. tui.py launches tui*.lua; those Lua files require TUI
+# execution and should not be run as headless tests.
 if command -v python3 >/dev/null 2>&1; then
-  python3 "$root/tests/tui.py"
+  run_suite tests/tui.py python3 "$root/tests/tui.py"
+else
+  log skip 'TUI protocol tests: python3 unavailable'
 fi
+
+log done 'Test run completed; review skip messages for optional coverage.'
