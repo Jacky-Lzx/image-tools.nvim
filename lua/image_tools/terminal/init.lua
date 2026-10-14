@@ -14,8 +14,17 @@
 --   and placement ownership live in upload/pixel_pool; cell geometry falls back
 --   when ioctl data is unavailable.
 
+---@class ImageToolsCellSize
+---@field width number Positive pixel width of one terminal cell.
+---@field height number Positive pixel height of one terminal cell.
+---@class ImageToolsTerminal
 local M = {}
 
+-- Require a supported Neovim/UI/color environment and reject multiplexers before terminal-name
+-- detection.
+---@param opts table force bypasses name detection only.
+---@return boolean supported
+---@return string? reason
 function M.supports(opts)
   if vim.fn.has("nvim-0.12") ~= 1 then
     return false, "Image preview requires Neovim 0.12+ for Kitty APC acknowledgement events"
@@ -35,6 +44,9 @@ function M.supports(opts)
   return false, "Image preview currently supports Kitty 0.28+; other terminals are not yet validated"
 end
 
+-- Send encoded bytes through Neovim UI transport, falling back to flushed stdout.
+---@param data string Complete terminal control bytes.
+---@return nil
 function M.write(data)
   if vim.api.nvim_ui_send then
     vim.api.nvim_ui_send(data)
@@ -46,10 +58,19 @@ end
 
 -- Match replies to a specific image id. Install the handler before sending,
 -- and always remove both handler and timer on completion or cancellation.
+-- Register a bounded id-specific acknowledgement wait before sending the command.
+---@param id integer Kitty image id.
+---@param command string Encoded graphics command.
+---@param timeout integer Response timeout in milliseconds.
+---@param callback fun(err: string?) Nil means OK; errors include write failures and timeouts.
+---@param placement? integer Match placement responses by both ids; nil matches upload responses.
+---@return ImageToolsCancel cancel Removes the handler/timer without delivering a cancellation callback.
 function M.request(id, command, timeout, callback, placement)
   local finished, autocmd = false, nil
   local timer = vim.uv.new_timer()
 
+  -- Remove the acknowledgement handler and close its timer once before completion/cancellation.
+  ---@return nil
   local function cleanup()
     finished = true
     if autocmd then
@@ -62,6 +83,9 @@ function M.request(id, command, timeout, callback, placement)
     end
   end
 
+  -- Complete a still-live request after cleaning its callback resources.
+  ---@param err? string Terminal, timeout or write error.
+  ---@return nil
   local function done(err)
     if finished then
       return
@@ -76,6 +100,7 @@ function M.request(id, command, timeout, callback, placement)
       if type(sequence) ~= "string" then
         return
       end
+
       -- Neovim's TUI strips the APC terminator from TermResponse sequences;
       -- accept both that form and complete sequences from an attached UI.
       sequence = sequence:gsub("\27\\$", "")
@@ -114,6 +139,9 @@ end
 
 -- Use the terminal's real cell geometry; a configurable fallback is useful
 -- when TIOCGWINSZ does not expose pixel dimensions.
+-- Measure pixels per cell via the controlling terminal ioctl, or return the supplied fallback.
+---@param fallback ImageToolsCellSize Geometry used when measurement is unavailable.
+---@return ImageToolsCellSize cell
 function M.cell_size(fallback)
   local ok, result = pcall(function()
     local ffi = require("ffi")

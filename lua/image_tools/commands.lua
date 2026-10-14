@@ -14,13 +14,26 @@
 
 local M = {}
 
+-- Install command callbacks guarded by the owning Runtime and record their names for teardown.
+---@param runtime ImageToolsRuntime Instance that owns command execution and cleanup.
+---@return nil
 function M.register(runtime)
   runtime.commands = {}
 
+  -- Create one command and retain its name for later Runtime destruction.
+  ---@param name string User command name.
+  ---@param callback function Runtime-bound command implementation.
+  ---@param opts table Neovim user-command options.
+  ---@return nil
   local function command(name, callback, opts)
     vim.api.nvim_create_user_command(name, runtime:bind(callback), opts)
     runtime.commands[#runtime.commands + 1] = name
   end
+
+  -- Notify only failed command operations; successful requests may still complete asynchronously.
+  ---@param ok? boolean Accepted-operation flag.
+  ---@param err any Failure message required when ok is false; ignored on success.
+  ---@return nil
   local function report(ok, err)
     if not ok then
       vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })

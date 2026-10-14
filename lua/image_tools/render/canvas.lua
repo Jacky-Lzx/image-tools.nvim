@@ -19,20 +19,45 @@ local dependency_modules = {
   protocol = "image_tools.terminal.protocol",
 }
 
+---@class ImageToolsCanvasState: ImageToolsDrawState
+---@field owner_buf integer File-viewer buffer.
+---@field owner_win integer Regular owner window.
+---@field path string Source path.
+---@field page integer Selected page; one for ordinary images.
+---@field generation integer Captured buffer refresh/page generation.
+---@field view_width integer Available owner text columns.
+---@field view_height integer Available image rows below the header.
+---@field col integer Zero-based relative-window column after gutters.
+---@field row integer Zero-based relative-window row below the header.
+---@field render? ImageToolsRenderSession Owned preparation/placement session.
+---@class ImageToolsCanvas
+---@field opts ImageToolsOptions Runtime settings.
+---@field dependencies table<string, table> Logical dependency overrides.
+---@field transfer ImageToolsTransfer View placement service.
+---@field state? ImageToolsCanvasState Pending/visible canvas, absent after close.
 local M = {}
 M.__index = M
 local ns = vim.api.nvim_create_namespace("image_tools.canvas")
 
+-- Construct a file-viewer canvas controller with no window or preparation request yet.
+---@param opts ImageToolsOptions Runtime settings.
+---@param dependencies? table<string, table> May include shared pixel_pool.
+---@return ImageToolsCanvas canvas
 function M.new(opts, dependencies)
   local self = setmetatable({ opts = opts, dependencies = dependencies or {} }, M)
   self.transfer = require("image_tools.terminal.transfer").new(opts, self.dependencies)
   return self
 end
 
+-- Resolve an injected logical dependency first, then load the default subsystem module.
+---@param name string Logical key such as terminal, protocol, image or pdf.
+---@return table module
 function M:dependency(name)
   return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
+-- Drop authority before releasing placement, canvas window/buffer and highlight state.
+---@return nil
 function M:close()
   local state = self.state
   self.state = nil
@@ -55,12 +80,20 @@ function M:close()
   require("image_tools.render.placeholder").clear(state)
 end
 
+-- Close this canvas and release its view manager leases.
+---@return nil
 function M:destroy()
   self:close()
   self.transfer:clear()
 end
 
 --- Return: width, height , column, row
+-- Compute owner text space excluding gutters, winbar/statusline and an available header row.
+---@param win integer Live owner window.
+---@return integer width Available columns, at least one.
+---@return integer height Available image rows, at least one.
+---@return integer column Zero-based relative-window column.
+---@return integer row Zero-based relative-window row.
 function M.viewport(win)
   local info = vim.fn.getwininfo(win)[1] or {}
   -- API height includes winbar; relative="win" starts below it. getwininfo()
@@ -73,6 +106,13 @@ function M.viewport(win)
     header
 end
 
+-- Prepare the selected source/page and bind an acknowledged canvas to the owner window and current
+-- tab.
+---@param meta ImageToolsBufferMetadata Caller-owned source/page/generation metadata.
+---@param owner_buf integer File-viewer buffer.
+---@param owner_win integer Regular owner window.
+---@param callback fun(err: string?) Nil after drawing; errors after resource cleanup.
+---@return nil
 function M:open(meta, owner_buf, owner_win, callback)
   self:close()
 
@@ -84,6 +124,7 @@ function M:open(meta, owner_buf, owner_win, callback)
   end
 
   local width, height, col, row = M.viewport(owner_win)
+  ---@type ImageToolsCanvasState
   local state = {
     owner_buf = owner_buf,
     owner_win = owner_win,
@@ -97,6 +138,8 @@ function M:open(meta, owner_buf, owner_win, callback)
   }
   self.state = state
 
+  -- Validate source/page generation and owner visibility before drawing.
+  ---@return boolean valid
   local function current()
     return self.state == state
       and meta.generation == state.generation
@@ -105,6 +148,10 @@ function M:open(meta, owner_buf, owner_win, callback)
       and vim.api.nvim_win_get_buf(owner_win) == owner_buf
       and vim.api.nvim_win_get_tabpage(owner_win) == vim.api.nvim_get_current_tabpage()
   end
+
+  -- Close canvas resources before reporting an error to the file-buffer controller.
+  ---@param err string Preparation/placement/drawing failure.
+  ---@return nil
   local function fail(err)
     self:close()
     callback(err)
@@ -113,12 +160,18 @@ function M:open(meta, owner_buf, owner_win, callback)
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(meta.path, vim.tbl_extend("force", self.opts, { page = meta.page }), {
     current = current,
+    -- A late result may close only its own state, never a newer replacement request.
+    ---@return nil
     stale = function()
       if self.state == state then
         self:close()
       end
     end,
     error = fail,
+    -- Compute cells after preparation using the current owner/pane geometry.
+    ---@param image ImageToolsImage
+    ---@return integer width
+    ---@return integer height
     size = function(image)
       width, height, col, row = M.viewport(owner_win)
       state.view_width, state.view_height, state.col, state.row = width, height, col, row
@@ -130,6 +183,11 @@ function M:open(meta, owner_buf, owner_win, callback)
         true
       )
     end,
+    -- Materialize placeholders only after the terminal acknowledges this independent placement.
+    ---@param entry ImageToolsPlacement
+    ---@param width integer Terminal columns.
+    ---@param height integer Terminal rows.
+    ---@return nil
     draw = function(entry, width, height)
       state.buf = vim.api.nvim_create_buf(false, true)
       vim.bo[state.buf].bufhidden, vim.bo[state.buf].filetype = "wipe", "image_tools_canvas"

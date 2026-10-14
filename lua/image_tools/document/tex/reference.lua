@@ -14,6 +14,10 @@
 --   filename contents must stay on one line.
 
 local M = {}
+-- Test an odd backslash run before a syntax byte.
+---@param line string Source text.
+---@param pos integer One-based byte position.
+---@return boolean escaped
 local function escaped(line, pos)
   local count = 0
   while pos > 1 and line:sub(pos - 1, pos - 1) == "\\" do
@@ -21,6 +25,13 @@ local function escaped(line, pos)
   end
   return count % 2 == 1
 end
+
+-- Find a balanced group, respecting escapes and brace nesting inside option brackets.
+---@param line string Source text, possibly multiline.
+---@param pos integer One-based opening position.
+---@param opening string Opening delimiter.
+---@param ending string Closing delimiter.
+---@return integer? finish One-based closing position.
 local function group(line, pos, opening, ending)
   if line:sub(pos, pos) ~= opening then
     return
@@ -44,12 +55,21 @@ local function group(line, pos, opening, ending)
     end
   end
 end
+
+-- Advance over whitespace without changing source offsets.
+---@param line string Source text.
+---@param pos integer One-based current byte.
+---@return integer position First non-whitespace byte or end plus one.
 local function space(line, pos)
   while line:sub(pos, pos):match("%s") do
     pos = pos + 1
   end
   return pos
 end
+
+-- Strip a line comment and replace inline verbatim segments with equal-length spaces.
+---@param line string One source line.
+---@return string cleaned Comments shorten the result; sanitize restores its byte length.
 local function clean(line)
   local pos = 1
   while pos <= #line do
@@ -73,6 +93,10 @@ local function clean(line)
   end
   return line
 end
+
+-- Decode supported TeX escapes or one complete detokenize wrapper; refuse unresolved macros.
+---@param src string Argument contents.
+---@return string? source
 local function literal(src)
   src = vim.trim(src)
   local first = src:find("\\detokenize", 1, true)
@@ -92,10 +116,21 @@ local function literal(src)
 end
 M.clean, M.group, M.space, M.literal, M.escaped = clean, group, space, literal, escaped
 
+-- Read per-reference budgets with defaults for partial/internal callers.
+---@param opts? table Optional latex settings.
+---@return integer max_lines
+---@return integer max_bytes
 function M.limits(opts)
   local config = opts and opts.latex or {}
   return config.max_reference_lines or 64, config.max_reference_bytes or 16384
 end
+
+-- Convert a one-based text byte offset to original row/zero-based byte-column coordinates.
+---@param text string Joined source text.
+---@param offset integer One-based byte position, including end plus one.
+---@param first integer One-based first buffer row represented by text.
+---@return integer row
+---@return integer column
 local function position(text, offset, first)
   local row, start = first, 1
   for ending in text:gmatch("()\n") do
@@ -106,7 +141,11 @@ local function position(text, offset, first)
   end
   return row, offset - start
 end
+
 -- Keep offsets intact when excluding comments and inline verbatim text.
+-- Preserve original offsets while excluding line comments and inline verbatim text.
+---@param text string One or more joined source lines.
+---@return string cleaned Same byte length as the input.
 local function sanitize(text)
   local lines = vim.split(text, "\n", { plain = true })
   for i, line in ipairs(lines) do
@@ -115,6 +154,14 @@ local function sanitize(text)
   end
   return table.concat(lines, "\n")
 end
+
+-- Decode complete literal commands within budgets; reject split filenames without guessing dynamic
+-- paths.
+---@param text string Source segment.
+---@param first? integer One-based first represented row; defaults to one.
+---@param opts? table Optional reference budgets.
+---@return ImageToolsReference[] references
+---@return string? error Limit/split-filename diagnostic; valid later references may still be returned.
 function M.parse(text, first, opts)
   first = first or 1
   text = sanitize(text)
@@ -161,6 +208,12 @@ function M.parse(text, first, opts)
   end
   return results, error_message
 end
+
+-- Check inclusive row coverage and byte-column bounds on the first/last rows.
+---@param reference table Decoded range with non-nil start_row/end_row and zero-based byte columns.
+---@param row integer One-based row.
+---@param col? integer Zero-based byte column; nil ignores horizontal bounds.
+---@return boolean contains
 function M.contains(reference, row, col)
   return row >= reference.start_row
     and row <= reference.end_row
@@ -170,8 +223,16 @@ function M.contains(reference, row, col)
         and (row < reference.end_row or col < reference.end_col)
     )
 end
+
 -- Decode an anchored command without relying on a grammar's argument extent.
 -- Generic starred commands and nested detokenize paths can have partial nodes.
+-- Decode one anchored command with bounded lookahead independent of incomplete grammar argument
+-- extents.
+---@param buf integer Buffer id.
+---@param row integer Zero-based command row.
+---@param col integer Zero-based command byte column.
+---@param opts table Reference budgets and optional scan ceiling.
+---@return ImageToolsReference[] references At most one anchored complete reference.
 function M.at(buf, row, col, opts)
   local max_lines, max_bytes = M.limits(opts)
   local start_byte = vim.api.nvim_buf_get_offset(buf, row) + col
@@ -200,6 +261,12 @@ end
 
 -- Look only within a bounded neighborhood for a possible command. Context
 -- (comments/environments/graphicspath) is supplied by the existing checkpoint lexer.
+-- Search a byte/line-bounded neighborhood for complete commands covering the requested row.
+---@param buf integer Buffer id.
+---@param row integer One-based target row.
+---@param opts ImageToolsOptions Includes max_scan_lines and reference budgets.
+---@return ImageToolsReference[] references
+---@return string? error Budget/filename diagnostic when no usable covering range exists.
 function M.nearby(buf, row, opts)
   local max_lines, max_bytes = M.limits(opts)
   local first = math.max(0, row - max_lines)

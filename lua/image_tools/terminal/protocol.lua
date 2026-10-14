@@ -27,6 +27,10 @@ for value in values:gmatch("[^,]+") do
 end
 M.max_cells = #diacritics
 
+-- Serialize deterministically ordered fields into one Kitty APC graphics command.
+---@param fields table<string, string|number|nil> Protocol fields.
+---@param payload? string Already encoded payload, if needed.
+---@return string command
 function M.command(fields, payload)
   local keys = vim.tbl_keys(fields)
   table.sort(keys)
@@ -37,6 +41,11 @@ function M.command(fields, payload)
   return esc .. "_G" .. table.concat(parts, ",") .. (payload and ";" .. payload or "") .. esc .. "\\"
 end
 
+-- Encode PNG bytes into direct-transmission chunks with an id only on the first chunk.
+---@param id integer Allocated image id.
+---@param png string Complete PNG bytes.
+---@param quiet? integer Kitty q policy; defaults to 2.
+---@return string commands Concatenated APC upload chunks.
 function M.upload(id, png, quiet)
   local data = vim.base64.encode(png)
   local commands = {}
@@ -50,18 +59,36 @@ function M.upload(id, png, quiet)
   return table.concat(commands)
 end
 
+-- Encode only an absolute PNG filename and request its upload acknowledgement.
+---@param id integer Allocated image id.
+---@param path string Absolute filename readable by the terminal.
+---@return string command
 function M.upload_file(id, path)
   return M.command({ a = "t", f = 100, t = "f", i = id, q = 0 }, vim.base64.encode(path))
 end
 
+-- Create a virtual Unicode-placeholder placement without transmitting pixels again.
+---@param id integer Uploaded image id.
+---@param width integer Terminal columns.
+---@param height integer Terminal rows.
+---@param quiet? integer q policy; defaults to 2.
+---@param placement? integer Independent placement id.
+---@return string command
 function M.place(id, width, height, quiet, placement)
   return M.command({ a = "p", U = 1, i = id, p = placement, c = width, r = height, q = quiet == nil and 2 or quiet })
 end
 
+-- Hide one placement (or placements for an image) while retaining uploaded pixels.
+---@param id integer Uploaded image id.
+---@param placement? integer Optional placement selector.
+---@return string command
 function M.hide(id, placement)
   return M.command({ a = "d", d = "i", i = id, p = placement, q = 2 })
 end
 
+-- Free one plugin-owned image and all of its terminal placements.
+---@param id integer Image to release.
+---@return string command
 function M.delete(id)
   return M.command({ a = "d", d = "I", i = id, q = 2 })
 end
@@ -69,6 +96,10 @@ end
 -- Kitty selects a virtual placement from the underline color (Neovim sp).
 -- Neovim's TUI emits sp only with an underline attribute enabled:
 -- https://github.com/neovim/neovim/blob/v0.12.6/src/nvim/tui/tui.c
+-- Encode the image id as foreground RGB and placement id as underline RGB with underline enabled.
+---@param id integer Nonzero 24-bit image id.
+---@param placement? integer Optional nonzero 24-bit placement id.
+---@return table highlight Neovim highlight attributes.
 function M.highlight(id, placement)
   return {
     fg = string.format("#%06x", id),
@@ -78,6 +109,10 @@ function M.highlight(id, placement)
   }
 end
 
+-- Build placeholder rows with explicit row/column diacritics for correct clipping.
+---@param width integer Positive columns within max_cells.
+---@param height integer Positive rows within max_cells.
+---@return string[] lines
 function M.grid(width, height)
   assert(width >= 1 and width <= M.max_cells and height >= 1 and height <= M.max_cells)
   local lines, placeholder = {}, vim.fn.nr2char(0x10EEEE)

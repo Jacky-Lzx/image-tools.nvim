@@ -24,9 +24,48 @@ local dependency_modules = {
   picker = "image_tools.workflow.picker",
 }
 
+---@class ImageToolsPreviewOptions
+---@field silent? boolean Suppress preview notifications.
+---@field reference? boolean Internal flag for document-reference authority.
+---@field reference_range? ImageToolsRange Internal selected reference coverage.
+---@class ImageToolsReferenceRequest
+---@field buf integer Captured buffer id.
+---@field win integer Captured window id.
+---@field row integer One-based cursor row.
+---@field col integer Zero-based byte column.
+---@field tick integer Captured changedtick.
+---@field range? ImageToolsRange Multiline range that can keep row movement valid.
+---@class ImageToolsRuntimeStatus
+---@field configured boolean Whether an active undisposed Runtime exists.
+---@field auto_preview boolean Current automatic-preview setting; false before setup.
+---@field transport "auto"|"file"|"direct" Current policy; auto before setup.
+---@field path? string Current floating preview source, including pending preparation.
+---@field window? integer Float id; absent until acknowledged pixels are drawn.
+---@field buffer? table Current file-viewer metadata and per-window state.
+---@field disk_cache? table Configured limits/path, not a live filesystem usage scan.
+---@field conversion_queue? ImageToolsQueueStatus Shared process counters and budget.
+---@field media? table Shared pending preparation count.
+---@field treesitter? ImageToolsSyntaxStatus Global parser counters and current-buffer diagnostics.
+---@field terminal_cache? ImageToolsTerminalStatus Runtime-wide acknowledged pixel/placement statistics.
+---@class ImageToolsRuntime
+---@field options ImageToolsOptions Resolved configuration owned by this instance.
+---@field dependencies table<string, table> Logical overrides plus the instance's shared pixel_pool.
+---@field disposed boolean Guard that disables callbacks before teardown.
+---@field preview ImageToolsPreview Floating-preview controller.
+---@field buffers ImageToolsBuffers File-buffer controller.
+---@field renderers table<table, boolean> Weak-key set of tracked picker renderers.
+---@field group? integer Runtime autocmd group installed at start.
+---@field commands? string[] Registered command names removed at destruction.
+---@field refresh_pending? boolean Coalesced scheduled refresh.
+---@field reference_request? ImageToolsReferenceRequest Last selection authority token.
+---@field pending_reference? ImageToolsReferenceRequest Current authoritative pending parse.
 local Runtime = {}
 Runtime.__index = Runtime
 
+-- Compose services and a shared pixel pool without installing editor handlers.
+---@param options ImageToolsOptions Resolved independent options.
+---@param dependencies? table<string, table> Logical service overrides for controlled construction.
+---@return ImageToolsRuntime runtime
 function Runtime.new(options, dependencies)
   local self = setmetatable({
     options = options,
@@ -40,10 +79,16 @@ function Runtime.new(options, dependencies)
   return self
 end
 
+-- Resolve an injected logical dependency first, then load the default subsystem module.
+---@param name string Logical key such as terminal, protocol, image or pdf.
+---@return table module
 function Runtime:dependency(name)
   return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
+-- Wrap a callback so a disposed Runtime cannot respond to old commands or events.
+---@param callback function Operation bound to this instance.
+---@return function guarded
 function Runtime:bind(callback)
   return function(...)
     if not self.disposed then
@@ -52,6 +97,8 @@ function Runtime:bind(callback)
   end
 end
 
+-- Coalesce scheduled refreshes and discard them if this Runtime is disposed before delivery.
+---@return nil
 function Runtime:schedule_refresh()
   if self.disposed or self.refresh_pending then
     return
@@ -65,10 +112,14 @@ function Runtime:schedule_refresh()
   end)
 end
 
+-- Disable callbacks first, remove registered handlers and delegate owned-resource cleanup exactly
+-- once.
+---@return nil
 function Runtime:destroy()
   if self.disposed then
     return
   end
+
   -- Disable callbacks before closing windows, which can trigger more events.
   self.disposed = true
   if self.group then
@@ -84,10 +135,18 @@ function Runtime:destroy()
   self.buffers:destroy()
 end
 
+-- Check inclusive row coverage, falling back to the original row for non-range requests.
+---@param range? ImageToolsRange Selected reference range.
+---@param row integer Current one-based row.
+---@param original integer Captured one-based row.
+---@return boolean covered
 local function covers(range, row, original)
   return range and row >= range.start_row and row <= range.end_row or not range and row == original
 end
 
+-- Check the current owner buffer/window and reference row coverage before retaining a preview.
+---@param state? ImageToolsPreviewState Current float/preparation state.
+---@return boolean? current Nil is allowed when there is no state.
 local function on_current_line(state)
   return state
     and state.owner_buf == vim.api.nvim_get_current_buf()
@@ -95,6 +154,9 @@ local function on_current_line(state)
     and covers(state.reference_range, vim.api.nvim_win_get_cursor(0)[1], state.cursor[1])
 end
 
+-- Validate pending parse authority against the current column, owner, text version and range.
+---@param request ImageToolsReferenceRequest Pending selection token.
+---@return boolean current
 local function owns_pending(request)
   local cursor = vim.api.nvim_win_get_cursor(0)
   return request.col == cursor[2]
@@ -104,6 +166,9 @@ local function owns_pending(request)
     and covers(request.range, vim.api.nvim_win_get_cursor(0)[1], request.row)
 end
 
+-- Copy reference coverage without retaining syntax backend state.
+---@param reference? ImageToolsReference Parsed selection.
+---@return ImageToolsRange? range
 local function range_of(reference)
   if reference and reference.start_row and reference.end_row then
     return {
@@ -115,6 +180,8 @@ local function range_of(reference)
   end
 end
 
+-- Invalidate pending reference authority and close only the floating preview.
+---@return nil
 function Runtime:close()
   self.reference_request = nil
   self.pending_reference = nil
@@ -123,6 +190,9 @@ function Runtime:close()
   end
 end
 
+-- Invalidate reference work, pause file canvases, destroy picker renderers and clear shared
+-- terminal pixels.
+---@return nil
 function Runtime:clear_cache()
   self.reference_request, self.pending_reference = nil, nil
   if self.buffers then
@@ -139,10 +209,18 @@ function Runtime:clear_cache()
   self.dependencies.pixel_pool:clear()
 end
 
+-- Schedule an independent unused-disk-file cleanup.
+---@param callback? fun(status: ImageToolsDiskCleanupStatus) Completion status.
+---@return nil
 function Runtime:clear_disk_cache(callback)
   return self:dependency("disk_cache").clear(self.options, callback)
 end
 
+-- Start a floating preview of an explicit path resolved relative to cwd.
+---@param path string Image path.
+---@param opts? ImageToolsPreviewOptions Notification/reference authority options.
+---@return boolean accepted Request accepted; successful display is asynchronous.
+---@return string? error
 function Runtime:open_preview(path, opts)
   if type(path) ~= "string" or path == "" then
     return false, "An image path is required"
@@ -151,6 +229,12 @@ function Runtime:open_preview(path, opts)
   return self.preview:open(path, opts)
 end
 
+-- Import/reference one file or a batch at a captured document position; nil paths prompt for a
+-- file.
+---@param paths? string|string[] Source paths.
+---@param opts? ImageToolsInsertOptions Per-operation insertion overrides.
+---@param callback? ImageToolsInsertCallback Reports completion or cancellation.
+---@return ImageToolsCancel cancel
 function Runtime:insert(paths, opts, callback)
   local insertion = self:dependency("insert")
   opts = vim.tbl_extend(
@@ -165,6 +249,8 @@ function Runtime:insert(paths, opts, callback)
   local context = opts.context or insertion.capture(opts)
   opts.context = context
   local cancelled, cancel_import = false, nil
+  -- Cancel the file prompt/import without redirecting its captured document context.
+  ---@return nil
   local function cancel()
     if cancelled then
       return
@@ -192,6 +278,10 @@ function Runtime:insert(paths, opts, callback)
   return cancel
 end
 
+-- Start a clipboard import using a captured document context.
+---@param opts? ImageToolsInsertOptions Insertion and clipboard options.
+---@param callback? ImageToolsInsertCallback Reports completion or cancellation.
+---@return ImageToolsCancel cancel
 function Runtime:paste(opts, callback)
   local insertion = vim.tbl_extend("force", self.options.insert, {
     max_bytes = self.options.max_bytes,
@@ -204,6 +294,9 @@ function Runtime:paste(opts, callback)
   return self:dependency("clipboard").paste(insertion, callback)
 end
 
+-- Provide the custom Snacks preview callback, with ordinary file preview fallback.
+---@param ctx table Snacks preview context.
+---@return nil
 function Runtime:snacks_preview(ctx)
   local result = self:dependency("picker").preview(ctx, self.options, self.dependencies)
   local renderer = ctx.picker._image_tools_preview
@@ -213,6 +306,10 @@ function Runtime:snacks_preview(ctx)
   return result
 end
 
+-- Open the optional Snacks picker and import confirmed selections at the original extmark.
+---@param opts? table insert and picker override tables.
+---@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.
+---@return table? picker Nil when picker construction fails.
 function Runtime:pick(opts, callback)
   opts = opts or {}
   local insertion = vim.tbl_extend(
@@ -228,19 +325,42 @@ function Runtime:pick(opts, callback)
   end, callback)
 end
 
+-- Open an explicit read-only image/PDF file buffer; errors during rendering appear in the buffer.
+---@param path string Source file path.
+---@return boolean accepted
+---@return string? error
 function Runtime:open(path)
   return self.buffers:open(path)
 end
+
+-- Select an absolute PDF page in the current file-viewer buffer.
+---@param page integer? One-based page; out-of-range values are rejected.
+---@return boolean accepted
+---@return string? error
 function Runtime:page(page)
   return self.buffers:page(page)
 end
+
+-- Move within the current PDF, clamping at the first and last pages.
+---@param delta? integer Signed page offset; defaults to one.
+---@return boolean accepted
+---@return string? error
 function Runtime:next_page(delta)
   return self.buffers:step(delta or 1)
 end
+
+-- Force source/metadata refresh in the current image/PDF viewer.
+---@return boolean accepted
+---@return string? error
 function Runtime:reload()
   return self.buffers:reload(vim.api.nvim_get_current_buf())
 end
 
+-- Select the cursor reference, falling back to the first covering reference only on a selection
+-- miss.
+---@param opts? ImageToolsPreviewOptions silent suppresses notifications.
+---@return boolean accepted False for errors or an authoritative pending syntax parse.
+---@return string? error
 function Runtime:hover(opts)
   opts = opts or {}
   local cursor = vim.api.nvim_win_get_cursor(0)
@@ -290,6 +410,8 @@ function Runtime:hover(opts)
   return self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
 end
 
+-- Toggle automatic reference preview, close current work and refresh when newly enabled.
+---@return boolean enabled
 function Runtime:toggle()
   self.options.auto_preview = not self.options.auto_preview
   self:close()
@@ -304,6 +426,8 @@ function Runtime:toggle()
   return self.options.auto_preview
 end
 
+-- Return service/configuration snapshots without starting a parser or performing disk inspection.
+---@return ImageToolsRuntimeStatus status
 function Runtime:status()
   return {
     configured = not self.disposed,
@@ -324,6 +448,9 @@ function Runtime:status()
   }
 end
 
+-- Revalidate pending/visible selection and retain unchanged source authority; automatic preview
+-- starts only when enabled.
+---@return nil
 function Runtime:refresh()
   if self.disposed then
     return
@@ -358,12 +485,18 @@ function Runtime:refresh()
   end
 end
 
+-- Register a guarded callback in this Runtime autocmd group.
+---@param events string|string[] Neovim event names.
+---@param opts table Autocmd options; group/callback are bound to this instance.
+---@return nil
 function Runtime:autocmd(events, opts)
   opts.group = self.group
   opts.callback = self:bind(opts.callback)
   vim.api.nvim_create_autocmd(events, opts)
 end
 
+-- Configure the shared process budget, install commands/events and start file-buffer interception.
+---@return nil
 function Runtime:start()
   assert(not self.disposed and not self.group, "Runtime is already started or destroyed")
   require("image_tools.media.conversion_queue").configure(self.options.convert_concurrency)

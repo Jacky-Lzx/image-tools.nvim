@@ -13,6 +13,12 @@
 --   last pending subscriber stops work; delivered outputs stay pinned until
 --   their handles release or close.
 
+---@class ImageToolsPreparationHandle
+---@field cancel ImageToolsCancel Suppress pending delivery; completed output leases need release/close.
+---@field release ImageToolsCancel Unpin delivered output; may be requested before completion.
+---@field close ImageToolsCancel Perform both cancellation and release, idempotently.
+
+---@class ImageToolsPreparation
 local M = {}
 local uv = vim.uv
 local disk = require("image_tools.media.disk_cache")
@@ -20,6 +26,11 @@ local version = require("image_tools.media.file_version")
 local convertible = require("image_tools.media.formats").formats
 local pending = {}
 
+-- Select a native PNG read or converter without duplicating transport-specific read policy.
+---@param path string Image source.
+---@param opts table Preparation settings; presence of transport requests metadata-only pixels.
+---@param callback ImageToolsImageCallback Completion consumer.
+---@return ImageToolsCancel cancel
 local function worker(path, opts, callback)
   if path:lower():sub(-4) == ".png" then
     return require("image_tools.media.png").read(path, opts, callback, opts.transport ~= nil)
@@ -27,14 +38,24 @@ local function worker(path, opts, callback)
   return require("image_tools.media.convert").prepare(path, opts, callback, opts.transport ~= nil)
 end
 
+-- Create an independent request for PNGs, missing sources or requests ineligible for coalescing.
+---@param path string Source path.
+---@param opts table Preparation/validation settings.
+---@param callback ImageToolsImageCallback Completion consumer.
+---@return ImageToolsPreparationHandle handle
 local function single(path, opts, callback)
   local active, cancelled, released, cancel_work, disk_release = true, false, false, nil, nil
+  -- Release the independent request disk pin at most once.
+  ---@return nil
   local function release_file()
     if disk_release then
       disk_release()
       disk_release = nil
     end
   end
+
+  -- Start work only while active and handle cancellation occurring during synchronous setup.
+  ---@return nil
   local function start()
     if not active then
       return
@@ -60,6 +81,10 @@ local function single(path, opts, callback)
   else
     start()
   end
+
+  -- Cancel pending delivery; release owned pending resources without releasing already delivered
+  -- leases.
+  ---@return nil
   local function cancel()
     if active then
       active, cancelled = false, true
@@ -69,6 +94,9 @@ local function single(path, opts, callback)
       release_file()
     end
   end
+
+  -- Record release intent and unpin any output lease already delivered.
+  ---@return nil
   local function release()
     released = true
     if not active then
@@ -85,6 +113,11 @@ local function single(path, opts, callback)
   }
 end
 
+-- Coalesce matching convertible sources and give each subscriber an independent lifecycle handle.
+---@param path string Source path.
+---@param opts table Cache, renderer, page, validation and delivery policy.
+---@param callback ImageToolsImageCallback Metadata is deep-copied for each subscriber.
+---@return ImageToolsPreparationHandle handle
 function M.request(path, opts, callback)
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
@@ -116,6 +149,13 @@ function M.request(path, opts, callback)
     job = { subscribers = {} }
     pending[key] = job
   end
+
+  -- A subscriber can cancel pending delivery independently from releasing a delivered disk pin.
+  ---@class ImageToolsPreparationSubscriber
+  ---@field active boolean Pending callback is still permitted.
+  ---@field released? boolean Disk-pin ownership has been relinquished.
+  ---@field disk_release? ImageToolsCancel Delivered-output lease, independent of worker lifetime.
+  ---@type ImageToolsPreparationSubscriber
   local subscriber = { active = true }
   job.subscribers[subscriber] = callback
   if fresh then
@@ -127,12 +167,15 @@ function M.request(path, opts, callback)
       if pending[key] == job then
         pending[key] = nil
       end
+
+      -- Detach the worker callback set before delivery so reentrant requests start fresh work.
       local subscribers = job.subscribers
       job.subscribers = {}
       for consumer, receive in pairs(subscribers) do
         if image and consumer.active and not consumer.released then
           consumer.disk_release = disk.acquire(opts, image.path, function() end)
         end
+
         -- One callback cannot prevent other subscribers from completing.
         vim.schedule(function()
           if consumer.active then
@@ -143,6 +186,9 @@ function M.request(path, opts, callback)
       end
     end)
   end
+
+  -- Record release intent and unpin any output lease already delivered.
+  ---@return nil
   local function release()
     subscriber.released = true
     if subscriber.disk_release then
@@ -150,6 +196,10 @@ function M.request(path, opts, callback)
       subscriber.disk_release = nil
     end
   end
+
+  -- Cancel pending delivery; release owned pending resources without releasing already delivered
+  -- leases.
+  ---@return nil
   local function cancel()
     if not subscriber.active then
       return
@@ -177,6 +227,8 @@ function M.request(path, opts, callback)
   }
 end
 
+-- Snapshot outstanding shared workers without starting preparation.
+---@return table status Contains pending_jobs; native independent reads are not counted.
 function M.status()
   return { pending_jobs = vim.tbl_count(pending) }
 end

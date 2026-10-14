@@ -7,6 +7,13 @@ and `Ownership` notes. They summarize the module's role, its dependency boundary
 and the scope/lifecycle of its state; the sections below describe how the modules
 work together.
 
+Functions and state structures use LuaLS annotations (`@class`, `@field`,
+`@param` and `@return`) alongside English explanations of their contracts.
+Lifecycle comments describe cancellation, resource ownership, stale-result
+guards and callbacks that can complete synchronously. Coordinate annotations
+distinguish one-based document rows from zero-based buffer offsets and byte
+columns; accepted preview requests are distinguished from acknowledged drawing.
+
 ```
 lua/image_tools/
   init.lua                 public API

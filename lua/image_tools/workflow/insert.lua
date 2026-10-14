@@ -14,16 +14,52 @@
 --   Cancellation or validation failure rolls back new files; successful text
 --   insertion releases the mark and leaves assets available for undo.
 
+---@alias ImageToolsInsertCallback fun(err: string?, paths: string[]?)
+---@class ImageToolsInsertContext
+---@field buf integer Originating document buffer; asynchronous work never targets a replacement buffer.
+---@field document string Captured buffer filename used to detect rename and compute roots.
+---@field filetype string Captured format used to detect filetype changes.
+---@field strategy "insert_after"|"insert_before"|"insert_line_after"|"insert_line_before" Text transaction placement policy.
+---@field mark? integer Origin extmark; cleared after success, failure or cancellation.
+---@class ImageToolsInsertOptions
+---@field directory? string|fun(document: string): string Import directory, relative to insertion root unless absolute.
+---@field root? string|fun(document: string): string Asset copy base; separate from reference_root.
+---@field reference_root? string|fun(document: string): string? Internal markup/project base supplied by Runtime root.
+---@field mode? "copy"|"reference" File import policy; clipboard always forces copy.
+---@field filename? string Imported basename override; source extension is retained.
+---@field alt? string Markdown/Typst image description.
+---@field prompt_for_file_name? boolean Prompt for each imported basename.
+---@field insert_strategy? string Text placement strategy; default insert_line_after.
+---@field context? ImageToolsInsertContext Captured transaction context reused by prompt/clipboard/picker.
+---@field buf? integer Explicit origin buffer for capture.
+---@field cursor? integer[] One-based row and zero-based byte column for capture.
+---@field max_bytes? integer Source/import compressed-byte limit.
+---@field max_dimension? integer Clipboard PNG dimension limit.
+---@field max_pixels? integer Clipboard PNG pixel-count limit.
+---@field pngpaste? string Clipboard reader executable override.
+---@field clipboard_timeout? integer Clipboard read timeout in milliseconds.
+---@field format? "png"|"jpg"|"webp"|"avif" Clipboard output format.
+---@field quality? number Clipboard conversion quality; default 75.
+---@field magick? string Clipboard converter executable override.
+---@field convert_timeout? integer Clipboard conversion process timeout.
+
+---@class ImageToolsInsertion
 local M = {}
 local uv = vim.uv
 local ns = vim.api.nvim_create_namespace("image_tools.insert")
 local sequence = 0
 local strategies = { "insert_after", "insert_before", "insert_line_after", "insert_line_before" }
 
+-- Normalize a resource path relative to the current working directory.
+---@param path string Resource/import path.
+---@return string absolute
 local function absolute(path)
   return vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
 end
 
+-- Record document identity and a gravity-aware extmark before any asynchronous user interaction.
+---@param opts? ImageToolsInsertOptions Optional explicit buffer/cursor and strategy.
+---@return ImageToolsInsertContext context
 function M.capture(opts)
   opts = opts or {}
   local buf = opts.buf or vim.api.nvim_get_current_buf()
@@ -51,6 +87,9 @@ function M.capture(opts)
   }
 end
 
+-- Remove the captured extmark if its buffer survives and invalidate further context use.
+---@param context ImageToolsInsertContext Operation context.
+---@return nil
 function M.release(context)
   if context.mark and vim.api.nvim_buf_is_valid(context.buf) then
     pcall(vim.api.nvim_buf_del_extmark, context.buf, ns, context.mark)
@@ -58,6 +97,9 @@ function M.release(context)
   context.mark = nil
 end
 
+-- Require the original loaded/modifiable buffer, filename, filetype and an unreleased mark.
+---@param context ImageToolsInsertContext Captured document identity.
+---@return boolean? valid Nil/false means invalid; readonly alone is not checked.
 local function valid(context)
   return context.mark
     and vim.api.nvim_buf_is_loaded(context.buf)
@@ -68,11 +110,20 @@ end
 
 M.relative = require("image_tools.document.paths").relative
 
+-- Ask the document adapter whether a filename is allowed for insertion.
+---@param filetype string Target document filetype.
+---@param path string Source filename.
+---@return boolean supported
 function M.supported(filetype, path)
   local format = require("image_tools.document").adapter(filetype)
   return format ~= nil and format.supports_image(path)
 end
 
+-- Delegate escaped reference construction to the selected format adapter.
+---@param path string Relative resource path.
+---@param alt? string Image description.
+---@param filetype string Target document filetype.
+---@return string markup Unsupported formats/unsafe paths raise an error.
 function M.markup(path, alt, filetype)
   local format = assert(require("image_tools.document").adapter(filetype), "Unsupported image insertion filetype")
   return format.markup(path, alt)
@@ -80,6 +131,10 @@ end
 
 -- One text edit gives a batch one undo entry. Never redirect an asynchronous
 -- insertion to whichever window happens to be current when the prompt returns.
+-- Validate captured authority and insert the ordered batch in its own undo block as one text edit.
+---@param context ImageToolsInsertContext Origin identity, mark and strategy.
+---@param snippets string[] Already validated adapter markup.
+---@return nil
 local function insert(context, snippets)
   assert(valid(context), "Source buffer was closed, renamed, changed filetype or made read-only")
   local pos = vim.api.nvim_buf_get_extmark_by_id(context.buf, ns, context.mark, {})
@@ -101,6 +156,12 @@ end
 
 -- Import all resources before committing the text. Publishing uses link(2),
 -- which cannot replace an existing destination even if another process races us.
+-- Validate the batch, publish copies/references in order, then commit markup or roll back newly
+-- created assets.
+---@param paths string[] At least one source path.
+---@param opts? ImageToolsInsertOptions Import, context, prompt and reference policies.
+---@param callback? ImageToolsInsertCallback Defaults to notifying actionable errors.
+---@return ImageToolsCancel cancel Idempotent transaction cancellation; successful text undo keeps assets.
 function M.files(paths, opts, callback)
   opts = opts or {}
   callback = callback
@@ -111,7 +172,18 @@ function M.files(paths, opts, callback)
     end
 
   local context = opts.context or M.capture(opts)
+  -- Transaction-owned files are tracked separately from source/reference resources.
+  ---@class ImageToolsImportState
+  ---@field created string[] New published copies removed on failure, but retained after success.
+  ---@field temporaries string[] Unpublished copies removed on every completion path.
+  ---@field outputs string[] Ordered absolute resource paths used for the final text edit.
+  ---@field done boolean Idempotent completion/cancellation guard.
+  ---@type ImageToolsImportState
   local state = { created = {}, temporaries = {}, outputs = {}, done = false }
+  -- Complete one transaction, roll back newly published files only on error and always release
+  -- temporary/context state.
+  ---@param err? string Failure/cancellation message; nil retains successfully imported files.
+  ---@return nil
   local function finish(err)
     if state.done then
       return
@@ -128,9 +200,16 @@ function M.files(paths, opts, callback)
     M.release(context)
     callback(err, not err and state.outputs or nil)
   end
+
+  -- Cancelling uses the same rollback/completion path as validation or copy failure.
+  ---@type ImageToolsCancel
   local cancel = function()
     finish("Cancelled")
   end
+
+  -- Convert a validation/filesystem failure to the transaction error completion path.
+  ---@param message any Error value to stringify.
+  ---@return nil
   local function fail(message)
     finish(tostring(message))
   end
@@ -171,6 +250,8 @@ function M.files(paths, opts, callback)
   end
   local index = 0
   local next_file
+  -- Advance only after the previous resource is published; text commits after the full batch.
+  ---@return nil
   next_file = function()
     if state.done then
       return
@@ -205,6 +286,11 @@ function M.files(paths, opts, callback)
       next_file()
       return
     end
+
+    -- Validate one basename and publish a copied file without overwriting collisions, then advance
+    -- the batch.
+    ---@param name? string Prompt result; nil cancels the transaction.
+    ---@return nil
     local function save(name)
       if state.done then
         return

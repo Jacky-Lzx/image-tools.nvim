@@ -13,10 +13,24 @@
 --   controller owns the resulting page state; metadata reads bypass the
 --   converter queue.
 
+---@class ImageToolsPdfInfo
+---@field pages integer Positive PDF page count.
+---@field key string Source revision validated after pdfinfo exits.
+
+---@class ImageToolsPdf
 local M = {}
 
+-- Run pdfinfo and report page count only if the source revision is still current.
+---@param path string PDF path.
+---@param opts table pdfinfo, convert_timeout and max_bytes settings.
+---@param callback fun(err: string?, info: ImageToolsPdfInfo?) Receives metadata or an error.
+---@return ImageToolsCancel cancel Stop the subprocess and suppress delivery.
 function M.info(path, opts, callback)
   local cancelled, job = false, nil
+  -- Deliver the metadata result only while this request remains uncancelled.
+  ---@param err? string Metadata process/source error.
+  ---@param info? ImageToolsPdfInfo Validated result.
+  ---@return nil
   local function done(err, info)
     if not cancelled then
       callback(err, info)

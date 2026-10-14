@@ -18,6 +18,28 @@ local dependency_modules = {
   pdf = "image_tools.media.pdf",
 }
 
+---@class ImageToolsBufferMetadata
+---@field path string Original source path preserved as the named buffer identity.
+---@field pdf boolean Whether page metadata is required.
+---@field page integer One-based selection shared by every split of this buffer.
+---@field pages? integer PDF page count after metadata succeeds.
+---@field generation integer Incremented on reload/page change to invalidate old canvases.
+---@field key? string Last validated source revision.
+---@field error? string User-readable source/metadata/render failure.
+---@field cancel_info? ImageToolsCancel Pending pdfinfo operation.
+---@class ImageToolsBufferView
+---@field buf integer File-viewer buffer displayed by this owner.
+---@field saved table<string, any> Previous owner window options restored on release.
+---@field canvas ImageToolsCanvas Per-window render controller.
+---@field failed? integer Generation whose rendering failed; avoids repeated attempts until refresh.
+---@class ImageToolsBuffers
+---@field opts ImageToolsOptions Runtime settings and automatic format list.
+---@field dependencies table<string, table> PDF/media overrides.
+---@field buffers table<integer, ImageToolsBufferMetadata> Source/page metadata indexed by buffer id.
+---@field views table<integer, ImageToolsBufferView> Independent views indexed by regular window id.
+---@field group? integer Owned file-buffer autocmd group.
+---@field pending? boolean Coalesced sync request.
+---@field paused? boolean Cache clearing/suspension pauses canvases until explicit resume/entry/reload.
 local M = {}
 M.__index = M
 local window_options = {
@@ -32,14 +54,25 @@ local window_options = {
   cursorline = false,
 }
 
+-- Create empty buffer/view ownership tables; install interception only during setup.
+---@param opts ImageToolsOptions Runtime settings.
+---@param dependencies? table<string, table> Logical dependency overrides.
+---@return ImageToolsBuffers buffers
 function M.new(opts, dependencies)
   return setmetatable({ opts = opts, dependencies = dependencies or {}, buffers = {}, views = {} }, M)
 end
 
+-- Resolve an injected logical dependency first, then load the default subsystem module.
+---@param name string Logical key such as terminal, protocol, image or pdf.
+---@return table module
 function M:dependency(name)
   return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
+-- Rewrite the filename/page/error header, then restore readonly/nonmodifiable/unmodified viewer
+-- flags.
+---@param buf integer Attached file-viewer buffer.
+---@return nil
 function M:header(buf)
   local meta = self.buffers[buf]
   if not meta or not vim.api.nvim_buf_is_loaded(buf) then
@@ -59,6 +92,10 @@ function M:header(buf)
   vim.bo[buf].modifiable, vim.bo[buf].modified, vim.bo[buf].readonly = false, false, true
 end
 
+-- Remove window ownership, destroy its canvas and restore options unchanged by newer filetype
+-- hooks.
+---@param win integer Owner window id.
+---@return nil
 function M:drop_view(win)
   local view = self.views[win]
   if not view then
@@ -76,6 +113,9 @@ function M:drop_view(win)
   end
 end
 
+-- Cancel metadata and all window views for a buffer without modifying its original source file.
+---@param buf integer Attached buffer id.
+---@return nil
 function M:release(buf)
   local meta = self.buffers[buf]
   self.buffers[buf] = nil
@@ -89,6 +129,8 @@ function M:release(buf)
   end
 end
 
+-- Pause canvases and destroy their placements; retain buffer metadata for later resume.
+---@return nil
 function M:clear_cache()
   self.paused = true
   for _, view in pairs(self.views) do
@@ -97,6 +139,8 @@ function M:clear_cache()
   end
 end
 
+-- Remove file-buffer handlers and release every owned view/metadata request.
+---@return nil
 function M:destroy()
   if self.group then
     vim.api.nvim_del_augroup_by_id(self.group)
@@ -110,6 +154,8 @@ function M:destroy()
   end
 end
 
+-- Coalesce a sync on the main event loop only while handlers remain installed.
+---@return nil
 function M:schedule()
   if self.pending or not self.group then
     return
@@ -123,6 +169,11 @@ function M:schedule()
   end)
 end
 
+-- Invalidate the current generation, refresh source checks and asynchronously restart PDF
+-- metadata.
+---@param buf integer Attached buffer id.
+---@return boolean accepted Metadata/rendering errors may be reported later in the header.
+---@return string? error
 function M:reload(buf)
   self.paused = false
   local meta = self.buffers[buf]
@@ -171,6 +222,11 @@ function M:reload(buf)
   return true
 end
 
+-- Select an in-range absolute PDF page and invalidate canvas generation only when it changes.
+---@param page integer? One-based requested page.
+---@param buf? integer Target buffer; defaults to the current buffer.
+---@return boolean accepted
+---@return string? error
 function M:page(page, buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
@@ -196,6 +252,11 @@ function M:page(page, buf)
   return true
 end
 
+-- Clamp signed relative page movement to the loaded PDF bounds.
+---@param delta integer Signed offset.
+---@param buf? integer Target buffer; defaults to current.
+---@return boolean accepted
+---@return string? error
 function M:step(delta, buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
@@ -205,11 +266,17 @@ function M:step(delta, buf)
   return self:page(math.max(1, math.min(meta.pages, meta.page + delta)), buf)
 end
 
+-- Convert a named buffer into a protected viewer, install local mappings and start metadata
+-- refresh.
+---@param buf integer Source buffer to own.
+---@param path string Normalized original source path.
+---@return nil
 function M:attach(buf, path)
   if self.buffers[buf] then
     self:release(buf)
   end
 
+  ---@type ImageToolsBufferMetadata
   local meta = { path = path, pdf = path:lower():sub(-4) == ".pdf", page = 1, generation = 0 }
   self.buffers[buf] = meta
   vim.b[buf].image_tools_view = true
@@ -219,6 +286,11 @@ function M:attach(buf, path)
   self:header(buf)
   vim.bo[buf].filetype = "image_tools"
 
+  -- Install a viewer-local silent normal-mode mapping bound to the captured buffer.
+  ---@param key string Mapping key.
+  ---@param callback function Viewer operation.
+  ---@param desc string Mapping description.
+  ---@return nil
   local function mapping(key, callback, desc)
     vim.keymap.set("n", key, callback, { buffer = buf, silent = true, desc = desc })
   end
@@ -237,6 +309,9 @@ function M:attach(buf, path)
   self:reload(buf)
 end
 
+-- Reconcile visible regular windows, source changes, page generations and viewport geometry;
+-- release hidden ownership.
+---@return nil
 function M:sync()
   if self.paused then
     return
@@ -266,6 +341,7 @@ function M:sync()
           self:reload(buf)
         end
 
+        ---@type ImageToolsBufferView?
         local view = self.views[win]
         if view and view.buf ~= buf then
           self:drop_view(win)
@@ -334,6 +410,11 @@ function M:sync()
   end
 end
 
+-- Open a supported source through a protected buffer, without taking over a modified unowned
+-- buffer.
+---@param path string Source path, normalized relative to cwd.
+---@return boolean accepted True means file viewing was initiated, not that pixels already displayed.
+---@return string? error
 function M:open(path)
   self.paused = false
   if type(path) ~= "string" or path == "" or not require("image_tools.media").supported(path) then
@@ -366,6 +447,9 @@ function M:open(path)
   return true
 end
 
+-- Snapshot one attached buffer and its currently owned per-window placement statistics.
+---@param buf? integer Target buffer; defaults to current.
+---@return table? status Nil for an unowned buffer.
 function M:status(buf)
   buf = buf or vim.api.nvim_get_current_buf()
   local meta = self.buffers[buf]
@@ -385,6 +469,9 @@ function M:status(buf)
   return { path = meta.path, page = meta.page, pages = meta.pages, error = meta.error, views = views }
 end
 
+-- Install optional interception and lifecycle handlers, attach eligible loaded buffers and
+-- schedule reconciliation.
+---@return nil
 function M:setup()
   self.group = vim.api.nvim_create_augroup("image_tools.buffers", { clear = true })
   if self.opts.buffer.enabled then

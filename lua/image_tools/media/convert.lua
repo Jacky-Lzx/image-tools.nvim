@@ -19,6 +19,13 @@ local png = require("image_tools.media.png")
 local version = require("image_tools.media.file_version")
 local convertible = require("image_tools.media.formats").formats
 
+-- Choose a renderer, reuse or publish a validated cache PNG, and retain a temporary disk lease
+-- during work.
+---@param path string Convertible source path.
+---@param opts table Converter, page/density, cache and validation options.
+---@param callback ImageToolsImageCallback Receives the prepared PNG or conversion error.
+---@param metadata_only? boolean Request metadata without full PNG bytes.
+---@return ImageToolsCancel cancel Cancel queued/running work and suppress delivery; cleanup may finish asynchronously.
 function M.prepare(path, opts, callback, metadata_only)
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
@@ -35,6 +42,10 @@ function M.prepare(path, opts, callback, metadata_only)
     end
   end
   local cancelled, process, cache_release = false, nil, nil
+  -- Deliver a result if active and release the worker disk lease after the callback.
+  ---@param err? string Conversion/read error.
+  ---@param image? ImageToolsImage Validated PNG with original source identity.
+  ---@return nil
   local function done(err, image)
     if not cancelled then
       if image then
@@ -81,6 +92,8 @@ function M.prepare(path, opts, callback, metadata_only)
         .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or 144)) or "")
     )
     local output = opts.cache .. "/" .. key .. ".png"
+    -- Read an existing pinned cache result or run a converter into an unpublished temporary PNG.
+    ---@return nil
     local function load()
       if uv.fs_stat(output) then
         png.read(output, opts, done, metadata_only)
@@ -184,6 +197,7 @@ function M.prepare(path, opts, callback, metadata_only)
       cache_release()
       cache_release = nil
     end
+
     -- Let any in-flight read complete to clean its temporary file. done()
     -- suppresses its callback after cancellation.
   end

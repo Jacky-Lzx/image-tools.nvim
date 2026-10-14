@@ -18,11 +18,21 @@ local uv = vim.uv
 local signature = "\137PNG\13\10\26\10"
 M.key = require("image_tools.media.file_version").key
 
+-- Decode one big-endian unsigned 32-bit PNG field.
+---@param data string Raw PNG bytes.
+---@param offset integer One-based byte offset.
+---@return integer value
 local function integer(data, offset)
   local a, b, c, d = data:byte(offset, offset + 3)
   return ((a * 256 + b) * 256 + c) * 256 + d
 end
 
+-- Check signature/IHDR/IEND and configured dimensions; this is basic validation, not full PNG
+-- decoding.
+---@param data string Complete bytes or the concatenated 33-byte header and 12-byte tail.
+---@param opts table max_dimension and max_pixels limits.
+---@return ImageToolsImageSize? info
+---@return string? error
 function M.info(data, opts)
   if
     #data < 45
@@ -46,9 +56,19 @@ function M.info(data, opts)
   return { width = width, height = height }
 end
 
+-- Read PNG metadata or full bytes, then verify that the source revision remained stable.
+---@param path string PNG file path.
+---@param opts table max_bytes, max_dimension and max_pixels limits.
+---@param callback ImageToolsImageCallback Scheduled once on success/error unless cancelled.
+---@param metadata_only? boolean Omit image.data and read only the header/end chunk.
+---@return ImageToolsCancel cancel Suppresses callback delivery; descriptor cleanup still completes.
 function M.read(path, opts, callback, metadata_only)
   local cancelled, fd = false, nil
 
+  -- Schedule completion outside libuv callbacks and discard delivery after cancellation.
+  ---@param err? string Read/validation error.
+  ---@param image? ImageToolsImage Validated PNG result.
+  ---@return nil
   local function done(err, image)
     vim.schedule(function()
       if not cancelled then
@@ -86,6 +106,11 @@ function M.read(path, opts, callback, metadata_only)
         return
       end
 
+      -- Close the file descriptor before validation and verify the source revision before
+      -- scheduled delivery.
+      ---@param read_err? string Read error.
+      ---@param data? string Full PNG bytes or combined header/tail bytes.
+      ---@return nil
       local function finish(read_err, data)
         uv.fs_close(fd)
         fd = nil

@@ -17,6 +17,9 @@ local M = {}
 local reference = require("image_tools.document.tex.reference")
 local clean, group, space, literal, escaped =
   reference.clean, reference.group, reference.space, reference.literal, reference.escaped
+-- Retain same-line reference compatibility by dropping row coordinates from decoded candidates.
+---@param line string One source line.
+---@return ImageToolsReference[] references
 function M.parse(line)
   local results = reference.parse(line)
   for _, candidate in ipairs(results) do
@@ -27,6 +30,10 @@ end
 
 local excluded = { verbatim = true, ["verbatim*"] = true, lstlisting = true, minted = true, comment = true }
 -- Shared literal argument handling for the lexer and Tree-sitter nodes.
+-- Decode a single-line literal graphicspath declaration after comment/inline-verbatim cleanup.
+---@param original string Source line.
+---@param start? integer One-based command position; otherwise search the line.
+---@return string[]? directories Nil when the declaration is absent/invalid.
 function M.graphicspath(original, start)
   local line = clean(original)
   start = start or line:find("\\graphicspath", 1, true)
@@ -52,6 +59,12 @@ function M.graphicspath(original, start)
   end
   return directories
 end
+
+-- Advance excluded-environment and graphicspath context for the Lua checkpoint scanner.
+---@param lines string[] Contiguous prefix/source lines.
+---@param previous table Captured environment/directories before this segment.
+---@return table result Candidate/block/path context for the segment last line.
+---@return table state Updated prefix environment/directories.
 local function scan(lines, previous)
   local environment, directories = previous.environment, previous.directories or {}
   local blocked = false
@@ -84,6 +97,17 @@ local function scan(lines, previous)
     blocked = blocked,
   }, { environment = environment, directories = directories }
 end
+
+-- Find a complete covering range, choose syntax authority and resolve literal paths/extensions in
+-- project context.
+---@param buf integer Buffer id.
+---@param row integer One-based buffer row.
+---@param col? integer Zero-based byte column; nil requests the first covering reference.
+---@param opts ImageToolsOptions Lookup/scan/root settings.
+---@return string? path Resolved image source.
+---@return string? error Lookup/resolution message on failure.
+---@return ImageToolsLookupStatus? status Only miss permits cursor-to-line fallback; pending must wait.
+---@return ImageToolsReference? reference Selected range when resolved, or pending LaTeX coverage.
 function M.find(buf, row, col, opts)
   local nearby, nearby_error = reference.nearby(buf, row, opts)
   if #nearby == 0 then
@@ -154,16 +178,31 @@ function M.find(buf, row, col, opts)
 end
 
 local image_formats = { "png", "jpg", "jpeg", "pdf" }
+-- Return independently allocated insertion/picker formats accepted by the LaTeX adapter.
+---@return string[] extensions
 function M.image_formats()
   return vim.deepcopy(image_formats)
 end
+
+-- Check compiler-compatible imported/reference extensions without converting them.
+---@param path string Source filename.
+---@return boolean supported
 function M.supports_image(path)
   return require("image_tools.media.formats").supports(path, image_formats)
 end
 M.insertion_base = require("image_tools.document.paths").base
+-- Replace TeX-special/control filename characters while preserving spaces and underscores.
+---@param name string Single imported basename.
+---@return string sanitized
+---@return integer replacements Number of characters replaced by gsub.
 function M.sanitize_filename(name)
   return name:gsub("[%%#&$^~{}\\%c]", "_")
 end
+
+-- Emit graphicx markup with a detokenize path, rejecting unsafe directory/reference characters.
+---@param path string Relative resource path.
+---@param alt? string Unused by LaTeX markup.
+---@return string markup Unsafe paths raise an error for transaction rollback.
 function M.markup(path, alt)
   assert(
     not path:find("[%%#&$^~{}\\%c]"),

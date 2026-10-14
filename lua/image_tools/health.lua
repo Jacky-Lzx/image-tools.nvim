@@ -15,6 +15,9 @@
 
 local M = {}
 
+-- Format a byte estimate in binary units for readable health output.
+---@param bytes number Nonnegative bytes.
+---@return string display
 local function size(bytes)
   local units, index = { "B", "KiB", "MiB", "GiB", "TiB" }, 1
   while bytes >= 1024 and index < #units do
@@ -22,6 +25,11 @@ local function size(bytes)
   end
   return string.format(index == 1 and "%.0f %s" or "%.2f %s", bytes, units[index])
 end
+
+-- Inspect managed disk usage with a bounded wait and report missing/unreadable directories without
+-- eviction.
+---@param state ImageToolsRuntimeStatus Existing status snapshot or unconfigured defaults.
+---@return nil
 local function disk_health(state)
   vim.health.start("image-tools: disk cache")
   local opts
@@ -72,6 +80,8 @@ local function disk_health(state)
   vim.health.info("Run :ImageCacheClear to remove unused converted images from disk")
 end
 
+-- Report terminal/tool support and service/cache diagnostics without initializing the plugin.
+---@return nil
 function M.check()
   vim.health.start("image-tools")
   local supported, reason = require("image_tools.terminal").supports({})
@@ -139,6 +149,7 @@ function M.check()
   end
   if state.treesitter then
     local syntax = state.treesitter
+    ---@cast syntax ImageToolsSyntaxStatus
     vim.health.start("image-tools: reference syntax")
     vim.health.info("Tree-sitter: " .. (syntax.enabled and "enabled" or "disabled; using Lua scanner"))
     vim.health.info(
@@ -149,6 +160,7 @@ function M.check()
     end
     if syntax.current then
       local current = syntax.current
+      ---@cast current ImageToolsSyntaxDiagnostic
       vim.health.info("Current buffer backend: " .. current.backend .. " (" .. current.lang .. ")")
       if current.reason then
         vim.health.info("Reason: " .. current.reason .. ": " .. (current.detail or ""))

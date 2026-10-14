@@ -14,8 +14,29 @@
 --   removes the highlight definition; controllers own buffer/window cleanup and
 --   terminal placement leases.
 
+---@class ImageToolsDrawState
+---@field buf? integer Buffer supplied by the drawing controller; required when draw executes.
+---@field win? integer Render window owned by the controller.
+---@field id? integer Kitty image id after drawing.
+---@field placement_id? integer Virtual placement selector after drawing.
+---@field width? integer Drawn placeholder columns.
+---@field height? integer Drawn placeholder rows.
+---@field highlight? string Highlight name cleared separately from buffer/window cleanup.
+
+---@class ImageToolsPlaceholder
 local M = {}
 
+-- Record placement identity, populate placeholder rows and highlight their exact byte ranges.
+---@param state ImageToolsDrawState Caller-owned state with a live buf.
+---@param namespace integer Controller namespace for extmarks.
+---@param prefix string Prefix for the per-image/per-placement highlight name.
+---@param entry ImageToolsPlacement Acknowledged placement.
+---@param width integer Placeholder columns.
+---@param height integer Placeholder rows.
+---@param protocol table Grid/highlight encoding dependency.
+---@param set_lines? fun(lines: string[]) Optional picker-specific line writer.
+---@param rows? integer Pad to this many rows; defaults to image height.
+---@return nil
 function M.draw(state, namespace, prefix, entry, width, height, protocol, set_lines, rows)
   state.id, state.placement_id = entry.id, entry.placement_id
   state.width, state.height = width, height
@@ -40,6 +61,10 @@ function M.draw(state, namespace, prefix, entry, width, height, protocol, set_li
   end
 end
 
+-- Clear the caller recorded highlight; window, buffer and placement cleanup belong to the
+-- controller.
+---@param state ImageToolsDrawState State whose highlight may exist.
+---@return nil
 function M.clear(state)
   if state.highlight then
     vim.api.nvim_set_hl(0, state.highlight, {})

@@ -27,17 +27,32 @@ M.formats = {
   svg = true,
 }
 
+-- Read and lowercase the last filename extension without accessing the filesystem.
+---@param path string Filename or path.
+---@return string? extension No extension yields nil.
 function M.extension(path)
   local extension = path:match("%.([^./]+)$")
   return extension and extension:lower()
 end
+
+-- Accept native PNG or a format supported by conversion.
+---@param path string Filename or path.
+---@return boolean supported
 function M.supported(path)
   local extension = M.extension(path)
   return extension == "png" or M.formats[extension] == true
 end
+
+-- Check a filename against a document adapter-specific extension list.
+---@param path string Filename or path.
+---@param extensions string[] Allowed lowercase extensions.
+---@return boolean supported
 function M.supports(path, extensions)
   return vim.tbl_contains(extensions, M.extension(path))
 end
+
+-- Return an independently allocated, sorted preview extension list including PNG.
+---@return string[] extensions
 function M.extensions()
   local result = vim.tbl_keys(M.formats)
   result[#result + 1] = "png"

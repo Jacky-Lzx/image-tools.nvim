@@ -15,13 +15,33 @@
 --   closure; stale results cannot draw.
 
 -- One preparation handle and one placement lease, bounded by view authority.
+---@class ImageToolsRenderView
+---@field current fun(): boolean Caller authority check for owner/source/generation.
+---@field stale fun() Caller cleanup when authority is lost.
+---@field error fun(err: string) Caller presentation after session resources are released.
+---@field size fun(image: ImageToolsImage): integer, integer Placement columns and rows.
+---@field draw fun(entry: ImageToolsPlacement, width: integer, height: integer) Called only after acknowledgement.
+---@class ImageToolsRenderSession
+---@field image table Media dependency providing prepare.
+---@field transfer ImageToolsTransfer Placement service.
+---@field active boolean False after close; late-returned handles are released immediately.
+---@field releases ImageToolsCancel[] Owned cleanup handles, released in reverse acquisition order.
+---@field stage? "preparing"|"placing"|"ready" Duplicate-delivery guard; absent before start.
 local M = {}
 M.__index = M
 
+-- Create one active prepare/place lifecycle without starting work.
+---@param image table Media dependency with prepare.
+---@param transfer ImageToolsTransfer View-scoped placement service.
+---@return ImageToolsRenderSession session
 function M.new(image, transfer)
   return setmetatable({ image = image, transfer = transfer, active = true, releases = {} }, M)
 end
 
+-- Retain a cleanup handle, or execute it immediately if synchronous completion already closed the
+-- session.
+---@param release ImageToolsCancel Resource cleanup function.
+---@return nil
 function M:keep(release)
   if self.active then
     self.releases[#self.releases + 1] = release
@@ -30,6 +50,8 @@ function M:keep(release)
   end
 end
 
+-- Mark inactive before releasing handles in reverse order; repeated close is harmless.
+---@return nil
 function M:close()
   if not self.active then
     return
@@ -42,7 +64,15 @@ function M:close()
   end
 end
 
+-- Prepare pixels, choose placement size and draw only while the caller authority remains current.
+---@param path string Source image/PDF path.
+---@param opts table Preparation settings, including optional PDF page.
+---@param view ImageToolsRenderView Window/source-specific policies and callbacks.
+---@return nil
 function M:start(path, opts, view)
+  -- Recheck view authority before continuing and release an already-delivered stale placement.
+  ---@param entry? ImageToolsPlacement Acknowledged lease to release on staleness.
+  ---@return boolean valid
   local function current(entry)
     if not self.active or not view.current() then
       if entry and entry.cancel then
@@ -56,6 +86,10 @@ function M:start(path, opts, view)
     end
     return true
   end
+
+  -- Release session resources before asking the controller to present failure.
+  ---@param err string Preparation, placement or drawing error.
+  ---@return nil
   local function fail(err)
     self:close()
     view.error(err)

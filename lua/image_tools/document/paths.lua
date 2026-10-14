@@ -14,6 +14,11 @@
 
 local M = {}
 
+-- Choose configured root, optional LaTeX VimTeX root or containing document directory.
+---@param document string Saved document path.
+---@param opts table Optional root string/function.
+---@param buf? integer Allows LaTeX filetype/VimTeX root lookup.
+---@return string base Project root or directory of the required saved document.
 function M.base(document, opts, buf)
   local root = opts.root
   if type(root) == "function" then
@@ -28,10 +33,18 @@ function M.base(document, opts, buf)
   return root and vim.fs.normalize(vim.fn.fnamemodify(root, ":p")) or vim.fs.dirname(document)
 end
 
+-- Decode permitted local syntax, reject URLs/control bytes, then apply custom resolver or document
+-- base.
+---@param src string Literal or Markdown source text.
+---@param document string Containing document path; relative references require a saved document.
+---@param opts table literal, root and resolve policies.
+---@return string? path Normalized local path; existence is checked by downstream services.
+---@return string? error
 function M.resolve(src, document, opts)
   if not opts.literal then
     src = src:gsub("\\([%p ])", "%1")
   end
+
   -- Reject URLs before decoding, so percent escapes cannot hide a scheme.
   if src:match("^%a[%w+.-]*:") or src:sub(1, 2) == "//" then
     return nil, "Remote image references are not supported yet"
@@ -60,6 +73,10 @@ function M.resolve(src, document, opts)
   return vim.fs.normalize(base .. "/" .. src)
 end
 
+-- Compute a filesystem-relative path by removing common normalized leading components.
+---@param path string Resource path.
+---@param base string Directory against which markup will be emitted.
+---@return string relative
 function M.relative(path, base)
   local a, b =
     vim.split(vim.fs.normalize(vim.fn.fnamemodify(path, ":p")), "/", { plain = true }),

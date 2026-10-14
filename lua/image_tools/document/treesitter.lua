@@ -14,10 +14,63 @@
 --   Ignore stale text versions; edits invalidate affected suffixes and
 --   overlapping reference ranges.
 
+---@class ImageToolsSyntaxResult
+---@field candidates ImageToolsReference[] Supported references covering the query row.
+---@field pending? boolean True while native parsing is authoritative but unfinished.
+---@field directories? string[] LaTeX path context available before the queried row.
+---@class ImageToolsSyntaxDiagnostic
+---@field lang string Root parser language.
+---@field backend "pending"|"treesitter"|"lexer" Current lookup backend.
+---@field reason? string Lexer fallback category, absent for successful/pending trees.
+---@field detail? string Additional failure/context message.
+---@field parse_ms? number Most recent parse wall time, including event-loop yields.
+---@field index_ms? number Most recent incremental capture-index duration.
+---@class ImageToolsSyntaxStatus
+---@field parses integer Native parse attempts across buffers.
+---@field hits integer Reused indexes and queries.
+---@field indexed_rows integer Rows traversed while extending indexes.
+---@field fallbacks table<string, integer> Counts by lexer fallback reason.
+---@field current? ImageToolsSyntaxDiagnostic Current-buffer backend state.
+---@field enabled? boolean Runtime adds the configured Tree-sitter policy.
+---@class ImageToolsSyntaxEntry
+---@field tick integer Buffer changedtick captured by this parse/index.
+---@field lang string Root parser language.
+---@field pending? boolean Parsing has not completed.
+---@field failed? boolean Backend cannot serve the current text version.
+---@field previous? ImageToolsSyntaxEntry Valid previous index retained during a new parse.
+---@field waiters? function[] Continuations scheduled only for a current text version.
+---@field tree? TSTree Native root syntax tree after successful parsing.
+---@field query? vim.treesitter.Query Compiled grammar capture query.
+---@field frontier? integer Exclusive zero-based capture limit, equal to the last indexed one-based row.
+---@field rows? table<integer, ImageToolsReference[]> Covering references indexed by one-based row.
+---@field references? ImageToolsReference[] Indexed multiline references used for overlap invalidation.
+---@field seen? table<string, boolean> Reference identities prevent duplicate indexing across rows.
+---@field directories? table[] Ordered row/column graphicspath changes.
+---@field errors? table[] Error spans affecting contextual trust.
+---@field options? table Captured syntax budgets only; no Runtime resolver/callback retention.
+---@field policy? string LaTeX budget identity, used to rebuild indexes after option changes.
+
+---@class ImageToolsReadySyntaxEntry: ImageToolsSyntaxEntry
+---@field tree TSTree Completed native root tree.
+---@field query vim.treesitter.Query Compiled capture query.
+---@field frontier integer Last indexed one-based row.
+---@field rows table<integer, ImageToolsReference[]> Indexed covering references.
+---@field directories table[] Ordered graphicspath changes.
+---@field errors table[] Indexed syntax errors.
+---@field options table Captured scan limits.
+
+---@class ImageToolsTreesitter
 local M = {}
 local entries, attached, queries = {}, {}, {}
 local diagnostics = {}
 local totals = { parses = 0, hits = 0, indexed_rows = 0, fallbacks = {} }
+-- Update current-buffer backend diagnostics and count explicitly reported fallback events.
+---@param buf integer Buffer id.
+---@param lang string Parser language.
+---@param backend string Current pending/tree/lexer backend.
+---@param reason? string Optional fallback category.
+---@param detail? string Optional explanatory message.
+---@return ImageToolsSyntaxDiagnostic diagnostic
 local function report(buf, lang, backend, reason, detail)
   local state = diagnostics[buf] or { lang = lang }
   state.lang, state.backend, state.reason, state.detail = lang, backend, reason, detail
@@ -27,6 +80,10 @@ local function report(buf, lang, backend, reason, detail)
   end
   return state
 end
+
+-- Deep-copy global counters and current-buffer diagnostics without initializing a parser.
+---@param buf? integer Current buffer when nil/zero.
+---@return ImageToolsSyntaxStatus status Global counters plus optional current-buffer diagnostic.
 function M.status(buf)
   if buf == nil or buf == 0 then
     buf = vim.api.nvim_get_current_buf()
@@ -61,6 +118,9 @@ local excluded = {
   string = true,
 }
 
+-- Reject capture nodes nested inside comment, raw, string or excluded source environments.
+---@param node TSNode Grammar capture.
+---@return boolean allowed
 local function allowed(node)
   local parent = node:parent()
   while parent do
@@ -72,11 +132,17 @@ local function allowed(node)
   return true
 end
 
+-- Move the trusted frontier backward to cover edits and overlapping references; preserve earlier
+-- valid results.
+---@param entry? ImageToolsSyntaxEntry Active or pending-with-previous index.
+---@param first integer Zero-based first changed row.
+---@return nil
 local function invalidate(entry, first)
   entry = entry and (entry.previous or entry)
   if not entry or not entry.frontier then
     return
   end
+
   -- A capture spanning the edit must be re-read from its beginning.
   for _, err in ipairs(entry.errors) do
     if err.last >= first then
@@ -109,9 +175,18 @@ local function invalidate(entry, first)
   end, entry.errors)
 end
 
+-- Traverse only the unindexed capture suffix, decoding references and populating every covered
+-- row.
+---@param buf integer Buffer id.
+---@param entry ImageToolsReadySyntaxEntry Ready index with tree/query/frontier.
+---@param finish integer Exclusive zero-based traversal limit (one-based target row).
+---@return nil
 local function index(buf, entry, finish)
   local lang, query, tree, first = entry.lang, entry.query, entry.tree, entry.frontier
   local lines, parsed = {}, {}
+  -- Read one zero-based source row once per indexing operation.
+  ---@param row integer Zero-based buffer row.
+  ---@return string line
   local function line_at(row)
     if not lines[row] then
       lines[row] = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
@@ -210,6 +285,14 @@ end
 
 -- Pending parses are authoritative too: never scan the buffer synchronously
 -- while Neovim is yielding a large parse back to the event loop.
+-- Parse or extend a current index; nil permits Lua fallback, while pending/empty results remain
+-- authoritative.
+---@param buf integer Buffer id; zero means current.
+---@param row integer One-based target row.
+---@param lang string Root parser language (latex/typst).
+---@param ready? fun() Resume selection after a current parse finishes.
+---@param options? table LaTeX reference budgets and scan ceiling.
+---@return ImageToolsSyntaxResult? syntax Nil reports unavailable/failed/contextually unsafe parsing.
 function M.query(buf, row, lang, ready, options)
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
   if not attached[buf] then
@@ -275,6 +358,11 @@ function M.query(buf, row, lang, ready, options)
       })
     end
     entries[buf] = entry
+    -- Publish a parse only if its buffer/version and entry token remain current, then schedule
+    -- waiters.
+    ---@param err? string Native parse error.
+    ---@param trees? TSTree[] Parsed root-language trees.
+    ---@return nil
     local function complete(err, trees)
       if not entry.pending then
         return
@@ -327,6 +415,7 @@ function M.query(buf, row, lang, ready, options)
   if entry.failed then
     return
   end
+  ---@cast entry ImageToolsReadySyntaxEntry
   if entry.frontier < row then
     local first, started = entry.frontier, vim.uv.hrtime()
     local ok, err = pcall(index, buf, entry, row)

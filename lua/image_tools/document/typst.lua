@@ -14,6 +14,10 @@
 --   services.
 
 local M = {}
+-- Check an odd preceding backslash run before interpreting markup syntax.
+---@param text string Source text.
+---@param pos integer One-based byte position.
+---@return boolean escaped
 local function escaped(text, pos)
   local n = 0
   while pos > 1 and text:sub(pos - 1, pos - 1) == "\\" do
@@ -21,6 +25,12 @@ local function escaped(text, pos)
   end
   return n % 2 == 1
 end
+
+-- Decode a double-quoted Typst string with supported simple/Unicode escapes.
+---@param line string Source text.
+---@param start integer One-based opening quote.
+---@return string? text Decoded contents.
+---@return integer? finish One-based closing quote; absent on invalid/incomplete strings.
 local function quoted(line, start)
   if line:sub(start, start) ~= '"' then
     return
@@ -55,6 +65,11 @@ local function quoted(line, start)
   end
 end
 M.quoted = quoted
+-- Find a closing quote without evaluating escapes, allowing strings to continue across scanner
+-- segments.
+---@param line string Source line.
+---@param start integer One-based position of the opening quote or prior-line continuation.
+---@return integer? finish
 local function string_end(line, start)
   for pos = start + 1, #line do
     if line:sub(pos, pos) == '"' and not escaped(line, pos) then
@@ -63,6 +78,11 @@ local function string_end(line, start)
   end
 end
 
+-- Find a same-line balanced image call, skipping quoted arguments and refusing comment-interrupted
+-- calls.
+---@param line string Source line.
+---@param start integer One-based opening parenthesis.
+---@return integer? finish Closing parenthesis or nil when incomplete.
 local function finish_call(line, start)
   local depth, pos = 1, start + 1
   while pos <= #line do
@@ -91,6 +111,12 @@ end
 
 -- Bounded lexer: literal same-line image calls, including calls in a multiline
 -- #figure/code expression. Skip strings, raw text and nested block comments.
+-- Advance markup/code/raw/string/nested-comment context and emit only complete image calls on the
+-- final row.
+---@param lines string[] Contiguous prefix/source lines.
+---@param previous? table Scanner context at the start of the segment.
+---@return ImageToolsReference[] references Final-row candidates.
+---@return table state Updated context for later checkpoints.
 function M.scan(lines, previous)
   previous = previous or {}
   local result, stack, mode, raw, block, transient, statement =
@@ -208,6 +234,17 @@ function M.scan(lines, previous)
       in_string = in_string,
     }
 end
+
+-- Select a literal call from authoritative syntax and resolve document-relative or project-root
+-- paths.
+---@param buf integer Buffer id.
+---@param row integer One-based buffer row.
+---@param col? integer Zero-based byte column; nil requests the first covering reference.
+---@param opts ImageToolsOptions Lookup/scan/root settings.
+---@return string? path Resolved image source.
+---@return string? error Lookup/resolution message on failure.
+---@return ImageToolsLookupStatus? status Only miss permits cursor-to-line fallback; pending must wait.
+---@return ImageToolsReference? reference Selected range when resolved, or pending LaTeX coverage.
 function M.find(buf, row, col, opts)
   local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
   if not line:find("image%s*%(") then
@@ -245,15 +282,34 @@ function M.find(buf, row, col, opts)
 end
 
 local image_formats = { "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }
+-- Return independently allocated formats supported by Typst insertion and picker filtering.
+---@return string[] extensions
 function M.image_formats()
   return vim.deepcopy(image_formats)
 end
+
+-- Check a filename against Typst-compatible resource formats.
+---@param path string Source filename.
+---@return boolean supported
 function M.supports_image(path)
   return require("image_tools.media.formats").supports(path, image_formats)
 end
+
+-- Keep emitted Typst markup relative to the containing document, even with a separate project
+-- root.
+---@param document string Saved document path.
+---@return string directory
 function M.insertion_base(document)
   return vim.fs.dirname(document)
 end
+
+-- Reject inserted references outside the configured/default project root so transaction rollback
+-- can run.
+---@param path string Absolute output/reference path.
+---@param document string Saved document path.
+---@param opts table Optional project root.
+---@param buf? integer Buffer id supplied to shared base lookup.
+---@return nil
 function M.validate_reference(path, document, opts, buf)
   local paths = require("image_tools.document.paths")
   local project = paths.base(document, opts, buf)
@@ -262,8 +318,16 @@ function M.validate_reference(path, document, opts, buf)
     "Typst image is outside the project root; copy it or configure root to match typst compile --root"
   )
 end
+
+-- Emit a literal Typst image call with width and optional escaped alt text.
+---@param path string Document-relative resource path without control bytes.
+---@param alt? string Optional accessible description.
+---@return string markup Invalid control bytes raise an error.
 function M.markup(path, alt)
   assert(not path:find("%c"), "Typst image paths cannot contain control characters")
+  -- Escape quotes/backslashes and surround a markup argument with double quotes.
+  ---@param text string Literal path or description.
+  ---@return string literal
   local function quoted(text)
     return '"' .. text:gsub("\\", "\\\\"):gsub('"', '\\"') .. '"'
   end

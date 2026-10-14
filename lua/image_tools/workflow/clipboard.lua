@@ -13,12 +13,27 @@
 --   import context. Completion or cancellation cleans temporary resources
 --   without changing clipboard contents.
 
+---@class ImageToolsClipboardState
+---@field done? boolean Completion/cancellation guard.
+---@field directory? string Owned temporary directory, removed on finish/cancel.
+---@field job? table Pending pngpaste process with kill support.
+---@field cancel_read? ImageToolsCancel Pending PNG validation read.
+---@field cancel_conversion? ImageToolsCancel Shared-queue converter operation.
+---@field cancel_import? ImageToolsCancel Pending file/text publication transaction.
+
+---@class ImageToolsClipboard
 local M = {}
 local uv = vim.uv
 local formats = { png = true, jpg = true, webp = true, avif = true }
 
 -- pngpaste uses AppKit's pasteboard conversion. It reads the clipboard without
 -- altering it and writes PNG data regardless of its original representation.
+-- Capture the document, read/validate the clipboard, optionally convert format and always import a
+-- copied resource.
+---@param opts? ImageToolsInsertOptions Clipboard and insertion options.
+---@param callback? ImageToolsInsertCallback Defaults to error notifications.
+---@param dependencies? table macos=true enables controlled platform tests.
+---@return ImageToolsCancel cancel Stops owned read/process/import work and cleans temporary resources.
 function M.paste(opts, callback, dependencies)
   opts, dependencies = opts or {}, dependencies or {}
   callback = callback
@@ -31,13 +46,21 @@ function M.paste(opts, callback, dependencies)
   local I = require("image_tools.workflow.insert")
   local context = opts.context or I.capture(opts)
   opts = vim.tbl_extend("force", opts, { context = context })
+  ---@type ImageToolsClipboardState
   local state = {}
 
+  -- Remove the operation temporary directory; repeated cleanup is harmless.
+  ---@return nil
   local function cleanup()
     if state.directory then
       vim.fn.delete(state.directory, "rf")
     end
   end
+
+  -- Deliver one paste result after temporary cleanup and context release.
+  ---@param err? string Read/validation/conversion/import error.
+  ---@param paths? string[] Successfully published resource paths.
+  ---@return nil
   local function finish(err, paths)
     if state.done then
       cleanup()
@@ -48,6 +71,9 @@ function M.paste(opts, callback, dependencies)
     I.release(context)
     callback(err, paths)
   end
+
+  -- Suppress further stages, stop owned work, remove temporaries and report cancellation once.
+  ---@return nil
   local function cancel()
     if state.done then
       return
@@ -97,6 +123,9 @@ function M.paste(opts, callback, dependencies)
 
   local png = state.directory .. "/clipboard.png"
 
+  -- Validate output existence/size and delegate final publication in mandatory copy mode.
+  ---@param path string Temporary PNG or converted clipboard output.
+  ---@return nil
   local function imported(path)
     if state.done then
       cleanup()
@@ -118,6 +147,8 @@ function M.paste(opts, callback, dependencies)
     state.cancel_import = I.files({ path }, insertion, finish)
   end
 
+  -- Bypass conversion for PNG; other formats share the configured process queue and timeout.
+  ---@return nil
   local function convert()
     if format == "png" then
       imported(png)

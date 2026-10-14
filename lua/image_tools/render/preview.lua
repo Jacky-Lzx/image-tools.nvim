@@ -19,15 +19,38 @@ local dependency_modules = {
   protocol = "image_tools.terminal.protocol",
 }
 
+---@class ImageToolsPreviewState: ImageToolsDrawState
+---@field owner_buf integer Document buffer or explicit-preview owner.
+---@field owner_win integer Regular window from which preview was requested.
+---@field cursor integer[] Captured one-based row and zero-based byte column.
+---@field path string Absolute source path.
+---@field changedtick integer Version kept current when edits preserve the source.
+---@field automatic boolean Whether notification-silent mode was requested.
+---@field reference boolean Whether cursor column/reference selection participates in authority.
+---@field reference_range? ImageToolsRange Multiline selected-reference coverage.
+---@field render? ImageToolsRenderSession Owned prepare/placement lifecycle.
+---@class ImageToolsPreview
+---@field opts ImageToolsOptions Runtime configuration.
+---@field dependencies table<string, table> Logical dependency overrides.
+---@field generation integer Monotonic close/replacement token.
+---@field state? ImageToolsPreviewState Current pending/visible preview; nil after close.
+---@field transfer ImageToolsTransfer Shared-pool view placement manager.
 local M = {}
 M.__index = M
 
+-- Construct a floating-preview controller and its placement manager without opening a window.
+---@param opts ImageToolsOptions Runtime settings.
+---@param dependencies? table<string, table> May include a shared pixel_pool.
+---@return ImageToolsPreview preview
 function M.new(opts, dependencies)
   local self = setmetatable({ opts = opts, dependencies = dependencies or {}, generation = 0 }, M)
   self.transfer = require("image_tools.terminal.transfer").new(opts, self.dependencies)
   return self
 end
 
+-- Resolve an injected logical dependency first, then load the default subsystem module.
+---@param name string Logical key such as terminal, protocol, image or pdf.
+---@return table module
 function M:dependency(name)
   return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
@@ -35,6 +58,8 @@ end
 -- Retain the existing helper while all renderers depend on geometry directly.
 M.fit = require("image_tools.render.geometry").fit
 
+-- Invalidate generation before releasing the session, window, highlights and scratch buffer.
+---@return nil
 function M:close()
   self.generation = self.generation + 1
   local state = self.state
@@ -54,17 +79,29 @@ function M:close()
   end
 end
 
+-- Close the view and clear its transfer manager; shared pools retain other managers until Runtime
+-- cleanup.
+---@return nil
 function M:destroy()
   self:close()
   self.transfer:clear()
 end
 
+-- Check selected row coverage without requiring one fixed row for multiline LaTeX.
+---@param state ImageToolsPreviewState Owner window/captured cursor and optional range.
+---@return boolean covered
 local function on_reference_row(state)
   local row = vim.api.nvim_win_get_cursor(state.owner_win)[1]
   local range = state.reference_range
   return range and row >= range.start_row and row <= range.end_row or not range and row == state.cursor[1]
 end
 
+-- Replace the current request, validate terminal support and asynchronously prepare/place a
+-- nonfocusable float.
+---@param path string Source path resolved by the Runtime.
+---@param options? ImageToolsPreviewOptions Per-request notification and reference authority.
+---@return boolean accepted True means started, not necessarily visible yet.
+---@return string? error Terminal support rejection.
 function M:open(path, options)
   options = options or {}
   self:close()
@@ -87,9 +124,12 @@ function M:open(path, options)
     reference_range = options.reference_range,
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
+  ---@cast state ImageToolsPreviewState
   self.state = state
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(path, self.opts, {
+    -- Validate generation, owner, text version and current selected cursor/range authority.
+    ---@return boolean current
     current = function()
       return self.generation == generation
         and self.state == state
@@ -101,17 +141,26 @@ function M:open(path, options)
         and on_reference_row(state)
         and (not state.reference or vim.api.nvim_win_get_cursor(state.owner_win)[2] == state.cursor[2])
     end,
+    -- A late result may close only its own state, never a newer replacement request.
+    ---@return nil
     stale = function()
       if self.state == state then
         self:close()
       end
     end,
+    -- Release the view before notification, honoring silent automatic-preview requests.
+    ---@param err string
+    ---@return nil
     error = function(err)
       self:close()
       if not options.silent then
         vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
       end
     end,
+    -- Compute cells after preparation using the current owner/pane geometry.
+    ---@param image ImageToolsImage
+    ---@return integer width
+    ---@return integer height
     size = function(image)
       return require("image_tools.render.geometry").fit(
         image,
@@ -120,6 +169,11 @@ function M:open(path, options)
         math.max(1, math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - 4))
       )
     end,
+    -- Materialize placeholders only after the terminal acknowledges this independent placement.
+    ---@param entry ImageToolsPlacement
+    ---@param width integer Terminal columns.
+    ---@param height integer Terminal rows.
+    ---@return nil
     draw = function(entry, width, height)
       state.cursor = vim.api.nvim_win_get_cursor(state.owner_win)
       state.buf = vim.api.nvim_create_buf(false, true)

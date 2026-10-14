@@ -12,6 +12,38 @@
 --   Keep private defaults and deep-copy caller options. Resolving configuration
 --   does not change an active Runtime.
 
+---@class ImageToolsOptions
+---@field auto_preview boolean Enable automatic reference previews.
+---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
+---@field latex {max_reference_lines: integer, max_reference_bytes: integer} Budgets for one LaTeX reference.
+---@field buffer {enabled: boolean, formats: string[]} Automatic file-buffer interception settings.
+---@field pdfinfo string PDF metadata executable.
+---@field pdf_density integer Rasterization DPI, included in PDF conversion keys.
+---@field insert ImageToolsInsertOptions Defaults merged into individual import operations.
+---@field position "cursor"|"bottom_right" Floating preview anchor policy.
+---@field transport "auto"|"file"|"direct" Upload transport policy.
+---@field terminal_timeout integer Milliseconds allowed for each upload/placement acknowledgement.
+---@field terminal_cache {max_images: integer, max_bytes: integer} Retention limits; bytes estimate decoded RGBA.
+---@field disk_cache {enabled: boolean, max_bytes: integer, max_files: integer} Unused converted-file eviction limits.
+---@field max_width integer Floating preview width limit in terminal cells.
+---@field max_height integer Floating preview height limit in terminal cells.
+---@field border string|string[] Neovim floating window border configuration.
+---@field force boolean Bypass terminal-name detection only.
+---@field cell_size ImageToolsCellSize Fallback geometry when ioctl cannot provide pixel dimensions.
+---@field max_bytes integer Maximum source/prepared PNG file size.
+---@field max_dimension integer Maximum validated PNG dimension per axis.
+---@field max_pixels integer Maximum validated PNG pixel count.
+---@field max_scan_lines integer Highest document row eligible for reference lookup.
+---@field convert_timeout integer Converter/PDF metadata process timeout in milliseconds.
+---@field convert_concurrency integer Process-wide FIFO conversion budget.
+---@field magick string ImageMagick executable.
+---@field rsvg string Preferred SVG renderer executable.
+---@field cache? string Converted PNG directory; resolve fills the default when absent.
+---@field root? string|fun(document: string): string? Reference/project base override.
+---@field resolve? fun(document: string, source: string): string? Optional local path resolver.
+---@field _treesitter_ready? fun() Internal continuation for an authoritative pending parse.
+
+---@class ImageToolsConfig
 local M = {}
 local defaults = {
   auto_preview = true,
@@ -44,6 +76,10 @@ local defaults = {
   rsvg = "rsvg-convert",
 }
 
+-- Deep-copy defaults/caller options, fill the cache path and reject invalid limits before Runtime
+-- replacement.
+---@param opts? table Partial overrides; caller-owned tables are not mutated.
+---@return ImageToolsOptions options Independent resolved configuration; invalid values raise an error.
 function M.resolve(opts)
   local options = vim.tbl_deep_extend("force", vim.deepcopy(defaults), vim.deepcopy(opts or {}))
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")

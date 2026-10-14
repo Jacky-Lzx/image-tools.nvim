@@ -13,12 +13,28 @@
 --   context, and detach releases entries; Tree-sitter indexing is managed
 --   separately.
 
+---@class ImageToolsSyntaxCacheEntry
+---@field tick integer Buffer text version used by the cached scanner context.
+---@field kind string Adapter/context identity.
+---@field through integer Number of prefix lines checkpointed, in 128-line blocks.
+---@field states table<integer, table> Scanner states after each checkpoint; index zero is initial context.
+---@field queries table<integer, any> Adapter-specific queried-row results, keyed by one-based row.
+---@field order integer[] Query insertion order for bounded eviction.
+
+---@class ImageToolsSyntaxCache
 local M = {}
 local entries, attached = {}, {}
 local block_size, max_queries = 128, 128
 
 -- Cache syntax only: resolution callbacks, project roots and filesystem checks
 -- still run for each request. Buffer edits invalidate every prefix checkpoint.
+-- Reuse a row result or scan from the nearest checkpoint with a deep-copied prefix state.
+---@param buf integer Buffer id; zero resolves to current.
+---@param row integer One-based target row.
+---@param kind string Scanner/adapter identity.
+---@param initial table Prefix state before any lines.
+---@param scan fun(lines: string[], state: table): any, table Returns target-row result and next prefix state.
+---@return any result Adapter-defined syntax result; paths/filesystem decisions remain live.
 function M.query(buf, row, kind, initial, scan)
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
   local tick = vim.api.nvim_buf_get_changedtick(buf)

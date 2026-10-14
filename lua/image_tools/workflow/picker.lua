@@ -21,12 +21,35 @@ local dependency_modules = {
 }
 
 local M = {}
+---@class ImageToolsPickerState: ImageToolsDrawState
+---@field buf integer Existing Snacks preview buffer.
+---@field win integer Existing Snacks preview window; the renderer does not create it.
+---@field item table Selected item identity used to reject late results.
+---@field view_width integer Current preview viewport columns.
+---@field view_height integer Current preview viewport rows.
+---@field top? integer Top alignment offset, set to zero on draw.
+---@field left? integer Left alignment offset, set to zero on draw.
+---@field render? ImageToolsRenderSession Owned media/placement session.
+---@class ImageToolsPickerRenderer
+---@field picker table Snacks picker whose pane and lifecycle callbacks are wrapped.
+---@field opts ImageToolsOptions Runtime transport/render settings.
+---@field dependencies table<string, table> Logical dependency overrides.
+---@field transfer ImageToolsTransfer View manager over the Runtime shared pixel pool.
+---@field state? ImageToolsPickerState Pending/visible selected image.
+---@field group? integer Renderer autocmd group; nil after destruction.
+---@field resize_pending? boolean Coalesced viewport refresh.
+---@field previous_close? function Original picker close callback restored when still owned.
+---@field previous_change? function Original picker change callback restored when still owned.
+---@field on_close? function Installed close wrapper.
+---@field on_change? function Installed selection wrapper.
 local Renderer = {}
 Renderer.__index = Renderer
 local serial = 0
 local live = setmetatable({}, { __mode = "k" })
 local ns = vim.api.nvim_create_namespace("image_tools.picker")
 
+-- Release the current image session/highlight and clear only the renderer placeholder content.
+---@return nil
 function Renderer:close()
   local state = self.state
   self.state = nil
@@ -49,6 +72,9 @@ function Renderer:close()
   end
 end
 
+-- Close rendering, release leases, restore still-owned picker callbacks and remove
+-- handlers/registry ownership.
+---@return nil
 function Renderer:destroy()
   self:close()
   self.transfer:clear()
@@ -68,6 +94,8 @@ function Renderer:destroy()
   end
 end
 
+-- Snapshot the weak live-renderer registry and destroy every tracked renderer.
+---@return nil
 function M.clear_all()
   local all = {}
   for renderer in pairs(live) do
@@ -78,6 +106,12 @@ function M.clear_all()
   end
 end
 
+-- Create an independent renderer over a Snacks-owned preview pane and wrap its lifecycle
+-- callbacks.
+---@param picker table Live Snacks picker.
+---@param opts ImageToolsOptions Runtime render/transport options.
+---@param dependencies? table<string, table> May include shared pixel_pool.
+---@return ImageToolsPickerRenderer renderer
 function M.new(picker, opts, dependencies)
   serial = serial + 1
   local self = setmetatable({ picker = picker, opts = opts, dependencies = dependencies or {} }, Renderer)
@@ -154,15 +188,27 @@ function M.new(picker, opts, dependencies)
   return self
 end
 
+-- Resolve an injected logical dependency first, then load the default subsystem module.
+---@param name string Logical key such as terminal, protocol, image or pdf.
+---@return table module
 function Renderer:dependency(name)
   return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
+-- Compute preview text columns after gutters and available pane rows.
+---@param win integer Live Snacks preview window.
+---@return integer width
+---@return integer height
 function Renderer:viewport(win)
   local info = vim.fn.getwininfo(win)[1] or {}
   return math.max(1, vim.api.nvim_win_get_width(win) - (info.textoff or 0)), vim.api.nvim_win_get_height(win)
 end
 
+-- Reset the existing pane and prepare/place the selected source with item/window authority and
+-- viewport upscaling.
+---@param ctx table Snacks preview context owning picker, preview, item, buffer and window.
+---@param path string Supported local image path.
+---@return nil
 function Renderer:show(ctx, path)
   self:close()
   ctx.preview:reset()
@@ -175,8 +221,11 @@ function Renderer:show(ctx, path)
     return
   end
   local view_width, view_height = self:viewport(ctx.win)
+  ---@type ImageToolsPickerState
   local state = { buf = ctx.buf, win = ctx.win, item = ctx.item, view_width = view_width, view_height = view_height }
   self.state = state
+  -- Reject completion after selection, pane ownership or picker lifetime changes.
+  ---@return boolean valid
   local function current()
     return self.state == state
       and not ctx.picker.closed
@@ -185,6 +234,10 @@ function Renderer:show(ctx, path)
       and vim.api.nvim_buf_is_valid(state.buf)
       and vim.api.nvim_win_get_buf(state.win) == state.buf
   end
+
+  -- Release image state before presenting the failure through Snacks preview notifications.
+  ---@param err string Preparation/placement/drawing error.
+  ---@return nil
   local function fail(err)
     self:close()
     ctx.preview:notify(err, "error", { item = false })
@@ -192,12 +245,18 @@ function Renderer:show(ctx, path)
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(path, self.opts, {
     current = current,
+    -- A late result may close only its own state, never a newer replacement request.
+    ---@return nil
     stale = function()
       if self.state == state then
         self:close()
       end
     end,
     error = fail,
+    -- Compute cells after preparation using the current owner/pane geometry.
+    ---@param image ImageToolsImage
+    ---@return integer width
+    ---@return integer height
     size = function(image)
       state.view_width, state.view_height = self:viewport(state.win)
       return require("image_tools.render.geometry").fit(
@@ -208,6 +267,11 @@ function Renderer:show(ctx, path)
         true
       )
     end,
+    -- Materialize placeholders only after the terminal acknowledges this independent placement.
+    ---@param entry ImageToolsPlacement
+    ---@param width integer Terminal columns.
+    ---@param height integer Terminal rows.
+    ---@return nil
     draw = function(entry, width, height)
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
       state.top, state.left = 0, 0
@@ -229,6 +293,12 @@ function Renderer:show(ctx, path)
 end
 
 -- Public custom previewer: uses picker lifecycle, not cursor-line ownership.
+-- Render supported images independently; close stale image state and delegate other items to
+-- Snacks file preview.
+---@param ctx table Snacks preview callback context.
+---@param opts ImageToolsOptions Runtime settings.
+---@param dependencies? table<string, table> Shared pool and logical overrides.
+---@return nil
 function M.preview(ctx, opts, dependencies)
   local path = Snacks.picker.util.path(ctx.item)
   if path and require("image_tools.media").supported(path) then
@@ -246,6 +316,13 @@ function M.preview(ctx, opts, dependencies)
   end
 end
 
+-- Capture import authority, open a format-filtered file picker and publish confirmed selections
+-- after picker closure.
+---@param insertion ImageToolsInsertOptions Captured insertion/reference options.
+---@param opts? table Overrides for Snacks file picker configuration.
+---@param previewer function Independent image preview callback.
+---@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.
+---@return table? picker Nil when format validation or picker construction fails.
 function M.pick(insertion, opts, previewer, callback)
   local I = require("image_tools.workflow.insert")
   local context = insertion.context or I.capture(insertion)
@@ -280,6 +357,9 @@ function M.pick(insertion, opts, previewer, callback)
     end
   end
   config.actions = config.actions or {}
+  -- Capture selected paths before closing the pane, then import at the original document extmark.
+  ---@param picker table
+  ---@return nil
   config.actions.confirm = function(picker)
     local paths = {}
     for _, item in ipairs(picker:selected({ fallback = true })) do
