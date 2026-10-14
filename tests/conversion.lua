@@ -216,7 +216,7 @@ vim.system = function(command, settings, callback)
   end)
 end
 opts = options("burst")
-require("image_tools.conversion_queue").configure(1)
+require("image_tools.media.conversion_queue").configure(1)
 completed = 0
 for i = 1, 5 do
   local input = tmp .. "/burst-" .. i .. ".jpg"
@@ -230,6 +230,6 @@ await(function()
   return completed == 5
 end)
 check(burst_launches == 5 and peak == 1, "Five actual distinct converters obey configured concurrency")
-check(require("image_tools.conversion_queue").status().active == 0, "All actual workers release slots")
+check(require("image_tools.media.conversion_queue").status().active == 0, "All actual workers release slots")
 vim.system = original
 print("conversion sharing: " .. checks .. " assertions passed")

@@ -13,7 +13,7 @@ function M.paste(opts, callback, dependencies)
       end
     end
 
-  local I = require("image_tools.insert")
+  local I = require("image_tools.workflow.insert")
   local context = opts.context or I.capture(opts)
   opts = vim.tbl_extend("force", opts, { context = context })
   local state = {}
@@ -115,7 +115,7 @@ function M.paste(opts, callback, dependencies)
       return
     end
     local output = state.directory .. "/clipboard." .. format
-    state.cancel_conversion = require("image_tools.conversion_queue").run(
+    state.cancel_conversion = require("image_tools.media.conversion_queue").run(
       {
         magick,
         "-limit",

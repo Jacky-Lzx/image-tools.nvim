@@ -9,9 +9,12 @@ Preview windows use Unicode placeholders so Neovim controls clipping and overlap
 - Neovim 0.12+ with `termguicolors` enabled (APC graphics response handling).
 - Kitty 0.28+ in a direct terminal session.
   Other terminals, multiplexers, SSH and GUI frontends have not been validated.
-- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF, PDF and SVG.
-  - PDF preview shows the first page; ImageMagick needs its Ghostscript delegate for PDF.
-  - SVG prefers `rsvg-convert`, with ImageMagick MSVG as fallback.
+  `TMUX`/`ZELLIJ` sessions are rejected even with `force = true`; that option only
+  bypasses terminal-name detection.
+- ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF and PDF.
+  - Floating and picker PDF previews show the first page; file buffers support paging.
+    ImageMagick needs its Ghostscript delegate for PDF.
+  - SVG uses `rsvg-convert` when available; otherwise it requires ImageMagick MSVG.
   - GIF previews show the first frame.
   - PNG preview does not require an external converter.
 
@@ -41,15 +44,21 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImagePreviewToggle` toggles automatic current-line previews.
 - `:checkhealth image_tools` checks the terminal and conversion tools.
 
+Health tool detection uses the standard executable names (`magick`, `pdfinfo`,
+`rsvg-convert`, `gs`, `pngpaste`); configured executable overrides apply to the
+corresponding operations.
+
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
-`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`.
+`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
+`open(path)`, `page(n)`, `next_page(delta)`, `reload()`.
 
 `require("image_tools")` alone registers no handlers.
-Paths supplied to `preview` are relative to cwd. Markdown references are relative
-to the document; changing cwd does not change their meaning. An optional
-`root` replaces the document directory, or `resolve(document, source)` can
-return a custom absolute path. Neither path searching nor network access occurs.
+Paths supplied to `preview` are relative to cwd.
+Markdown references are relative to the document; changing cwd does not change their meaning.
+An optional `root` replaces the document directory, or `resolve(document, source)` can return a custom absolute path.
+LaTeX additionally searches literal `graphicspath` directories and tries omitted
+extensions. Remote image references are rejected; the plugin does not fetch them.
 
 Automatic preview starts when the cursor enters an image line, including when
 it is outside the image link. On a line with multiple images, the reference under
@@ -58,13 +67,14 @@ all references, the first image is used. Moving within the selected reference,
 entering Insert mode or editing surrounding text keeps its preview and pending
 conversion while the selected source stays unchanged.
 
-Moving to another line closes the previous preview immediately and previews
-the new line if it contains an image. Replacing or removing the image reference
+Leaving the selected reference's row range closes the previous preview and
+previews the new row if it contains an image. Markdown and Typst references cover
+one row; LaTeX references can cover several. Replacing or removing the reference
 updates or closes the preview. Window/buffer switching, resizing, scrolling,
 colorscheme changes, suspend and exit clean the previous preview; automatic
 preview refreshes the current line after layout changes. Stale asynchronous
-requests cannot restore a preview after the cursor leaves its line. Only image
-ids allocated by this plugin are deleted. Closing hides its placement; recently
+requests cannot restore a preview after the cursor leaves its reference range.
+Only image ids allocated by this plugin are deleted. Closing hides its placement; recently
 uploaded pixels remain cached for reuse. Exiting, suspending and repeated setup
 release all retained terminal images and cancel pending requests.
 
@@ -88,6 +98,7 @@ require("image_tools").setup({
   border = "rounded",
   cell_size = { width = 10, height = 20 }, -- fallback when ioctl has no pixel size
   magick = "magick",
+  rsvg = "rsvg-convert",
   convert_timeout = 10000,
   convert_concurrency = 2, -- simultaneous converter processes
   max_bytes = 32 * 1024 * 1024,
@@ -106,14 +117,20 @@ status line.
 The position is independent of the cursor and split layout.
 The default `"cursor"` places it near the cursor.
 
+`buffer.formats` defaults to `png`, `jpg`, `jpeg`, `webp`, `avif`, `heic`, `gif`,
+`bmp`, `tif`, `tiff` and `pdf`. SVG is available through explicit opening, but is
+excluded from automatic file interception by default.
+
 Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size and nanosecond mtime/ctime.
-Preview PNGs are capped at 1920x1080; originals are never modified.
+Converted previews fit within 1920x1080; native PNGs retain their dimensions and
+are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
+picker and file-buffer images can upscale to fit their viewport. Originals are never modified.
 Converted disk images are managed asynchronously by `disk_cache` limits.
 Unused images are removed in access order; currently used images are protected
 and may temporarily exceed the limits. Set `disk_cache.enabled = false` to
 disable automatic eviction. `:ImageCacheClear` clears unused conversions manually.
 Cleanup selects hash-named PNGs directly inside the configured cache directory.
-Source directories, other filenames, symbolic links and conversion temporaries
+Subdirectories, other filenames, symbolic links and conversion temporaries
 are excluded. After a restart, file modification times provide the
 initial eviction order until images are accessed again.
 
@@ -124,7 +141,7 @@ Only the absolute PNG filename is Base64-encoded and sent to the terminal; Lua
 reads 33 header bytes and the 12-byte end chunk for dimensions and basic checks.
 Kitty's upload acknowledgement confirms decoding. File errors/timeouts fall back
 to direct transmission (`t=d`), which sends the PNG bytes in Base64 chunks.
-When SSH environment variables are present, auto uses direct transmission;
+When `SSH_CONNECTION` or `SSH_TTY` is nonempty, auto uses direct transmission;
 actual SSH sessions and multiplexers have not been validated.
 
 `"file"` forces file transmission and reports failures. `"direct"` forces the
@@ -153,7 +170,7 @@ Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
 Reference-style images, Obsidian wikilinks, multiline Markdown image calls, remote URLs
-and inline rendering are future work.
+and inline rendering inside document text are future work.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the
@@ -162,8 +179,10 @@ source without copying. `insert(path_or_paths, opts, callback)` also accepts a b
 `insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after",
 prompt_for_file_name = false }` configures insertion. `directory` and `root` may
 be functions of the source document path. The default root is the document's
-directory; set insertion `root` for a project asset directory. Links remain relative
-to the document (or preview `root`). Per-call `filename` overrides the basename,
+directory; set insertion `root` for a project asset directory. Markdown links use
+the document directory or preview `root`; LaTeX links also honor `b:vimtex.root`
+when no preview root is set. Typst links always use the document directory.
+Per-call `filename` overrides the basename,
 `alt` sets Markdown alt text, and `mode = "reference"` avoids importing. Strategies
 are `insert_before`, `insert_after`, `insert_line_before`, `insert_line_after`.
 
@@ -171,9 +190,10 @@ The returned function cancels pending insertion. Prompts retain the original buf
 and an extmark position across edits and window switches. Batches insert in order
 as one text edit; filename collisions use numeric suffixes and never overwrite.
 Cancellation or insertion failure rolls back newly imported files. Text undo retains
-assets for reuse. Closing/renaming the source buffer or changing its filetype/read-only
-state causes rollback. Imports preserve original formats and bytes; conversion is
-currently for preview only.
+assets for reuse. Unloading/deleting or renaming the source buffer, changing its
+filetype, or disabling `modifiable` causes rollback. Setting `readonly` alone
+does not prevent insertion. File imports preserve original formats and bytes;
+clipboard paste can separately request format conversion.
 
 ## Development
 
@@ -183,6 +203,10 @@ When Python 3 is available, the runner also launches a real Neovim TUI in a PTY
 and uses a protocol responder to check file/direct transmission, fallback,
 terminal eviction, replies, cache reuse, true-color ids, placeholders and cleanup.
 Actual terminal rendering must additionally be checked in Kitty.
+
+TUI assertions accept semicolon/colon RGB encodings and check actual image and
+placement colors. Underline-color support can come from terminfo or an answered
+terminal capability query; a query is not required when terminfo provides it.
 
 The runner uses a fresh Neovim process for each Lua test, without user config or
 automatically loaded plugins. It isolates generated files, caches and logs in a
@@ -221,6 +245,13 @@ protocol traffic, while visible pixels still require a real Kitty check.
 clipboard; the automatic runner only exercises simulated clipboard commands.
 
 Protocol reference: https://sw.kovidgoyal.net/kitty/graphics-protocol/
+
+Implementation modules are grouped under `document/`, `media/`, `render/`,
+`terminal/` and `workflow/`. The public API, configuration, runtime coordinator,
+commands, health entry and media facade remain at the package root. Internal
+module imports use the grouped paths; dependency injection keeps its logical
+keys. See [module architecture](doc/architecture.md) for the file layout and
+ownership boundaries.
 
 ## macOS clipboard
 
@@ -266,17 +297,18 @@ or parsing is unavailable (including syntax errors in preceding context),
 recognition falls back to the existing cached Lua scanner. A valid syntax tree
 with no supported reference does not trigger fallback.
 Large parses yield to Neovim's event loop. Pending parses do not trigger a Lua
-scan; completion only resumes previews for the same buffer, window, line and
-text version. Capture queries stop at the requested line, within `max_scan_lines`.
+scan. Completion requires the same buffer, window, byte column and text version;
+movement between rows of the same pending LaTeX reference is allowed.
+Capture traversal advances through the requested row; LaTeX argument decoding
+can look ahead to the reference's end, within its limits and `max_scan_lines`.
 Edits invalidate the affected suffix and any earlier ranges reported by the
 parser, preserving valid prefix results.
 Set `treesitter = false` to always use the Lua scanner. Project roots, custom
 resolvers and file checks remain live. Markdown uses its existing scanner.
-`status().treesitter` reports parse/index timing, index hits, queried rows and
+`status().treesitter` reports parse/index timing, index hits, indexed rows and
 fallback reasons (`parser_unavailable`, `query_error`, `parse_error`, `index_error`,
 `error_context`). `:checkhealth image_tools` shows these diagnostics without
 starting a parser. Parse timing includes time yielded to the event loop.
-
 
 Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
 literal `\includegraphics[options]{path}` (including starred form and
@@ -302,9 +334,10 @@ recognition, including compatibility decoding for partial grammar nodes. Lookahe
 also respects `max_scan_lines`. Lua fallback uses a bounded local search plus
 cached prefix context. Editing any covered row invalidates the full reference.
 Unclosed or oversized commands and filenames split over lines are not guessed.
-Literal `\graphicspath{{dir/}{other/}}` in preceding lines and omitted extensions
-(PDF/PNG/JPG/JPEG) are resolved. Resolution uses `root` (string/function), then an
-existing `b:vimtex.root`, then the document directory. No VimTeX dependency is added.
+Single-line literal `\graphicspath{{dir/}{other/}}` declarations in preceding
+context and omitted extensions (PDF/PNG/JPG/JPEG) are resolved. Resolution uses
+`root` (string/function), then an existing `b:vimtex.root`, then the document
+directory. No VimTeX dependency is added.
 Tree-sitter determines command locations and excluded contexts; literal argument
 decoding remains shared with the Lua scanner for starred and `\detokenize` forms
 that LaTeX grammars do not consistently represent. Formula preview is not included.
@@ -351,14 +384,17 @@ The file keeps its named, listed buffer, with a filename/page header and a Kitty
 canvas bound to each regular window showing it. The image fits that window while
 preserving its aspect ratio and stays at the top-left beneath the header. Splits
 have independent placements; resizing refits them, switching buffers/tabs hides
-the old canvas, and closing releases its placement; suspending/exiting frees the shared terminal data. Returning
+the old canvas, and closing releases its placement. PDF page selection is shared
+by splits of the same buffer. Suspending/exiting frees the shared terminal data. Returning
 to a hidden file buffer restores its preview. Original files are never replaced by
 placeholder text: the view is nonmodifiable, readonly and `nofile`, so `:write!`
 cannot overwrite them. Modified source buffers are not automatically taken over.
 
 PDF buffers need ImageMagick with Ghostscript, plus Poppler's `pdfinfo`
 (`brew install poppler`). `]p` / `[p` move forward/backward (counts supported).
-`:ImagePage 3` selects a page; `:ImageNextPage` / `:ImagePreviousPage` move a page.
+`:ImagePage 3` selects a page; `:ImageNextPage` / `:ImagePreviousPage` move a page
+(counts supported). Relative page movement clamps to the first/last page;
+`page(n)` and `:ImagePage N` reject out-of-range values.
 Page bounds come from actual PDF metadata. Conversion/transmission caches retain
 pages separately, so revisiting an unchanged page can reuse its uploaded pixels.
 `r` / `:ImageReload` reloads the current file and refreshes metadata. Source changes
@@ -385,5 +421,7 @@ placement id, encoded in the placeholder underline color, so differently sized
 splits reuse one upload. Closing a view releases its placement; other active
 placements keep the pixels pinned. Inactive pixels use the shared `terminal_cache`
 LRU limits. Setup replacement, suspension and explicit cache clearing release
-the runtime's shared data. `status().terminal_cache` reports runtime-wide totals
-and active `placements`; per-buffer view cache statistics refer to that same pool.
+the runtime's shared data. Explicit clearing also pauses file-buffer canvases
+until buffer/tab entry, resume, `:ImageOpen`, or `:ImageReload` refreshes them.
+`status().terminal_cache` reports runtime-wide totals and active `placements`;
+per-buffer view cache statistics refer to that same pool.

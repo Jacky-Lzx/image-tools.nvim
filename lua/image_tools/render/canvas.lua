@@ -1,15 +1,20 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  protocol = "image_tools.terminal.protocol",
+}
+
 local M = {}
 M.__index = M
 local ns = vim.api.nvim_create_namespace("image_tools.canvas")
 
 function M.new(opts, dependencies)
   local self = setmetatable({ opts = opts, dependencies = dependencies or {} }, M)
-  self.transfer = require("image_tools.transfer").new(opts, self.dependencies)
+  self.transfer = require("image_tools.terminal.transfer").new(opts, self.dependencies)
   return self
 end
 
 function M:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 function M:close()
@@ -31,7 +36,7 @@ function M:close()
     vim.api.nvim_buf_delete(state.buf, { force = true })
   end
 
-  require("image_tools.placeholder").clear(state)
+  require("image_tools.render.placeholder").clear(state)
 end
 
 function M:destroy()
@@ -89,7 +94,7 @@ function M:open(meta, owner_buf, owner_win, callback)
     callback(err)
   end
 
-  state.render = require("image_tools.render_session").new(self:dependency("image"), self.transfer)
+  state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(meta.path, vim.tbl_extend("force", self.opts, { page = meta.page }), {
     current = current,
     stale = function()
@@ -101,7 +106,7 @@ function M:open(meta, owner_buf, owner_win, callback)
     size = function(image)
       width, height, col, row = M.viewport(owner_win)
       state.view_width, state.view_height, state.col, state.row = width, height, col, row
-      return require("image_tools.geometry").fit(
+      return require("image_tools.render.geometry").fit(
         image,
         terminal.cell_size(self.opts.cell_size),
         math.min(width, protocol.max_cells),
@@ -113,7 +118,7 @@ function M:open(meta, owner_buf, owner_win, callback)
       state.buf = vim.api.nvim_create_buf(false, true)
       vim.bo[state.buf].bufhidden, vim.bo[state.buf].filetype = "wipe", "image_tools_canvas"
       vim.bo[state.buf].swapfile = false
-      require("image_tools.placeholder").draw(state, ns, "ImageToolsCanvas_", entry, width, height, protocol)
+      require("image_tools.render.placeholder").draw(state, ns, "ImageToolsCanvas_", entry, width, height, protocol)
       vim.bo[state.buf].modifiable, vim.bo[state.buf].modified = false, false
       state.win = vim.api.nvim_open_win(state.buf, false, {
         relative = "win",

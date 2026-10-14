@@ -14,7 +14,10 @@ picker renderers, autocmd group, and commands. Its methods use instance fields;
 callbacks capture their runtime instead of consulting mutable module state.
 Refresh requests are coalesced and ignored once their instance is disposed.
 Preview/conversion and buffer metadata cancellation remain in their respective
-services; destroying the Runtime delegates cleanup to them.
+services; destroying the Runtime delegates cleanup to them. Render controllers
+live in `render/`, insertion/clipboard/picker services in `workflow/`, and cache
+and conversion services in `media/`. Default dependencies resolve through these
+module paths; injected dependency keys remain unchanged.
 
 `commands.lua` registers the existing commands against that Runtime. Destruction
 marks the instance disposed before deleting handlers or closing windows, preventing
@@ -34,4 +37,13 @@ Only a selection `miss` falls back to the first reference on the line; errors in
 an explicitly selected destination remain errors. Horizontal movement rechecks
 selection, while an unchanged source retains its window and preparation handle.
 Pending syntax requests capture the column as well as buffer/window/version and
-range, so delayed completion resumes the most recent selected reference.
+range. Moving between rows of that LaTeX range keeps a pending request valid when
+the byte column is unchanged. Selection changes invalidate the old request;
+delayed callbacks cannot restore a reference after its range is left.
+
+`close()` closes only the floating preview. `clear_cache()` also destroys picker
+renderers, closes file-buffer canvases and clears the shared pixel pool. File
+buffers stay attached but paused until buffer/tab entry, resume, explicit opening
+or reload refreshes them. Disk conversions are independent; use
+`clear_disk_cache(callback)` / `:ImageCacheClear` to remove unused disk outputs
+manually, in addition to automatic disk-cache eviction.

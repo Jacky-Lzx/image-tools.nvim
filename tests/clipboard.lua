@@ -5,7 +5,7 @@ local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
 local script = tmp .. "/fake pngpaste"
 vim.fn.writefile({ "#!/bin/sh", 'cp "$IMAGE_TOOLS_ROOT/tests/fixture.png" "$1"' }, script)
 vim.uv.fs_chmod(script, 493)
-local C = require("image_tools.clipboard")
+local C = require("image_tools.workflow.clipboard")
 local count = 0
 local function check(value, msg)
   count = count + 1
@@ -66,7 +66,7 @@ check(#vim.fn.glob(tmp .. "/cancel/*", false, true) == 0, "Cancelled paste produ
 vim.ui.input = original
 -- Clipboard format conversion shares the preview process budget and can be
 -- cancelled while queued, before any converter process or imported file exists.
-local Q = require("image_tools.conversion_queue")
+local Q = require("image_tools.media.conversion_queue")
 Q.configure(1)
 local system, held, launches = vim.system, nil, 0
 vim.system = function(command, settings, callback)

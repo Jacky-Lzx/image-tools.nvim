@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local Prepare, Disk = require("image_tools.media.prepare"), require("image_tools.disk_cache")
+local Prepare, Disk = require("image_tools.media.prepare"), require("image_tools.media.disk_cache")
 local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/media-lease"
 vim.fn.mkdir(tmp, "p")
 local source = tmp .. "/source.jpg"

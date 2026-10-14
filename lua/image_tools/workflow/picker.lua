@@ -1,3 +1,8 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  protocol = "image_tools.terminal.protocol",
+}
+
 local M = {}
 local Renderer = {}
 Renderer.__index = Renderer
@@ -14,7 +19,7 @@ function Renderer:close()
   if state.render then
     state.render:close()
   end
-  require("image_tools.placeholder").clear(state)
+  require("image_tools.render.placeholder").clear(state)
   if vim.api.nvim_buf_is_valid(state.buf) then
     local marks = vim.api.nvim_buf_get_extmarks(state.buf, ns, 0, -1, { limit = 1 })
     vim.api.nvim_buf_clear_namespace(state.buf, ns, 0, -1)
@@ -59,7 +64,7 @@ end
 function M.new(picker, opts, dependencies)
   serial = serial + 1
   local self = setmetatable({ picker = picker, opts = opts, dependencies = dependencies or {} }, Renderer)
-  self.transfer = require("image_tools.transfer").new(opts, self.dependencies)
+  self.transfer = require("image_tools.terminal.transfer").new(opts, self.dependencies)
   live[self] = true
   self.group = vim.api.nvim_create_augroup("image_tools.picker." .. serial, { clear = true })
   vim.api.nvim_create_autocmd("WinClosed", {
@@ -133,7 +138,7 @@ function M.new(picker, opts, dependencies)
 end
 
 function Renderer:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 function Renderer:viewport(win)
@@ -167,7 +172,7 @@ function Renderer:show(ctx, path)
     self:close()
     ctx.preview:notify(err, "error", { item = false })
   end
-  state.render = require("image_tools.render_session").new(self:dependency("image"), self.transfer)
+  state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(path, self.opts, {
     current = current,
     stale = function()
@@ -178,7 +183,7 @@ function Renderer:show(ctx, path)
     error = fail,
     size = function(image)
       state.view_width, state.view_height = self:viewport(state.win)
-      return require("image_tools.geometry").fit(
+      return require("image_tools.render.geometry").fit(
         image,
         terminal.cell_size(self.opts.cell_size),
         math.min(state.view_width, protocol.max_cells),
@@ -189,7 +194,7 @@ function Renderer:show(ctx, path)
     draw = function(entry, width, height)
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
       state.top, state.left = 0, 0
-      require("image_tools.placeholder").draw(
+      require("image_tools.render.placeholder").draw(
         state,
         ns,
         "ImageToolsPicker_",
@@ -225,7 +230,7 @@ function M.preview(ctx, opts, dependencies)
 end
 
 function M.pick(insertion, opts, previewer, callback)
-  local I = require("image_tools.insert")
+  local I = require("image_tools.workflow.insert")
   local context = insertion.context or I.capture(insertion)
   insertion = vim.tbl_extend("force", insertion, { context = context })
   local format = require("image_tools.document").adapter(context.filetype)

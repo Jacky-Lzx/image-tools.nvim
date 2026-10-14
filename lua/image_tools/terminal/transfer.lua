@@ -3,7 +3,8 @@ local M = {}
 M.__index = M
 
 function M.new(opts, dependencies)
-  local pool = dependencies and dependencies.pixel_pool or require("image_tools.pixel_pool").new(opts, dependencies)
+  local pool = dependencies and dependencies.pixel_pool
+    or require("image_tools.terminal.pixel_pool").new(opts, dependencies)
   return setmetatable(
     { pool = pool, handle = pool:manager(), owns_pool = not (dependencies and dependencies.pixel_pool) },
     M

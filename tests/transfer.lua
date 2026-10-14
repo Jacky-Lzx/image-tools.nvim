@@ -12,7 +12,7 @@ end
 local function await(predicate)
   assert(vim.wait(5000, predicate, 5), "asynchronous operation timed out")
 end
-local protocol, reader = require("image_tools.protocol"), require("image_tools.image")
+local protocol, reader = require("image_tools.terminal.protocol"), require("image_tools.image")
 local opts = {
   transport = "auto",
   terminal_timeout = 100,
@@ -152,7 +152,7 @@ local function harness(overrides)
       return function() end
     end,
   }
-  local manager = require("image_tools.transfer").new(
+  local manager = require("image_tools.terminal.transfer").new(
     vim.tbl_deep_extend("force", vim.deepcopy(opts), overrides or {}),
     { terminal = wire }
   )

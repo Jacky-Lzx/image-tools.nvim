@@ -15,7 +15,7 @@ end
 local api = require("image_tools")
 eq(api.status().configured, false, "require must not setup")
 eq(vim.fn.exists(":ImagePreview"), 0)
-local document, protocol = require("image_tools.document"), require("image_tools.protocol")
+local document, protocol = require("image_tools.document"), require("image_tools.terminal.protocol")
 local opts = {
   max_bytes = 32 * 1024 * 1024,
   max_dimension = 16384,
@@ -162,15 +162,15 @@ local loader = {
   end,
 }
 local preview_opts = vim.tbl_extend("force", opts, { max_width = 60, max_height = 30, border = "rounded" })
-local preview = require("image_tools.preview").new(preview_opts, { terminal = transport, image = loader })
-local width, height = require("image_tools.preview").fit(
+local preview = require("image_tools.render.preview").new(preview_opts, { terminal = transport, image = loader })
+local width, height = require("image_tools.render.preview").fit(
   { width = 1600, height = 1000 },
   { width = 10, height = 20 },
   40,
   30
 )
 eq({ width, height }, { 40, 13 })
-local fit = require("image_tools.preview").fit
+local fit = require("image_tools.render.preview").fit
 local function fitted(image, max_width, max_height, upscale)
   return { fit(image, { width = 10, height = 20 }, max_width, max_height, upscale) }
 end
@@ -216,7 +216,7 @@ eq(preview.state, nil, "buffer switches must invalidate a pending preview")
 
 -- Headless Neovim exposes anchor coordinates; the TUI test additionally checks
 -- the resolved border position after the window is actually drawn.
-local corner = require("image_tools.preview").new(
+local corner = require("image_tools.render.preview").new(
   vim.tbl_extend("force", preview_opts, { position = "bottom_right" }),
   { terminal = transport, image = loader }
 )
@@ -266,7 +266,7 @@ eq(api.status().window, nil)
 local real_transport = require("image_tools.terminal")
 -- The original implementation is loaded separately because the preview suite
 -- replaces only the module transport, not Neovim's environment APIs.
-local terminal = dofile(root .. "/lua/image_tools/terminal.lua")
+local terminal = dofile(root .. "/lua/image_tools/terminal/init.lua")
 eq(terminal.supports({}), false, "headless operation must not write graphics")
 local uis = vim.api.nvim_list_uis
 vim.api.nvim_list_uis = function()

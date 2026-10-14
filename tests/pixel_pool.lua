@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local Pool, config = require("image_tools.pixel_pool"), require("image_tools.config")
+local Pool, config = require("image_tools.terminal.pixel_pool"), require("image_tools.config")
 local count = 0
 local function check(value, message)
   count = count + 1
@@ -156,7 +156,7 @@ pool:clear()
 -- Transfer construction has one interface, and shared managers release only
 -- their own placements rather than clearing another view's cached pixels.
 pool, commands = harness()
-local Transfer = require("image_tools.transfer")
+local Transfer = require("image_tools.terminal.transfer")
 a = Transfer.new(config.resolve(), { pixel_pool = pool })
 b = Transfer.new(config.resolve(), { pixel_pool = pool })
 check(getmetatable(a) == Transfer and getmetatable(b) == Transfer, "Transfer constructors always return a manager")

@@ -1,5 +1,6 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local D, I, Picker = require("image_tools.document"), require("image_tools.insert"), require("image_tools.picker")
+local D, I, Picker =
+  require("image_tools.document"), require("image_tools.workflow.insert"), require("image_tools.workflow.picker")
 local tmp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/format-policy"
 vim.fn.mkdir(tmp .. "/chapter", "p")
 local source = tmp .. "/image space.png"

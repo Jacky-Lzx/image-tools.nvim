@@ -110,7 +110,7 @@ function M.prepare(path, opts, callback, metadata_only)
         })
       end
 
-      process = require("image_tools.conversion_queue").run(
+      process = require("image_tools.media.conversion_queue").run(
         command,
         { text = true, timeout = opts.convert_timeout },
         function(result)
@@ -138,7 +138,7 @@ function M.prepare(path, opts, callback, metadata_only)
                   err = rename_err
                 else
                   image.path = output
-                  require("image_tools.disk_cache").published(opts, output)
+                  require("image_tools.media.disk_cache").published(opts, output)
                   local final_stat = uv.fs_stat(output)
                   if final_stat then
                     image.key = version.key(output, final_stat)
@@ -154,7 +154,7 @@ function M.prepare(path, opts, callback, metadata_only)
         end
       )
     end
-    cache_release = require("image_tools.disk_cache").acquire(opts, output, function()
+    cache_release = require("image_tools.media.disk_cache").acquire(opts, output, function()
       if not cancelled then
         load()
       end

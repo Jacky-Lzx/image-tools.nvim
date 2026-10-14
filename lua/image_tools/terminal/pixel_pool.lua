@@ -1,3 +1,8 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  protocol = "image_tools.terminal.protocol",
+}
+
 local Pool, Handle = {}, {}
 Pool.__index, Handle.__index = Pool, Handle
 local placement = 0
@@ -7,11 +12,11 @@ local function next_placement()
 end
 function Pool.new(options, dependencies)
   dependencies = vim.tbl_extend("force", {}, dependencies or {})
-  local uploader = require("image_tools.upload").new(options, dependencies)
+  local uploader = require("image_tools.terminal.upload").new(options, dependencies)
   return setmetatable({ uploader = uploader, opts = options, dependencies = dependencies, states = {}, hits = 0 }, Pool)
 end
 function Pool:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 function Pool:manager()
   return setmetatable({ pool = self, leases = {} }, Handle)

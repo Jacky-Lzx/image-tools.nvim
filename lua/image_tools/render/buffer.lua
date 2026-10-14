@@ -1,3 +1,8 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  pdf = "image_tools.media.pdf",
+}
+
 local M = {}
 M.__index = M
 local window_options = {
@@ -17,7 +22,7 @@ function M.new(opts, dependencies)
 end
 
 function M:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 function M:header(buf)
@@ -256,14 +261,18 @@ function M:sync()
           for name, value in pairs(window_options) do
             saved[name], vim.wo[win][name] = vim.wo[win][name], value
           end
-          view = { buf = buf, saved = saved, canvas = require("image_tools.canvas").new(self.opts, self.dependencies) }
+          view = {
+            buf = buf,
+            saved = saved,
+            canvas = require("image_tools.render.canvas").new(self.opts, self.dependencies),
+          }
           self.views[win] = view
         end
 
         if meta.error or (meta.pdf and not meta.pages) then
           view.canvas:close()
         else
-          local width, height, col, row = require("image_tools.canvas").viewport(win)
+          local width, height, col, row = require("image_tools.render.canvas").viewport(win)
           local state = view.canvas.state
 
           if
@@ -413,7 +422,7 @@ function M:setup()
           vim.api.nvim_set_hl(
             0,
             state.highlight,
-            require("image_tools.protocol").highlight(state.id, state.placement_id)
+            require("image_tools.terminal.protocol").highlight(state.id, state.placement_id)
           )
         end
       end

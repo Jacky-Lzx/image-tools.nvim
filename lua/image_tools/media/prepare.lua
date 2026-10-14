@@ -1,6 +1,6 @@
 local M = {}
 local uv = vim.uv
-local disk = require("image_tools.disk_cache")
+local disk = require("image_tools.media.disk_cache")
 local version = require("image_tools.media.file_version")
 local convertible = require("image_tools.media.formats").formats
 local pending = {}

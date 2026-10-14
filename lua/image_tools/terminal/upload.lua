@@ -1,3 +1,8 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  protocol = "image_tools.terminal.protocol",
+}
+
 local M = {}
 M.__index = M
 local next_id = math.floor(vim.uv.hrtime() % 0xEFFFFF) + 0x100000
@@ -15,7 +20,7 @@ function M.new(opts, dependencies)
 end
 
 function M:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 function M:discard(entry)

@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local I = require("image_tools.insert")
+local I = require("image_tools.workflow.insert")
 local tmp = assert(vim.env.IMAGE_TOOLS_TEST_TMP) .. "/insert"
 vim.fn.mkdir(tmp, "p")
 local fixture = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"

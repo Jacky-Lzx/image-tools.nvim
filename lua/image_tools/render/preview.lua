@@ -1,18 +1,23 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  protocol = "image_tools.terminal.protocol",
+}
+
 local M = {}
 M.__index = M
 
 function M.new(opts, dependencies)
   local self = setmetatable({ opts = opts, dependencies = dependencies or {}, generation = 0 }, M)
-  self.transfer = require("image_tools.transfer").new(opts, self.dependencies)
+  self.transfer = require("image_tools.terminal.transfer").new(opts, self.dependencies)
   return self
 end
 
 function M:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 -- Retain the existing helper while all renderers depend on geometry directly.
-M.fit = require("image_tools.geometry").fit
+M.fit = require("image_tools.render.geometry").fit
 
 function M:close()
   self.generation = self.generation + 1
@@ -27,7 +32,7 @@ function M:close()
   if state.win and vim.api.nvim_win_is_valid(state.win) then
     vim.api.nvim_win_close(state.win, true)
   end
-  require("image_tools.placeholder").clear(state)
+  require("image_tools.render.placeholder").clear(state)
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     vim.api.nvim_buf_delete(state.buf, { force = true })
   end
@@ -67,7 +72,7 @@ function M:open(path, options)
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   self.state = state
-  state.render = require("image_tools.render_session").new(self:dependency("image"), self.transfer)
+  state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(path, self.opts, {
     current = function()
       return self.generation == generation
@@ -92,7 +97,7 @@ function M:open(path, options)
       end
     end,
     size = function(image)
-      return require("image_tools.geometry").fit(
+      return require("image_tools.render.geometry").fit(
         image,
         terminal.cell_size(self.opts.cell_size),
         math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - 4)),
@@ -135,7 +140,7 @@ function M:open(path, options)
       vim.wo[state.win].conceallevel = 0
       vim.wo[state.win].list = false
       vim.wo[state.win].spell = false
-      require("image_tools.placeholder").draw(
+      require("image_tools.render.placeholder").draw(
         state,
         vim.api.nvim_create_namespace("image_tools.preview"),
         "ImageTools_",

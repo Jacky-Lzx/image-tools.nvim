@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local api, disk, health = require("image_tools"), require("image_tools.disk_cache"), require("image_tools.health")
+local api, disk, health = require("image_tools"), require("image_tools.media.disk_cache"), require("image_tools.health")
 local tmp = assert(vim.uv.fs_realpath(assert(vim.env.IMAGE_TOOLS_TEST_TMP))) .. "/health"
 vim.fn.mkdir(tmp, "p")
 local count = 0

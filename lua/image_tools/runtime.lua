@@ -1,3 +1,13 @@
+-- Logical dependency keys remain stable across module directory changes.
+local dependency_modules = {
+  preview = "image_tools.render.preview",
+  buffer = "image_tools.render.buffer",
+  disk_cache = "image_tools.media.disk_cache",
+  insert = "image_tools.workflow.insert",
+  clipboard = "image_tools.workflow.clipboard",
+  picker = "image_tools.workflow.picker",
+}
+
 local Runtime = {}
 Runtime.__index = Runtime
 
@@ -8,14 +18,14 @@ function Runtime.new(options, dependencies)
     disposed = false,
     renderers = setmetatable({}, { __mode = "k" }),
   }, Runtime)
-  self.dependencies.pixel_pool = require("image_tools.pixel_pool").new(options, self.dependencies)
+  self.dependencies.pixel_pool = require("image_tools.terminal.pixel_pool").new(options, self.dependencies)
   self.preview = self:dependency("preview").new(options, self.dependencies)
   self.buffers = self:dependency("buffer").new(options, self.dependencies)
   return self
 end
 
 function Runtime:dependency(name)
-  return self.dependencies[name] or require("image_tools." .. name)
+  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
 end
 
 function Runtime:bind(callback)
@@ -61,12 +71,14 @@ end
 local function covers(range, row, original)
   return range and row >= range.start_row and row <= range.end_row or not range and row == original
 end
+
 local function on_current_line(state)
   return state
     and state.owner_buf == vim.api.nvim_get_current_buf()
     and state.owner_win == vim.api.nvim_get_current_win()
     and covers(state.reference_range, vim.api.nvim_win_get_cursor(0)[1], state.cursor[1])
 end
+
 local function owns_pending(request)
   local cursor = vim.api.nvim_win_get_cursor(0)
   return request.col == cursor[2]
@@ -75,6 +87,7 @@ local function owns_pending(request)
     and request.tick == vim.api.nvim_buf_get_changedtick(0)
     and covers(request.range, vim.api.nvim_win_get_cursor(0)[1], request.row)
 end
+
 local function range_of(reference)
   if reference and reference.start_row and reference.end_row then
     return {
@@ -284,7 +297,7 @@ function Runtime:status()
     window = self.preview and self.preview.state and self.preview.state.win or nil,
     transport = self.options and self.options.transport or "auto",
     disk_cache = vim.tbl_extend("force", self.options.disk_cache, { path = self.options.cache }),
-    conversion_queue = require("image_tools.conversion_queue").status(),
+    conversion_queue = require("image_tools.media.conversion_queue").status(),
     media = require("image_tools.media.prepare").status(),
     treesitter = vim.tbl_extend(
       "force",
@@ -337,7 +350,7 @@ end
 
 function Runtime:start()
   assert(not self.disposed and not self.group, "Runtime is already started or destroyed")
-  require("image_tools.conversion_queue").configure(self.options.convert_concurrency)
+  require("image_tools.media.conversion_queue").configure(self.options.convert_concurrency)
   self.group = vim.api.nvim_create_augroup("image_tools", { clear = true })
 
   self:autocmd({

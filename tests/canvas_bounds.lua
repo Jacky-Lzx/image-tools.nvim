@@ -1,7 +1,7 @@
 local root, temporary = assert(vim.env.IMAGE_TOOLS_ROOT), assert(vim.env.IMAGE_TOOLS_TEST_TMP)
 vim.opt.rtp:prepend(root)
 vim.o.termguicolors, vim.o.showtabline = true, 0
-local Canvas = require("image_tools.canvas")
+local Canvas = require("image_tools.render.canvas")
 local options = require("image_tools.config").resolve({ cache = temporary .. "/bounds-cache" })
 local dependencies = {
   terminal = {

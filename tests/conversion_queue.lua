@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local Q, config = require("image_tools.conversion_queue"), require("image_tools.config")
+local Q, config = require("image_tools.media.conversion_queue"), require("image_tools.config")
 local jobs, kills, received, count = {}, 0, 0, 0
 local function check(value, message)
   count = count + 1

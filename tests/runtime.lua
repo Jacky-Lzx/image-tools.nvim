@@ -137,8 +137,8 @@ eq(vim.fn.exists("#image_tools"), 0, "Destroy tolerates externally removed comma
 vim.api.nvim_create_user_command = create
 
 -- Public setup validates before replacement; failed constructors also preserve it.
-package.loaded["image_tools.preview"] = dependencies.preview
-package.loaded["image_tools.buffer"] = dependencies.buffer
+package.loaded["image_tools.render.preview"] = dependencies.preview
+package.loaded["image_tools.render.buffer"] = dependencies.buffer
 local api = require("image_tools")
 api.setup({ auto_preview = false, transport = "direct" })
 api.preview("/private/tmp/current.png")
@@ -150,14 +150,14 @@ eq({ current_preview.destroys, current_buffer.destroys }, { 0, 0 }, "Invalid set
 eq(#vim.api.nvim_get_autocmds({ group = "image_tools" }), current_handlers, "Invalid setup retains handlers")
 api.preview("/private/tmp/still-active.png")
 eq(current_preview.path, "/private/tmp/still-active.png", "Old API stays usable after invalid setup")
-package.loaded["image_tools.preview"] = {
+package.loaded["image_tools.render.preview"] = {
   new = function()
     error("constructor failed")
   end,
 }
 eq(pcall(api.setup, {}), false, "Constructor failure is propagated")
 eq({ current_preview.destroys, current_buffer.destroys }, { 0, 0 }, "Constructor failure retains old instance")
-package.loaded["image_tools.preview"] = dependencies.preview
+package.loaded["image_tools.render.preview"] = dependencies.preview
 api.setup({ auto_preview = false })
 eq({ current_preview.destroys, current_buffer.destroys }, { 1, 1 }, "Valid setup replaces resources exactly once")
 eq(api.status().transport, "auto", "Replacement uses new normalized config")

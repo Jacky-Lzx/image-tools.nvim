@@ -1,16 +1,23 @@
 # Preview performance
 
-Reference detection rejects ordinary LaTeX/Typst lines before scanning preceding
-text. Syntax checkpoints every 128 lines and up to 128 queried results per buffer
-avoid rescanning unchanged prefixes. Any edit/reload invalidates the buffer cache;
-unloading or deleting the buffer releases it. Paths, custom resolvers, VimTeX
-roots and filesystem existence checks are evaluated on each request.
+Typst checks the current line for a possible image call before inspecting prefix
+context. LaTeX searches a bounded neighborhood for a complete reference covering
+the current row, so commented option rows can trigger a multiline preview.
+Rows beyond `max_scan_lines` are rejected before reference detection.
 
-A local headless Neovim measurement of a 10,000-line synthetic document showed
-ordinary-line detection around 0.01 ms for both LaTeX and Typst, versus roughly
-8 ms / 28 ms before this optimization. Warm candidate queries were about 0.03 ms.
-These are Lua/parser measurements, not terminal decode/render latency. The first
-candidate query after an edit may still need to scan its preceding context.
+The Lua syntax cache keeps checkpoints every 128 lines and up to 128 queried
+results per buffer. Any edit/reload invalidates that cache; unloading or deleting
+the buffer releases it. Tree-sitter instead keeps an incremental capture index:
+edits invalidate the affected suffix and overlapping reference ranges, preserving
+valid prefixes. Queries advance the index through the requested row, while LaTeX
+argument decoding may look ahead to the reference's end within its configured
+limits. Paths, custom resolvers, VimTeX roots and filesystem checks stay live.
+
+The tests verify cache/index reuse using counters and reference identities. The
+repository does not provide a maintained end-to-end latency benchmark; these
+checks do not establish terminal decode/render timing. A cold candidate query
+may still need preceding context, and a Tree-sitter root parse can cover the
+whole document even when capture traversal is bounded.
 
 Converted formats share pending requests when the source version, PDF page,
 renderer, cache directory and validation settings match. Each subscriber receives
@@ -27,7 +34,10 @@ unrelated files, symlinks and temporary conversion files are excluded.
 Access order is tracked in memory without modifying the PNG timestamps or changing
 terminal-cache keys. Existing file modification times supply the initial order
 after a restart. Workers and subscribers hold reference-counted file leases; files
-remain protected until their preparation handles are cancelled/closed. Readers
+remain protected until subscribers release or close their preparation handles.
+Cancelling a pending request releases its work; after delivery, the separate
+release/close operation unpins its output. The compatibility image.prepare
+cancel function performs close. Readers
 arriving during a deletion wait for it before checking/recreating the output.
 Active files may temporarily exceed the budget; releasing them triggers deferred
 cleanup. `ImageCacheClear` / `clear_disk_cache(callback)` remove unused disk

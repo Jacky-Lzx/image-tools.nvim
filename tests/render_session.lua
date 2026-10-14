@@ -1,5 +1,5 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local Session = require("image_tools.render_session")
+local Session = require("image_tools.render.session")
 local count = 0
 local function check(value, message)
   count = count + 1

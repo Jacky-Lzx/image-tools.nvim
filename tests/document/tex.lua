@@ -1,16 +1,21 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local I, D, T = require("image_tools.insert"), require("image_tools.document"), require("image_tools.document.tex")
+
+local I, D, T =
+  require("image_tools.workflow.insert"), require("image_tools.document"), require("image_tools.document.tex")
 local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/tex"
 vim.fn.mkdir(tmp .. "/plots", "p")
 tmp = assert(vim.uv.fs_realpath(tmp))
+
 local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixture.png"
 vim.uv.fs_copyfile(source, tmp .. "/plots/figure.png")
 vim.uv.fs_copyfile(source, tmp .. "/percent%20.png")
+
 local count = 0
 local function check(value, msg)
   count = count + 1
   assert(value, msg)
 end
+
 local function document(lines)
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(buf)
@@ -19,8 +24,10 @@ local function document(lines)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   return buf
 end
+
 local buf = document({ [[\graphicspath{{plots/}}]], [[prefix \includegraphics*[width=0.8\linewidth]{figure} suffix]] })
 local opts = { max_scan_lines = 100 }
+
 check(D.at_line(buf, 2, opts) == tmp .. "/plots/figure.png", "graphicspath and extension lookup")
 check(not D.at_cursor(buf, 2, 0, opts), "Cursor range")
 check(D.at_cursor(buf, 2, 15, opts) == tmp .. "/plots/figure.png", "Cursor on command")

@@ -17,7 +17,7 @@ local function disk_health(state)
     vim.health.info("Plugin is not configured; showing default disk-cache settings")
   end
   local report
-  local cancel = require("image_tools.disk_cache").inspect(opts, function(snapshot)
+  local cancel = require("image_tools.media.disk_cache").inspect(opts, function(snapshot)
     report = snapshot
   end)
   if not vim.wait(3000, function()
