@@ -181,7 +181,7 @@ stops pending reads/processes and removes temporary files.
 Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
 preview in the existing picker window using this plugin's Kitty transport/cache.
 Picker previews scale up or down to fit the pane, preserve the aspect ratio and
-center the image. They follow pane/terminal resizing and layout changes. The
+align the image to the top-left of the pane. They follow pane/terminal resizing and layout changes. The
 floating-preview `max_width`/`max_height` limits do not cap the picker; the Kitty
 coordinate table permits up to 297 cells per axis. Resizing reuses uploaded pixels.
 Confirm imports the selected images in order into the original document; closing

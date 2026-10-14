@@ -208,17 +208,9 @@ function Renderer:show(ctx, path)
       state.id, state.highlight = entry.id, "ImageToolsPicker_" .. entry.id
       vim.api.nvim_set_hl(0, state.highlight, { fg = string.format("#%06x", entry.id) })
       ctx.preview:wo({ wrap = false, conceallevel = 0, list = false, spell = false, winblend = 0 })
-      local top = math.floor((state.view_height - height) / 2)
-      local left = math.floor((state.view_width - width) / 2)
-      state.width, state.height, state.top, state.left = width, height, top, left
-      local lines = {}
-      for row = 1, top do
-        lines[#lines + 1] = ""
-      end
-      for _, line in ipairs(protocol.grid(width, height)) do
-        lines[#lines + 1] = string.rep(" ", left) .. line
-      end
-      for row = top + height + 1, state.view_height do
+      state.width, state.height, state.top, state.left = width, height, 0, 0
+      local lines = protocol.grid(width, height)
+      for row = height + 1, state.view_height do
         lines[#lines + 1] = ""
       end
       ctx.preview:set_lines(lines)
@@ -226,9 +218,9 @@ function Renderer:show(ctx, path)
         vim.api.nvim_buf_set_extmark(
           state.buf,
           ns,
-          top + row,
-          left,
-          { end_row = top + row + 1, end_col = 0, hl_group = state.highlight, priority = 1000 }
+          row,
+          0,
+          { end_row = row + 1, end_col = 0, hl_group = state.highlight, priority = 1000 }
         )
       end
     end)

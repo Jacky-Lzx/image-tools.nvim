@@ -46,8 +46,8 @@ local steps = {
     local state = renderer.state
     assert(state.width ~= initial_width or state.height ~= initial_height, "Layout change did not resize the image")
     assert(state.width == state.view_width or state.height == state.view_height, "Resized image does not fill pane")
-    assert(math.abs(state.left * 2 + state.width - state.view_width) <= 1, "Image is not centered horizontally")
-    assert(math.abs(state.top * 2 + state.height - state.view_height) <= 1, "Image is not centered vertically")
+    assert(state.left == 0, "Image is not left aligned")
+    assert(state.top == 0, "Image is not top aligned")
     results.cache = renderer.transfer:status()
     picker.opts.actions.confirm(picker)
   end,

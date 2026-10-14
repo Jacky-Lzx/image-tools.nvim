@@ -77,7 +77,7 @@ local function has_grid(state)
     end
   end
 end
-check(has_grid(renderer.state), "Own centered placeholders")
+check(has_grid(renderer.state), "Own left-aligned placeholders")
 check(renderer.state.width > 16 and renderer.state.height > 5, "Small image is enlarged to pane")
 check(
   renderer.state.width == renderer.state.view_width or renderer.state.height == renderer.state.view_height,
@@ -93,13 +93,29 @@ check(
   "Resize adapts beyond the old 60/64-column caps"
 )
 check(renderer.state.id == id and renderer.transfer:status().uploads == 1, "Resizing reuses uploaded image")
-check(renderer.state.top == 4 and renderer.state.left == 0, "Wide image centered vertically")
+check(renderer.state.top == 0 and renderer.state.left == 0, "Wide image starts at top left")
 local lines = vim.api.nvim_buf_get_lines(renderer.state.buf, 0, -1, false)
-check(lines[1] == "" and vim.fn.strdisplaywidth(lines[5]) == 100 and #lines == 40, "Centered grid fits pane bounds")
+check(
+  vim.fn.strdisplaywidth(lines[1]) == 100 and lines[40] == "" and #lines == 40,
+  "Left-aligned grid fits pane bounds"
+)
 local hits = renderer.transfer:status().hits
 vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
 vim.wait(30)
 check(renderer.transfer:status().hits == hits, "Unchanged geometry does not redraw")
+vim.api.nvim_win_set_config(win, { width = 100, height = 20 })
+vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
+check(
+  vim.wait(1000, function()
+    return renderer.state and renderer.state.id and renderer.state.width == 64 and renderer.state.height == 20
+  end),
+  "Height-constrained image keeps its aspect ratio"
+)
+check(renderer.state.left == 0 and renderer.state.top == 0, "Remaining horizontal space is on the right")
+check(
+  vim.api.nvim_buf_get_lines(renderer.state.buf, 0, 1, false)[1]:sub(1, 4) == vim.fn.nr2char(0x10EEEE),
+  "No leading image padding"
+)
 check(package.loaded["snacks.image"] == nil, "Snacks.image not loaded for own preview")
 local before, prior_hits = #requests, renderer.transfer:status().hits
 picker.preview:show(picker, { force = true })
