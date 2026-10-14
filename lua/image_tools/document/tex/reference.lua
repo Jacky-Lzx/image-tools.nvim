@@ -155,6 +155,34 @@ function M.contains(reference, row, col)
         and (row < reference.end_row or col < reference.end_col)
     )
 end
+-- Decode an anchored command without relying on a grammar's argument extent.
+-- Generic starred commands and nested detokenize paths can have partial nodes.
+function M.at(buf, row, col, opts)
+  local max_lines, max_bytes = M.limits(opts)
+  local start_byte = vim.api.nvim_buf_get_offset(buf, row) + col
+  local last = math.min(vim.api.nvim_buf_line_count(buf) - 1, row + max_lines - 1, (opts.max_scan_lines or 10000) - 1)
+  if last < row then
+    return {}
+  end
+  while last > row and vim.api.nvim_buf_get_offset(buf, last) >= start_byte + max_bytes do
+    last = last - 1
+  end
+  local length = vim.api.nvim_buf_get_offset(buf, last + 1) - vim.api.nvim_buf_get_offset(buf, last) - 1
+  local finish = math.min(length, start_byte + max_bytes - vim.api.nvim_buf_get_offset(buf, last))
+  local text = table.concat(vim.api.nvim_buf_get_text(buf, row, col, last, finish, {}), "\n")
+  local references = M.parse(text, row + 1, opts)
+  for _, reference in ipairs(references) do
+    if reference.start_row == row + 1 and reference.start_col == 0 then
+      reference.start_col = col
+      if reference.end_row == row + 1 then
+        reference.end_col = reference.end_col + col
+      end
+      return { reference }
+    end
+  end
+  return {}
+end
+
 -- Look only within a bounded neighborhood for a possible command. Context
 -- (comments/environments/graphicspath) is supplied by the existing checkpoint lexer.
 function M.nearby(buf, row, opts)
@@ -174,7 +202,7 @@ function M.nearby(buf, row, opts)
     return {}
   end
   local last = math.min(vim.api.nvim_buf_line_count(buf), opts.max_scan_lines, row + max_lines - 1)
-  while last > row and vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, first) > max_bytes do
+  while last > row and vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, row) > max_bytes do
     last = last - 1
   end
   if last > row then

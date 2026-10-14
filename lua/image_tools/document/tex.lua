@@ -75,7 +75,7 @@ function M.find(buf, row, col, opts)
     return nil, nearby_error or "No supported image reference on the current line"
   end
   local syntax = opts.treesitter ~= false
-      and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready)
+      and require("image_tools.document.treesitter").query(buf, row, "latex", opts._treesitter_ready, opts)
     or nil
   if syntax and syntax.pending then
     return nil, "Tree-sitter parsing is pending", "pending"

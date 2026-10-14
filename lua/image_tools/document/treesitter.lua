@@ -67,6 +67,11 @@ local function invalidate(entry, first)
       first = math.min(first, err.row - 1)
     end
   end
+  for _, reference in ipairs(entry.references or {}) do
+    if reference.end_row > first then
+      first = math.min(first, reference.start_row - 1)
+    end
+  end
   entry.frontier = math.min(entry.frontier, first)
   for row in pairs(entry.rows) do
     if row > first then
@@ -76,6 +81,13 @@ local function invalidate(entry, first)
   entry.directories = vim.tbl_filter(function(change)
     return change.row <= first
   end, entry.directories)
+  entry.references = vim.tbl_filter(function(reference)
+    return reference.end_row <= first
+  end, entry.references or {})
+  entry.seen = {}
+  for _, reference in ipairs(entry.references) do
+    entry.seen[reference.start_row .. ":" .. reference.start_col] = true
+  end
   entry.errors = vim.tbl_filter(function(err)
     return err.row <= first
   end, entry.errors)
@@ -99,26 +111,54 @@ local function index(buf, entry, finish)
       end
     elseif (capture == "image" or capture == "command") and allowed(node) and node:start() >= first then
       local row, col, last = node:range()
-      local line = line_at(row)
       if lang == "latex" then
         local tex = require("image_tools.document.tex")
         local name = node:field("command")[1]
         if name and vim.treesitter.get_node_text(name, buf) == "\\graphicspath" then
           if row == last then
-            local directories = tex.graphicspath(line, col + 1)
+            local directories = tex.graphicspath(line_at(row), col + 1)
             if directories then
               entry.directories[#entry.directories + 1] = { row = row + 1, col = col, paths = directories }
             end
           end
         else
-          -- latex grammars do not consistently cover starred commands or
-          -- nested \detokenize arguments. The tree supplies command/context;
-          -- the existing same-line decoder validates complete literal syntax.
-          parsed[row] = parsed[row] or tex.parse(line)
-          for _, candidate in ipairs(parsed[row]) do
-            if candidate.start_col == col then
-              entry.rows[row + 1] = entry.rows[row + 1] or {}
-              table.insert(entry.rows[row + 1], candidate)
+          local decoder = require("image_tools.document.tex.reference")
+          local decode_key = row .. ":" .. col
+          if not parsed[decode_key] then
+            local max_lines, max_bytes = decoder.limits(entry.options)
+            local _, _, last_row, last_col = node:range()
+            local _, _, start_byte = node:start()
+            local _, _, end_byte = node:end_()
+            if node:type() ~= "graphics_include" or node:has_error() then
+              parsed[decode_key] = decoder.at(buf, row, col, entry.options)
+            elseif
+              last_row - row + 1 <= max_lines
+              and end_byte - start_byte <= max_bytes
+              and last_row + 1 <= (entry.options.max_scan_lines or 10000)
+            then
+              local text = table.concat(vim.api.nvim_buf_get_text(buf, row, col, last_row, last_col, {}), "\n")
+              parsed[decode_key] = decoder.parse(text, row + 1, entry.options)
+              for _, reference in ipairs(parsed[decode_key]) do
+                if reference.start_row == row + 1 then
+                  reference.start_col = reference.start_col + col
+                end
+                if reference.end_row == row + 1 then
+                  reference.end_col = reference.end_col + col
+                end
+              end
+            else
+              parsed[decode_key] = {}
+            end
+          end
+          for _, reference in ipairs(parsed[decode_key]) do
+            local identity = reference.start_row .. ":" .. reference.start_col
+            if reference.start_col == col and not entry.seen[identity] then
+              entry.seen[identity] = true
+              entry.references[#entry.references + 1] = reference
+              for covered = reference.start_row, reference.end_row do
+                entry.rows[covered] = entry.rows[covered] or {}
+                table.insert(entry.rows[covered], reference)
+              end
             end
           end
         end
@@ -133,7 +173,7 @@ local function index(buf, entry, finish)
             entry.rows[row + 1] = entry.rows[row + 1] or {}
             table.insert(entry.rows[row + 1], {
               src = src,
-              start_col = col - (line:sub(col, col) == "#" and 1 or 0),
+              start_col = col - (line_at(row):sub(col, col) == "#" and 1 or 0),
               end_col = end_col,
             })
           end
@@ -143,7 +183,7 @@ local function index(buf, entry, finish)
   end
   for _, candidates in pairs(entry.rows) do
     table.sort(candidates, function(a, b)
-      return a.start_col < b.start_col
+      return (a.start_row or 0) < (b.start_row or 0) or a.start_row == b.start_row and a.start_col < b.start_col
     end)
   end
   table.sort(entry.directories, function(a, b)
@@ -154,7 +194,7 @@ end
 
 -- Pending parses are authoritative too: never scan the buffer synchronously
 -- while Neovim is yielding a large parse back to the event loop.
-function M.query(buf, row, lang, ready)
+function M.query(buf, row, lang, ready, options)
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
   if not attached[buf] then
     attached[buf] = vim.api.nvim_buf_attach(buf, false, {
@@ -171,6 +211,14 @@ function M.query(buf, row, lang, ready)
   end
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = entries[buf]
+  options = options or {}
+  local max_lines, max_bytes = require("image_tools.document.tex.reference").limits(options)
+  local policy = lang == "latex" and table.concat({ max_lines, max_bytes, options.max_scan_lines or 10000 }, ":") or ""
+  if entry and entry.tree and entry.policy ~= policy then
+    entry.rows, entry.directories, entry.errors, entry.references, entry.seen, entry.frontier = {}, {}, {}, {}, {}, 0
+    entry.policy, entry.options = policy, options
+  end
+
   if not entry or entry.tick ~= tick or entry.lang ~= lang then
     local stage = "parser_unavailable"
     local ok, parser, query = pcall(function()
@@ -221,8 +269,10 @@ function M.query(buf, row, lang, ready)
       state.parse_ms = (vim.uv.hrtime() - started) / 1e6
       if not err and trees and trees[1] then
         queries[lang] = query
-        local result = previous or { rows = {}, directories = {}, errors = {}, frontier = 0 }
+        local result = previous
+          or { rows = {}, directories = {}, errors = {}, references = {}, seen = {}, frontier = 0 }
         result.tick, result.lang, result.tree, result.query = tick, lang, trees[1], query
+        result.options, result.policy = options, policy
         entries[buf] = result
       else
         entries[buf] = { tick = tick, lang = lang, failed = true }
