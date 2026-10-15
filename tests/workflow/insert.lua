@@ -117,4 +117,54 @@ end))
 check(#vim.fn.glob(tmp .. "/readonly/*", false, true) == 0, "Readonly target rolls back assets")
 cancel()
 check(I.relative(tmp .. "/Pictures/a.png", tmp .. "/docs") == "../Pictures/a.png", "Sibling path")
+-- Optional content reuse never makes an existing file transaction-owned.
+buf = buffer("dedup")
+err, outputs = run({ fixture, fixture }, { directory = "dedup", deduplicate = true })
+check(not err and outputs[1] == outputs[2], "Batch dedup reuses identical bytes")
+local existing = outputs[1]
+check(#vim.fn.glob(tmp .. "/dedup/*", false, true) == 1, "One deduplicated resource")
+buffer("dedup-rollback")
+err = run({ fixture, tmp .. "/missing.png" }, { directory = "dedup", deduplicate = true })
+check(err and vim.uv.fs_stat(existing), "Rollback preserves reused pre-existing file")
+buffer("dedup-new-rollback")
+err = run({ fixture, fixture, tmp .. "/missing.png" }, { directory = "dedup-new", deduplicate = true })
+check(err and #vim.fn.glob(tmp .. "/dedup-new/*", false, true) == 0, "Rollback removes only new deduplicated assets")
+local binary_a, binary_b = tmp .. "/binary-a.png", tmp .. "/binary-b.png"
+for path, data in pairs({ [binary_a] = "a\0b", [binary_b] = "a\0c" }) do
+  local fd = assert(vim.uv.fs_open(path, "w", 438))
+  assert(vim.uv.fs_write(fd, data, 0))
+  vim.uv.fs_close(fd)
+end
+buffer("dedup-binary")
+err, outputs = run({ binary_a, binary_b, binary_a }, { directory = "binary", deduplicate = true })
+check(
+  not err and outputs[1] ~= outputs[2] and outputs[1] == outputs[3],
+  "Same-sized binary content hashes distinguish different bytes and reuse identical bytes"
+)
+vim.fn.mkdir(tmp .. "/symlink", "p")
+vim.uv.fs_symlink(fixture, tmp .. "/symlink/existing.png")
+buffer("dedup-symlink")
+err, outputs = run({ fixture }, { directory = "symlink", deduplicate = true })
+check(not err and outputs[1] ~= tmp .. "/symlink/existing.png", "Dedup does not reuse symlinks")
+local content = require("image_tools.workflow.content")
+local find, stopped, pending_hash = content.find, false, nil
+content.find = function(_, _, _, _, cb)
+  pending_hash = cb
+  return function()
+    stopped = true
+  end
+end
+buffer("cancel-hash")
+done = false
+cancel = I.files({ fixture }, { directory = "cancel-hash", deduplicate = true }, function(e)
+  err, done = e, true
+end)
+assert(vim.wait(2000, function()
+  return pending_hash ~= nil
+end))
+cancel()
+check(stopped and done and err, "Cancellation stops pending content inspection")
+pending_hash(nil, existing)
+check(#vim.fn.glob(tmp .. "/cancel-hash/*", false, true) == 0, "Late hash completion cannot publish assets")
+content.find = find
 print("insert: " .. count .. " assertions passed")

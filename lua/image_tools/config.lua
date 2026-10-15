@@ -97,6 +97,7 @@ function M.resolve(opts)
     )
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
+  assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
   assert(type(options.buffer.enabled) == "boolean", "buffer.enabled must be boolean")
   for _, extension in ipairs(options.buffer.formats) do
     assert(

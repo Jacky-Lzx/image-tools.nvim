@@ -51,7 +51,7 @@ corresponding operations.
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
-`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`.
+`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`.
 
 `require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd.
@@ -460,3 +460,20 @@ pixels. PDF and other converted formats prepare larger rasters when zoomed in; P
 density and output bounds scale together, bounded by source/output limits and the
 existing conversion queue. Native scale refers to the prepared raster, including
 configured PDF density. Original files are unchanged.
+
+Set `insert.deduplicate = true` (default false), or pass `deduplicate = true` to
+insertion/paste, to reuse byte-identical files with the same extension in the
+configured destination directory. Reuse takes precedence over the requested
+filename; the directory is not searched recursively. Reads/hashing are bounded
+by max_bytes; symlinks are excluded. Cancellation or failed insertion removes
+only files created by that transaction, preserving reused files.
+
+`:ImageCheckAssets` opens a quickfix report of missing references and possibly
+unused image files in the current document's import directory. It supports
+Markdown, LaTeX and Typst literal references, with the same syntax exclusions and
+max_scan_lines limit as preview. A truncated scan is marked in the report.
+"Possibly unused" only means unused in this document: shared resources may be
+referenced elsewhere. Directory inspection is nonrecursive and excludes symlinks.
+No files are deleted. `check_assets(opts, callback)` returns a cancel function;
+the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
+`document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.

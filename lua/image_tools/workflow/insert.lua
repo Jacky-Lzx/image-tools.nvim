@@ -26,6 +26,7 @@
 ---@field root? string|fun(document: string): string Asset copy base; separate from reference_root.
 ---@field reference_root? string|fun(document: string): string? Internal markup/project base supplied by Runtime root.
 ---@field mode? "copy"|"reference" File import policy; clipboard always forces copy.
+---@field deduplicate? boolean Reuse identical files of the same extension in the destination directory.
 ---@field filename? string Imported basename override; source extension is retained.
 ---@field alt? string Markdown/Typst image description.
 ---@field prompt_for_file_name? boolean Prompt for each imported basename.
@@ -198,6 +199,9 @@ function M.files(paths, opts, callback)
       return
     end
     state.done = true
+    if state.cancel_content then
+      state.cancel_content()
+    end
     if err then
       for _, path in ipairs(state.created) do
         uv.fs_unlink(path)
@@ -228,6 +232,7 @@ function M.files(paths, opts, callback)
     format = assert(require("image_tools.document").adapter(context.filetype), "Unsupported image insertion filetype")
     assert(context.document ~= "", "Save the document before inserting images")
     assert(type(paths) == "table" and #paths > 0, "Choose at least one image file")
+    assert(opts.deduplicate == nil or type(opts.deduplicate) == "boolean", "deduplicate must be boolean")
     assert(opts.mode == nil or opts.mode == "copy" or opts.mode == "reference", "mode must be copy or reference")
     for _, path in ipairs(paths) do
       assert(type(path) == "string" and path ~= "" and not path:find("[%z\r\n]"), "Invalid source path")
@@ -348,28 +353,60 @@ function M.files(paths, opts, callback)
             fail("Image source changed during import")
             return
           end
-          local stem = name:sub(1, #name - #extension - 1)
-          local target
-          for suffix = 0, MAX_FILENAME_ATTEMPTS - 1 do
-            local candidate = directory .. "/" .. stem .. (suffix == 0 and "" or "-" .. suffix) .. "." .. extension
-            local linked, link_err, code = uv.fs_link(temp, candidate)
-            if linked then
-              target = candidate
-              break
-            end
-            if code ~= "EEXIST" then
-              fail(link_err)
+          local function publish(reused)
+            if state.done then
               return
             end
+            if reused then
+              state.outputs[#state.outputs + 1] = reused
+              uv.fs_unlink(temp)
+              next_file()
+              return
+            end
+            local stem = name:sub(1, #name - #extension - 1)
+            local target
+            for suffix = 0, MAX_FILENAME_ATTEMPTS - 1 do
+              local candidate = directory .. "/" .. stem .. (suffix == 0 and "" or "-" .. suffix) .. "." .. extension
+              local linked, link_err, code = uv.fs_link(temp, candidate)
+              if linked then
+                target = candidate
+                break
+              end
+              if code ~= "EEXIST" then
+                fail(link_err)
+                return
+              end
+            end
+            if not target then
+              fail("Too many filename collisions")
+              return
+            end
+            state.created[#state.created + 1] = target
+            state.outputs[#state.outputs + 1] = target
+            uv.fs_unlink(temp)
+            next_file()
           end
-          if not target then
-            fail("Too many filename collisions")
-            return
+          if opts.deduplicate then
+            state.cancel_content = require("image_tools.workflow.content").find(
+              temp,
+              directory,
+              extension,
+              opts.max_bytes or defaults.max_bytes,
+              function(hash_err, reused)
+                state.cancel_content = nil
+                if state.done then
+                  return
+                end
+                if hash_err then
+                  fail(hash_err)
+                else
+                  publish(reused)
+                end
+              end
+            )
+          else
+            publish()
           end
-          state.created[#state.created + 1] = target
-          state.outputs[#state.outputs + 1] = target
-          uv.fs_unlink(temp)
-          next_file()
         end)
       )
     end

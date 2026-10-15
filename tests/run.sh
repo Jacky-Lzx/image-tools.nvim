@@ -93,6 +93,7 @@ run_test render/session.lua
 # workflow/picker.lua checks IMAGE_TOOLS_SNACKS_ROOT and reports a skip when unconfigured.
 # manual/clipboard_native.lua requires a prepared system clipboard and runs separately.
 run_test workflow/insert.lua
+run_test workflow/assets.lua
 run_test workflow/clipboard.lua
 run_test workflow/picker.lua
 

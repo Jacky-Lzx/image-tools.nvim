@@ -56,6 +56,38 @@ function M.register(runtime)
     report(runtime:next_page(-args.count))
   end, { count = 1, desc = "Previous PDF page", force = true })
 
+  command("ImageCheckAssets", function()
+    runtime:check_assets({}, function(err, result)
+      if err then
+        report(false, err)
+        return
+      end
+      local items = vim.deepcopy(result.missing)
+      for _, path in ipairs(result.unreferenced) do
+        items[#items + 1] = {
+          filename = path,
+          lnum = 1,
+          text = "Possibly unused in this document (may be used elsewhere)",
+          type = "W",
+        }
+      end
+      if result.truncated then
+        items[#items + 1] = {
+          filename = result.document,
+          lnum = result.scanned,
+          text = "Scan stopped at max_scan_lines; unused results are incomplete",
+          type = "W",
+        }
+      end
+      vim.fn.setqflist({}, " ", { title = "Image assets: " .. result.document, items = items })
+      if #items > 0 then
+        vim.cmd("copen")
+      else
+        vim.notify("No image asset issues found")
+      end
+    end)
+  end, { desc = "Report missing references and possibly unused assets", force = true })
+
   command("ImageZoom", function(args)
     report(runtime:zoom(tonumber(args.args) or args.args))
   end, { nargs = 1, desc = "Set viewer zoom (fit/native/in/out/factor)", force = true })

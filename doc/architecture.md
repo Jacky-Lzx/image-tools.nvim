@@ -194,3 +194,9 @@ configured line/byte budgets. The Lua backend combines a bounded local reference
 search with cached prefix context. `at_cursor` selects by row and byte column;
 `at_line` selects the first covering reference in document order. The runtime
 tries cursor selection first and falls back only on a selection miss.
+
+`workflow/content` performs bounded asynchronous content hashing and same-directory
+import reuse. `workflow/insert` records reused outputs separately from newly
+created files so rollback cannot delete existing resources. `workflow/assets`
+checks a captured document in scheduled batches and lists possibly unused regular
+files in its import directory; it never modifies resources.

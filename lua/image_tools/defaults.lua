@@ -21,7 +21,13 @@ return {
   },
   pdfinfo = "pdfinfo",
   pdf_density = 144,
-  insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after", prompt_for_file_name = false },
+  insert = {
+    directory = "Figures",
+    mode = "copy",
+    deduplicate = false,
+    insert_strategy = "insert_line_after",
+    prompt_for_file_name = false,
+  },
   position = "cursor", -- "cursor" or "bottom_right"
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500,

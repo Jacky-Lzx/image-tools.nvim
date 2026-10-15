@@ -171,4 +171,14 @@ function M.pan(x, y)
   return runtime():pan(x, y)
 end
 
+function M.check_assets(opts, callback)
+  return runtime():check_assets(opts, callback or function(err, report)
+    vim.notify(
+      err
+        or string.format("%d missing reference(s), %d possibly unused image(s)", #report.missing, #report.unreferenced),
+      err and vim.log.levels.ERROR or vim.log.levels.INFO
+    )
+  end)
+end
+
 return M
