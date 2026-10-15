@@ -99,6 +99,7 @@ run_test workflow/picker.lua
 # 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter
 # queries/fallback. treesitter.lua always runs and reports skipped real-language
 # checks when the corresponding parsers are unavailable.
+run_test document/markdown.lua
 run_test document/formats.lua
 run_test document/syntax_cache.lua
 run_test document/treesitter.lua

@@ -141,7 +141,7 @@ Complete same-line Markdown inline images, angle-bracket destinations, quoted
 titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
 excluded. LaTeX, Typst, independent insertion, macOS clipboard paste, Snacks
 picker integration and read-only image/PDF file buffers are supported below.
-Remote URLs, reference-style Markdown images, wikilinks, multiline Markdown
+Remote URLs, multiline Markdown
 calls, formula previews and inline rendering inside document text are unsupported.
 Insertion has no dependency on image-insert.nvim.
 
@@ -319,3 +319,8 @@ Floating previews check source versions on focus gain and cursor idle, including
 external rewrites and removal. `:ImageReload` / `reload()` refresh the current file
 viewer, or the floating preview when called from its owning document. Unchanged
 sources retain their placements; superseded asynchronous results are discarded.
+
+Markdown reference images: ![alt][id], ![id][], ![id]. Definitions may follow
+uses and must be complete on one line, within max_scan_lines. Labels ignore case
+and collapse whitespace; the first definition outside code wins. Image wikilinks
+![[path.png|label]] use literal document-relative paths, without vault search.

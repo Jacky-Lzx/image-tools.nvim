@@ -169,8 +169,12 @@ cached images use fresh ids, preventing late replies from matching the retry.
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
-Reference-style images, Obsidian wikilinks, multiline Markdown image calls, remote URLs
-and inline rendering inside document text are future work.
+Multiline Markdown image calls, remote URLs and inline rendering inside document text
+are future work. Reference images (`![alt][id]`, `![id][]`, `![id]`) resolve
+case-insensitive, whitespace-normalized labels from same-line definitions, including
+forward definitions within `max_scan_lines`. The first definition outside code wins.
+Local image wikilinks (`![[path.png|label]]`) resolve literal document-relative paths;
+vault-wide filename lookup and heading/block targets are not supported.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the

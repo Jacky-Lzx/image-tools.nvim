@@ -103,7 +103,7 @@ end
 -- Collect complete same-line image candidates, skipping escaped syntax and inline code.
 ---@param line string One source line.
 ---@return ImageToolsReference[] references Byte-column ranges, without row coordinates.
-function M.parse(line)
+function M.parse(line, references)
   local result, pos = {}, 1
   while pos <= #line do
     local char = line:sub(pos, pos)
@@ -111,6 +111,15 @@ function M.parse(line)
       local ticks = line:match("^`+", pos)
       local finish = line:find(ticks, pos + #ticks, true)
       pos = finish and finish + #ticks or #line + 1
+    elseif references and line:sub(pos, pos + 2) == "![[" and not escaped(line, pos) then
+      local finish = line:find("]]", pos + 3, true)
+      if finish then
+        local src = line:sub(pos + 3, finish - 1):match("^[^|]+")
+        if src and require("image_tools.media.formats").supported(src) then
+          result[#result + 1] = { src = src, literal = true, start_col = pos - 1, end_col = finish + 1 }
+        end
+      end
+      pos = finish and finish + 2 or #line + 1
     elseif line:sub(pos, pos + 1) == "![" and not escaped(line, pos) then
       local alt_end = closing(line, pos + 1, "[", "]")
       local finish = alt_end and line:sub(alt_end + 1, alt_end + 1) == "(" and closing(line, alt_end + 1, "(", ")")
@@ -121,6 +130,14 @@ function M.parse(line)
           result[#result + 1] = { src = src, start_col = pos - 1, end_col = finish }
         end
         pos = finish + 1
+      elseif references and alt_end and line:sub(alt_end + 1, alt_end + 1) ~= "(" then
+        local label_end = line:sub(alt_end + 1, alt_end + 1) == "[" and closing(line, alt_end + 1, "[", "]") or nil
+        local label = label_end and line:sub(alt_end + 2, label_end - 1) or ""
+        if label == "" then
+          label = line:sub(pos + 2, alt_end - 1)
+        end
+        result[#result + 1] = { label = label, start_col = pos - 1, end_col = label_end or alt_end }
+        pos = (label_end or alt_end) + 1
       else
         pos = pos + 2
       end
@@ -129,6 +146,63 @@ function M.parse(line)
     end
   end
   return result
+end
+
+-- Reuse the same exclusion rules for preview candidates and reference definitions.
+local scan_context = function(lines, state)
+  local fence, length = state.fence, state.length
+  local blocked
+  for i, line in ipairs(lines) do
+    local run = line:match("^ ? ? ?(```+)") or line:match("^ ? ? ?(~~~+)")
+    if run then
+      if not fence then
+        fence, length = run:sub(1, 1), #run
+      elseif run:sub(1, 1) == fence and #run >= length and line:match("^%s*[`~]+%s*$") then
+        fence = nil
+      end
+      if i == #lines then
+        blocked = "Cursor is inside a fenced code block"
+      end
+    elseif i == #lines and (fence or line:match("^    ") or line:match("^\t")) then
+      blocked = "Cursor is inside a code block"
+    end
+  end
+  return { blocked = blocked }, { fence = fence, length = length }
+end
+
+local indexes, attached = {}, {}
+local function label_key(label)
+  return vim.fn.tolower((vim.trim(label:gsub("\\([%p ])", "%1")):gsub("%s+", " ")))
+end
+
+-- Index bounded, same-line definitions, including forward references. First definition wins.
+local function definitions(buf, limit)
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+  local cached = indexes[buf]
+  if cached and cached.tick == tick and cached.limit == limit then
+    return cached.labels
+  end
+  if not attached[buf] then
+    attached[buf] = vim.api.nvim_buf_attach(buf, false, {
+      on_detach = function()
+        indexes[buf], attached[buf] = nil, nil
+      end,
+    })
+  end
+  local labels, state = {}, {}
+  for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, math.min(limit, vim.api.nvim_buf_line_count(buf)), false)) do
+    local context
+    context, state = scan_context({ line }, state)
+    if not context.blocked then
+      local label, content = line:match("^ ? ? ?%[([^%]]+)%]:%s*(.+)$")
+      local src = content and destination(content)
+      if src and not labels[label_key(label)] then
+        labels[label_key(label)] = src
+      end
+    end
+  end
+  indexes[buf] = { tick = tick, limit = limit, labels = labels }
+  return labels
 end
 
 -- Reject fenced/indented code before selecting a candidate and resolving its decoded local
@@ -142,36 +216,26 @@ end
 ---@return ImageToolsLookupStatus? status Only miss permits cursor-to-line fallback; pending must wait.
 ---@return ImageToolsReference? reference Selected range when resolved, or pending LaTeX coverage.
 function M.find(buf, row, col, opts)
-  local candidates = M.parse(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "")
+  local candidates = M.parse(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "", true)
   if #candidates == 0 then
     return nil, "No supported image reference on the current line"
   end
-  local syntax = require("image_tools.document.syntax_cache").query(buf, row, "markdown", {}, function(lines, state)
-    local fence, length = state.fence, state.length
-    local blocked
-    for i, line in ipairs(lines) do
-      local run = line:match("^ ? ? ?(```+)") or line:match("^ ? ? ?(~~~+)")
-      if run then
-        if not fence then
-          fence, length = run:sub(1, 1), #run
-        elseif run:sub(1, 1) == fence and #run >= length and line:match("^%s*[`~]+%s*$") then
-          fence = nil
-        end
-        if i == #lines then
-          blocked = "Cursor is inside a fenced code block"
-        end
-      elseif i == #lines and (fence or line:match("^    ") or line:match("^\t")) then
-        blocked = "Cursor is inside a code block"
-      end
-    end
-    return { blocked = blocked }, { fence = fence, length = length }
-  end)
+  local syntax = require("image_tools.document.syntax_cache").query(buf, row, "markdown", {}, scan_context)
   if syntax.blocked then
     return nil, syntax.blocked
   end
   for _, image in ipairs(candidates) do
     if col == nil or (col >= image.start_col and col < image.end_col) then
-      local path, err = require("image_tools.document.paths").resolve(image.src, vim.api.nvim_buf_get_name(buf), opts)
+      local src = image.src or definitions(buf, opts.max_scan_lines)[label_key(image.label)]
+      if not src then
+        return nil, "Undefined image reference: " .. image.label
+      end
+      image.src = src
+      local path, err = require("image_tools.document.paths").resolve(
+        src,
+        vim.api.nvim_buf_get_name(buf),
+        image.literal and vim.tbl_extend("force", opts, { literal = true }) or opts
+      )
       return path, err, nil, vim.tbl_extend("force", image, { start_row = row, end_row = row })
     end
   end

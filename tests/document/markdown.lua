@@ -1,0 +1,27 @@
+vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
+local D = require("image_tools.document")
+local opts = { max_scan_lines = 1000 }
+local buf = vim.api.nvim_create_buf(false, true)
+vim.api.nvim_buf_set_name(buf, "/private/tmp/note.md")
+vim.bo[buf].filetype = "markdown"
+local function check(lines, row, expected, col)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  local path = col and D.at_cursor(buf, row, col, opts) or D.at_line(buf, row, opts)
+  assert(path == expected, vim.inspect({ path, expected, lines }))
+end
+check({ "![figure][ A  B ]", '[a b]: <images/a b.png> "title"' }, 1, "/private/tmp/images/a b.png")
+check({ "![a][]", "[a]: first.png", "[a]: second.png" }, 1, "/private/tmp/first.png")
+check({ "![a]", "[a]: first.png" }, 1, "/private/tmp/first.png")
+check({ "![a][id]", "```", "[id]: hidden.png", "```" }, 1, nil)
+check({ "![a][id]", "    [id]: hidden.png" }, 1, nil)
+check({ "```", "![a][id]", "```", "[id]: a.png" }, 2, nil)
+check({ "`![a][id]`", "[id]: a.png" }, 1, nil)
+check({ "![a][id]", "[id]: https://example.com/a.png" }, 1, nil)
+check({ "![a][missing] ![b](b.png)" }, 1, "/private/tmp/b.png", 20)
+check({ "![[images/a%20b.png|200]]" }, 1, "/private/tmp/images/a%20b.png")
+check({ "![[note.md]]" }, 1, nil)
+check({ "![a][id]", "[id]: replacement.png" }, 1, "/private/tmp/replacement.png")
+opts.max_scan_lines = 1
+check({ "![a][id]", "[id]: beyond.png" }, 1, nil)
+vim.api.nvim_buf_delete(buf, { force = true })
+print("Markdown references: 13 cases passed")
