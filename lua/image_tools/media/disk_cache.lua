@@ -51,22 +51,28 @@
 ---@class ImageToolsDiskCache
 local M = {}
 local uv, managers = vim.uv, {}
-local defaults = { enabled = true, max_bytes = 512 * 1024 * 1024, max_files = 256 }
+local defaults = require("image_tools.defaults").disk_cache
+local SHA256_HEX_LENGTH = 64
+local SCAN_BATCH_SIZE = 64
+
 -- Resolve existing ancestors and append missing suffixes so aliases share one cache manager.
 ---@param path string Cache directory or containing path.
 ---@return string canonical Normalized absolute identity without creating directories.
 local function canonical(path)
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
   local current, suffix = path, {}
+
   while true do
     local resolved = uv.fs_realpath(current)
     if resolved then
       return vim.fs.normalize(resolved .. "/" .. table.concat(suffix, "/"))
     end
+
     local parent = vim.fs.dirname(current)
     if not parent or parent == current then
       return path
     end
+
     table.insert(suffix, 1, vim.fs.basename(current))
     current = parent
   end
@@ -76,17 +82,18 @@ end
 ---@param name string Directory entry basename.
 ---@return boolean managed
 local function managed(name)
-  return #name == 68 and name:match("^%x+%.png$") ~= nil
+  return #name == SHA256_HEX_LENGTH + #".png" and name:match("^%x+%.png$") ~= nil
 end
 
 -- Read-only batched traversal shared by eviction and health diagnostics.
--- Read managed regular-file metadata in 64-entry asynchronous batches, excluding symbolic links.
+-- Read managed regular-file metadata in bounded asynchronous batches, excluding symbolic links.
 ---@param root string Directory to inspect.
 ---@param receive fun(path: string, stat: table) Called for each eligible regular file.
 ---@param callback fun(err: string?) Called after batches finish, unless cancelled.
 ---@return ImageToolsCancel cancel Suppress further receive/completion delivery.
 local function scan(root, receive, callback)
   local cancelled = false
+
   uv.fs_scandir(
     root,
     vim.schedule_wrap(function(err, directory)
@@ -97,14 +104,15 @@ local function scan(root, receive, callback)
         callback(err)
         return
       end
+
       local stat_error
-      -- Launch at most 64 entry-stat requests per event-loop batch so directory inspection does
-      -- not monopolize the UI.
+      -- Bound directory entries per event-loop batch so inspection does not monopolize the UI.
       ---@return nil
       local function batch()
         if cancelled then
           return
         end
+
         local pending, ended = 0, false
         -- Advance directory scanning only after all stat callbacks in the current batch complete.
         ---@return nil
@@ -118,12 +126,14 @@ local function scan(root, receive, callback)
             vim.schedule(batch)
           end
         end
-        for _ = 1, 64 do
+
+        for _ = 1, SCAN_BATCH_SIZE do
           local name, kind = uv.fs_scandir_next(directory)
           if not name then
             ended = true
             break
           end
+
           if managed(name) and (not kind or kind == "file") then
             pending = pending + 1
             local path = root .. "/" .. name
@@ -144,13 +154,16 @@ local function scan(root, receive, callback)
             end)
           end
         end
+
         if pending == 0 then
           proceed()
         end
       end
+
       batch()
     end)
   )
+
   return function()
     cancelled = true
   end
@@ -396,6 +409,7 @@ function M.inspect(opts, callback)
     protected_bytes = 0,
     exists = true,
   }
+
   return scan(root, function(path, stat)
     status.files, status.bytes = status.files + 1, status.bytes + stat.size
     if manager and manager.pins[path] then
@@ -413,4 +427,5 @@ function M.inspect(opts, callback)
     callback(status)
   end)
 end
+
 return M

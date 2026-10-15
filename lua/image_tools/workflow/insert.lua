@@ -46,6 +46,11 @@
 ---@class ImageToolsInsertion
 local M = {}
 local uv = vim.uv
+local defaults = require("image_tools.defaults")
+local UTF8_CONTINUATION_MIN = 0x80
+local UTF8_CONTINUATION_MAX = 0xBF
+local MAX_FILENAME_ATTEMPTS = 1000 -- Original basename plus numbered alternatives.
+local COPYFILE_EXCL = 1 -- libuv: refuse to overwrite an existing temporary file.
 local ns = vim.api.nvim_create_namespace("image_tools.insert")
 local sequence = 0
 local strategies = { "insert_after", "insert_before", "insert_line_after", "insert_line_before" }
@@ -71,7 +76,11 @@ function M.capture(opts)
     local line = vim.api.nvim_buf_get_lines(buf, row, row + 1, false)[1] or ""
     if col < #line then
       col = col + 1
-      while col < #line and (line:byte(col + 1) or 0) >= 128 and line:byte(col + 1) < 192 do
+      while
+        col < #line
+        and (line:byte(col + 1) or 0) >= UTF8_CONTINUATION_MIN
+        and line:byte(col + 1) <= UTF8_CONTINUATION_MAX
+      do
         col = col + 1
       end
     end
@@ -277,7 +286,7 @@ function M.files(paths, opts, callback)
       fail("Image source is not a regular file: " .. source)
       return
     end
-    if stat.size > (opts.max_bytes or 32 * 1024 * 1024) then
+    if stat.size > (opts.max_bytes or defaults.max_bytes) then
       fail("Image exceeds max_bytes: " .. source)
       return
     end
@@ -321,7 +330,7 @@ function M.files(paths, opts, callback)
       uv.fs_copyfile(
         source,
         temp,
-        1,
+        COPYFILE_EXCL,
         vim.schedule_wrap(function(copy_err)
           if state.done then
             uv.fs_unlink(temp)
@@ -341,7 +350,7 @@ function M.files(paths, opts, callback)
           end
           local stem = name:sub(1, #name - #extension - 1)
           local target
-          for suffix = 0, 999 do
+          for suffix = 0, MAX_FILENAME_ATTEMPTS - 1 do
             local candidate = directory .. "/" .. stem .. (suffix == 0 and "" or "-" .. suffix) .. "." .. extension
             local linked, link_err, code = uv.fs_link(temp, candidate)
             if linked then

@@ -19,6 +19,8 @@
 ---@field height number Positive pixel height of one terminal cell.
 ---@class ImageToolsTerminal
 local M = {}
+local kitty = require("image_tools.terminal.constants")
+local TIOCGWINSZ = { Darwin = 0x40087468, Linux = 0x5413 }
 
 -- Require a supported Neovim/UI/color environment and reject multiplexers before terminal-name
 -- detection.
@@ -103,8 +105,8 @@ function M.request(id, command, timeout, callback, placement)
 
       -- Neovim's TUI strips the APC terminator from TermResponse sequences;
       -- accept both that form and complete sequences from an attached UI.
-      sequence = sequence:gsub("\27\\$", "")
-      local fields, message = sequence:match("^\27_G([^;]+);([^\27]+)$")
+      sequence = sequence:gsub(kitty.ESC .. "\\$", "")
+      local fields, message = sequence:match("^" .. kitty.ESC .. "_G([^;]+);([^" .. kitty.ESC .. "]+)$")
       local response_id = fields and fields:match("i=(%d+)")
       local response_placement = fields and fields:match("p=(%d+)")
       if tonumber(response_id) == id and tonumber(response_placement) == placement then
@@ -147,9 +149,10 @@ function M.cell_size(fallback)
     local ffi = require("ffi")
     pcall(ffi.cdef, "int ioctl(int fd, unsigned long request, ...);")
 
-    local size = ffi.new("unsigned short[4]")
+    -- Match the native winsize layout without numeric array-field offsets.
+    local size = ffi.new("struct { unsigned short rows, cols, width, height; }[1]")
     local system = vim.uv.os_uname().sysname
-    local request = system == "Darwin" and 0x40087468 or (system == "Linux" and 0x5413 or nil)
+    local request = TIOCGWINSZ[system]
     if not request then
       return
     end
@@ -162,8 +165,12 @@ function M.cell_size(fallback)
     local status = ffi.C.ioctl(fd, request, size)
     vim.uv.fs_close(fd)
 
-    if status == 0 and size[0] > 0 and size[1] > 0 and size[2] > 0 and size[3] > 0 then
-      return { width = tonumber(size[2]) / tonumber(size[1]), height = tonumber(size[3]) / tonumber(size[0]) }
+    local geometry = size[0]
+    if status == 0 and geometry.rows > 0 and geometry.cols > 0 and geometry.width > 0 and geometry.height > 0 then
+      return {
+        width = tonumber(geometry.width) / tonumber(geometry.cols),
+        height = tonumber(geometry.height) / tonumber(geometry.rows),
+      }
     end
   end)
   return ok and result or fallback

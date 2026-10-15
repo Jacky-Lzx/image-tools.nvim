@@ -14,14 +14,18 @@
 --   inspection is read-only and does not create or evict cache files.
 
 local M = {}
+local defaults = require("image_tools.defaults")
+local BINARY_UNIT_BASE = 1024
+local DISK_INSPECTION_TIMEOUT_MS = 3000
+local DISK_INSPECTION_POLL_MS = 10
 
 -- Format a byte estimate in binary units for readable health output.
 ---@param bytes number Nonnegative bytes.
 ---@return string display
 local function size(bytes)
   local units, index = { "B", "KiB", "MiB", "GiB", "TiB" }, 1
-  while bytes >= 1024 and index < #units do
-    bytes, index = bytes / 1024, index + 1
+  while bytes >= BINARY_UNIT_BASE and index < #units do
+    bytes, index = bytes / BINARY_UNIT_BASE, index + 1
   end
   return string.format(index == 1 and "%.0f %s" or "%.2f %s", bytes, units[index])
 end
@@ -32,6 +36,7 @@ end
 ---@return nil
 local function disk_health(state)
   vim.health.start("image-tools: disk cache")
+
   local opts
   if state.disk_cache then
     opts = { cache = state.disk_cache.path, disk_cache = state.disk_cache }
@@ -39,13 +44,15 @@ local function disk_health(state)
     opts = require("image_tools.config").resolve()
     vim.health.info("Plugin is not configured; showing default disk-cache settings")
   end
+
   local report
   local cancel = require("image_tools.media.disk_cache").inspect(opts, function(snapshot)
     report = snapshot
   end)
-  if not vim.wait(3000, function()
+
+  if not vim.wait(DISK_INSPECTION_TIMEOUT_MS, function()
     return report ~= nil
-  end, 10) then
+  end, DISK_INSPECTION_POLL_MS) then
     cancel()
     vim.health.info("Directory: " .. opts.cache)
     vim.health.warn("Disk-cache inspection timed out; current usage is unavailable")
@@ -121,7 +128,7 @@ function M.check()
     vim.health.warn("Install poppler for PDF buffers: brew install poppler")
   end
 
-  local cell = require("image_tools.terminal").cell_size({ width = 10, height = 20 })
+  local cell = require("image_tools.terminal").cell_size(vim.deepcopy(defaults.cell_size))
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
 
   local state = require("image_tools").status()

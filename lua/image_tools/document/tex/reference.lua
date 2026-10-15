@@ -14,6 +14,10 @@
 --   filename contents must stay on one line.
 
 local M = {}
+local defaults = require("image_tools.defaults")
+local VERB_COMMAND = "\\verb"
+local DETOKENIZE_COMMAND = "\\detokenize"
+local INCLUDEGRAPHICS_COMMAND = "\\includegraphics"
 -- Test an odd backslash run before a syntax byte.
 ---@param line string Source text.
 ---@param pos integer One-based byte position.
@@ -76,8 +80,13 @@ local function clean(line)
     if not escaped(line, pos) and line:sub(pos, pos) == "%" then
       return line:sub(1, pos - 1)
     end
-    if not escaped(line, pos) and line:sub(pos, pos + 4) == "\\verb" and not line:sub(pos + 5, pos + 5):match("%a") then
-      local delimiter = pos + 5
+    local after_verb = pos + #VERB_COMMAND
+    if
+      not escaped(line, pos)
+      and line:sub(pos, after_verb - 1) == VERB_COMMAND
+      and not line:sub(after_verb, after_verb):match("%a")
+    then
+      local delimiter = after_verb
       if line:sub(delimiter, delimiter) == "*" then
         delimiter = delimiter + 1
       end
@@ -99,9 +108,9 @@ end
 ---@return string? source
 local function literal(src)
   src = vim.trim(src)
-  local first = src:find("\\detokenize", 1, true)
+  local first = src:find(DETOKENIZE_COMMAND, 1, true)
   if first == 1 then
-    local start = space(src, 12)
+    local start = space(src, #DETOKENIZE_COMMAND + 1)
     local finish = group(src, start, "{", "}")
     if finish and vim.trim(src:sub(finish + 1)) == "" then
       return src:sub(start + 1, finish - 1)
@@ -122,7 +131,8 @@ M.clean, M.group, M.space, M.literal, M.escaped = clean, group, space, literal, 
 ---@return integer max_bytes
 function M.limits(opts)
   local config = opts and opts.latex or {}
-  return config.max_reference_lines or 64, config.max_reference_bytes or 16384
+  return config.max_reference_lines or defaults.latex.max_reference_lines,
+    config.max_reference_bytes or defaults.latex.max_reference_bytes
 end
 
 -- Convert a one-based text byte offset to original row/zero-based byte-column coordinates.
@@ -168,11 +178,11 @@ function M.parse(text, first, opts)
   local max_lines, max_bytes = M.limits(opts)
   local results, pos, error_message = {}, 1, nil
   while pos <= #text do
-    local start = text:find("\\includegraphics", pos, true)
+    local start = text:find(INCLUDEGRAPHICS_COMMAND, pos, true)
     if not start then
       break
     end
-    pos = start + 16
+    pos = start + #INCLUDEGRAPHICS_COMMAND
     if not escaped(text, start) and not text:sub(pos, pos):match("%a") then
       if text:sub(pos, pos) == "*" then
         pos = pos + 1
@@ -180,7 +190,7 @@ function M.parse(text, first, opts)
       pos = space(text, pos)
       if text:sub(pos, pos) == "[" then
         local finish = group(text, pos, "[", "]")
-        pos = finish and space(text, finish + 1) or start + 16
+        pos = finish and space(text, finish + 1) or start + #INCLUDEGRAPHICS_COMMAND
       end
       local finish = group(text, pos, "{", "}")
       if finish then
@@ -236,7 +246,11 @@ end
 function M.at(buf, row, col, opts)
   local max_lines, max_bytes = M.limits(opts)
   local start_byte = vim.api.nvim_buf_get_offset(buf, row) + col
-  local last = math.min(vim.api.nvim_buf_line_count(buf) - 1, row + max_lines - 1, (opts.max_scan_lines or 10000) - 1)
+  local last = math.min(
+    vim.api.nvim_buf_line_count(buf) - 1,
+    row + max_lines - 1,
+    (opts.max_scan_lines or defaults.max_scan_lines) - 1
+  )
   if last < row then
     return {}
   end

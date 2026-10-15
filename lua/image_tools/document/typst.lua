@@ -14,6 +14,10 @@
 --   services.
 
 local M = {}
+local IMAGE_FUNCTION = "image"
+local UNICODE_MAX = 0x10FFFF
+local SURROGATE_MIN = 0xD800
+local SURROGATE_MAX = 0xDFFF
 -- Check an odd preceding backslash run before interpreting markup syntax.
 ---@param text string Source text.
 ---@param pos integer One-based byte position.
@@ -50,11 +54,11 @@ local function quoted(line, start)
       elseif next_char == "u" then
         local hex = line:match("^u{(%x+)}", pos + 1)
         local codepoint = hex and tonumber(hex, 16)
-        if not codepoint or codepoint > 0x10FFFF or codepoint >= 0xD800 and codepoint <= 0xDFFF then
+        if not codepoint or codepoint > UNICODE_MAX or codepoint >= SURROGATE_MIN and codepoint <= SURROGATE_MAX then
           return
         end
         result[#result + 1] = vim.fn.nr2char(codepoint)
-        pos = pos + #hex + 4
+        pos = pos + #hex + #"\\u{}"
       else
         return
       end
@@ -174,11 +178,11 @@ function M.scan(lines, previous)
         pos = pos + 1
       elseif
         mode == "code"
-        and line:sub(pos, pos + 4) == "image"
+        and line:sub(pos, pos + #IMAGE_FUNCTION - 1) == IMAGE_FUNCTION
         and not line:sub(pos - 1, pos - 1):match("[%w_.-]")
-        and not line:sub(pos + 5, pos + 5):match("[%w_]")
+        and not line:sub(pos + #IMAGE_FUNCTION, pos + #IMAGE_FUNCTION):match("[%w_]")
       then
-        local open = pos + 5
+        local open = pos + #IMAGE_FUNCTION
         while line:sub(open, open):match("%s") do
           open = open + 1
         end
@@ -193,7 +197,7 @@ function M.scan(lines, previous)
           result[#result + 1] =
             { src = src, start_col = pos - (line:sub(pos - 1, pos - 1) == "#" and 2 or 1), end_col = finish }
         end
-        pos = pos + 5
+        pos = pos + #IMAGE_FUNCTION
       elseif char == "[" then
         stack[#stack + 1] = { ending = "]", mode = mode }
         mode, transient, pos = "markup", false, pos + 1

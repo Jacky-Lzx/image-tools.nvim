@@ -25,7 +25,9 @@
 
 ---@class ImageToolsConversionQueue
 local M = {}
-local queued, active, pumping, limit = {}, 0, false, 2
+local SIGTERM = 15
+local SPAWN_FAILURE = -1
+local queued, active, pumping, limit = {}, 0, false, require("image_tools.defaults").convert_concurrency
 
 -- Spawn waiting jobs within the current budget and schedule callbacks after releasing finished
 -- slots.
@@ -67,7 +69,7 @@ local function pump()
       if ok then
         job.process = process
       else
-        finish({ code = -1, stderr = tostring(process) })
+        finish({ code = SPAWN_FAILURE, stderr = tostring(process) })
       end
     end
   end
@@ -92,7 +94,7 @@ function M.run(command, options, callback)
     end
     job.cancelled = true
     if job.running and job.process then
-      job.process:kill(15)
+      job.process:kill(SIGTERM)
     end
     pump()
   end

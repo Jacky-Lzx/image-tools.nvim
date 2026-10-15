@@ -25,6 +25,7 @@
 
 ---@class ImageToolsPlaceholder
 local M = {}
+local PLACEHOLDER_HIGHLIGHT_PRIORITY = 1000
 
 -- Record placement identity, populate placeholder rows and highlight their exact byte ranges.
 ---@param state ImageToolsDrawState Caller-owned state with a live buf.
@@ -56,7 +57,7 @@ function M.draw(state, namespace, prefix, entry, width, height, protocol, set_li
       end_row = row + 1,
       end_col = 0,
       hl_group = state.highlight,
-      priority = 1000,
+      priority = PLACEHOLDER_HIGHLIGHT_PRIORITY,
     })
   end
 end

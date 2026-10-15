@@ -24,6 +24,7 @@ local uv = vim.uv
 local disk = require("image_tools.media.disk_cache")
 local version = require("image_tools.media.file_version")
 local convertible = require("image_tools.media.formats").formats
+local defaults = require("image_tools.defaults")
 local pending = {}
 
 -- Select a native PNG read or converter without duplicating transport-specific read policy.
@@ -32,7 +33,7 @@ local pending = {}
 ---@param callback ImageToolsImageCallback Completion consumer.
 ---@return ImageToolsCancel cancel
 local function worker(path, opts, callback)
-  if path:lower():sub(-4) == ".png" then
+  if path:lower():sub(-#".png") == ".png" then
     return require("image_tools.media.png").read(path, opts, callback, opts.transport ~= nil)
   end
   return require("image_tools.media.convert").prepare(path, opts, callback, opts.transport ~= nil)
@@ -73,7 +74,7 @@ local function single(path, opts, callback)
       cancel_work()
     end
   end
-  if path:lower():sub(-4) == ".png" and disk.owns(opts, path) then
+  if path:lower():sub(-#".png") == ".png" and disk.owns(opts, path) then
     disk_release = disk.acquire(opts, path, start)
     if not active and released then
       release_file()
@@ -136,7 +137,7 @@ function M.request(path, opts, callback)
     opts.magick or "",
     opts.rsvg or "rsvg-convert",
     tostring(opts.page or 1),
-    tostring(opts.pdf_density or 144),
+    tostring(opts.pdf_density or defaults.pdf_density),
     tostring(opts.transport ~= nil),
     tostring(opts.max_bytes),
     tostring(opts.max_dimension),

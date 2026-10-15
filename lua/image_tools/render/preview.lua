@@ -37,6 +37,10 @@ local dependency_modules = {
 ---@field transfer ImageToolsTransfer Shared-pool view placement manager.
 local M = {}
 M.__index = M
+local SCREEN_MARGIN_CELLS = 4
+local BORDER_CELLS = 2 -- One cell on each side of the floating window.
+local PREVIEW_ZINDEX = 50
+local LASTSTATUS = { MULTIPLE_WINDOWS = 1, ALWAYS = 2, GLOBAL = 3 }
 
 -- Construct a floating-preview controller and its placement manager without opening a window.
 ---@param opts ImageToolsOptions Runtime settings.
@@ -165,8 +169,11 @@ function M:open(path, options)
       return require("image_tools.render.geometry").fit(
         image,
         terminal.cell_size(self.opts.cell_size),
-        math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - 4)),
-        math.max(1, math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - 4))
+        math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - SCREEN_MARGIN_CELLS)),
+        math.max(
+          1,
+          math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - SCREEN_MARGIN_CELLS)
+        )
       )
     end,
     -- Materialize placeholders only after the terminal acknowledges this independent placement.
@@ -188,21 +195,21 @@ function M:open(path, options)
         style = "minimal",
         border = self.opts.border,
         focusable = false,
-        zindex = 50,
+        zindex = PREVIEW_ZINDEX,
         title = " " .. vim.fs.basename(path) .. " ",
         title_pos = "center",
       }
       if self.opts.position == "bottom_right" then
-        local statusline = vim.o.laststatus == 2
-          or vim.o.laststatus == 3
-          or (vim.o.laststatus == 1 and vim.fn.winnr("$") > 1)
+        local statusline = vim.o.laststatus == LASTSTATUS.ALWAYS
+          or vim.o.laststatus == LASTSTATUS.GLOBAL
+          or (vim.o.laststatus == LASTSTATUS.MULTIPLE_WINDOWS and vim.fn.winnr("$") > 1)
         window.anchor = "SE"
         window.row = math.max(0, vim.o.lines - vim.o.cmdheight - (statusline and 1 or 0))
         window.col = vim.o.columns
       else
         local position = vim.fn.screenpos(state.owner_win, state.cursor[1], state.cursor[2] + 1)
-        window.row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - 2))
-        window.col = math.max(0, math.min(position.col, vim.o.columns - width - 2))
+        window.row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - BORDER_CELLS))
+        window.col = math.max(0, math.min(position.col, vim.o.columns - width - BORDER_CELLS))
       end
       state.win = vim.api.nvim_open_win(state.buf, false, window)
       vim.wo[state.win].wrap = false

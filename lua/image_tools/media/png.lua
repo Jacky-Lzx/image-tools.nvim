@@ -15,7 +15,19 @@
 
 local M = {}
 local uv = vim.uv
-local signature = "\137PNG\13\10\26\10"
+local PNG_SIGNATURE = "\137PNG\13\10\26\10"
+local BYTE_RADIX = 256
+local UINT32_BYTES = 4
+local CHUNK_TYPE_BYTES = #"IHDR"
+local CHUNK_OVERHEAD_BYTES = UINT32_BYTES + CHUNK_TYPE_BYTES + UINT32_BYTES -- Length, type and CRC.
+local IHDR_DATA_BYTES = 13
+local IHDR_LENGTH_OFFSET = #PNG_SIGNATURE + 1
+local IHDR_TYPE_OFFSET = IHDR_LENGTH_OFFSET + UINT32_BYTES
+local WIDTH_OFFSET = IHDR_TYPE_OFFSET + CHUNK_TYPE_BYTES
+local HEIGHT_OFFSET = WIDTH_OFFSET + UINT32_BYTES
+local HEADER_BYTES = #PNG_SIGNATURE + CHUNK_OVERHEAD_BYTES + IHDR_DATA_BYTES
+local IEND_BYTES = CHUNK_OVERHEAD_BYTES -- The final chunk has no data payload.
+local MIN_PNG_BYTES = HEADER_BYTES + IEND_BYTES
 M.key = require("image_tools.media.file_version").key
 
 -- Decode one big-endian unsigned 32-bit PNG field.
@@ -23,8 +35,8 @@ M.key = require("image_tools.media.file_version").key
 ---@param offset integer One-based byte offset.
 ---@return integer value
 local function integer(data, offset)
-  local a, b, c, d = data:byte(offset, offset + 3)
-  return ((a * 256 + b) * 256 + c) * 256 + d
+  local a, b, c, d = data:byte(offset, offset + UINT32_BYTES - 1)
+  return ((a * BYTE_RADIX + b) * BYTE_RADIX + c) * BYTE_RADIX + d
 end
 
 -- Check signature/IHDR/IEND and configured dimensions; this is basic validation, not full PNG
@@ -35,15 +47,15 @@ end
 ---@return string? error
 function M.info(data, opts)
   if
-    #data < 45
-    or data:sub(1, 8) ~= signature
-    or data:sub(13, 16) ~= "IHDR"
-    or integer(data, 9) ~= 13
-    or data:sub(-8, -5) ~= "IEND"
+    #data < MIN_PNG_BYTES
+    or data:sub(1, #PNG_SIGNATURE) ~= PNG_SIGNATURE
+    or data:sub(IHDR_TYPE_OFFSET, IHDR_TYPE_OFFSET + CHUNK_TYPE_BYTES - 1) ~= "IHDR"
+    or integer(data, IHDR_LENGTH_OFFSET) ~= IHDR_DATA_BYTES
+    or data:sub(-(CHUNK_TYPE_BYTES + UINT32_BYTES), -(UINT32_BYTES + 1)) ~= "IEND"
   then
     return nil, "Not a complete PNG image"
   end
-  local width, height = integer(data, 17), integer(data, 21)
+  local width, height = integer(data, WIDTH_OFFSET), integer(data, HEIGHT_OFFSET)
   if
     width < 1
     or height < 1
@@ -89,7 +101,7 @@ function M.read(path, opts, callback, metadata_only)
       done("Image file exceeds max_bytes")
       return
     end
-    if stat.size < 45 then
+    if stat.size < MIN_PNG_BYTES then
       done("Not a complete PNG image")
       return
     end
@@ -144,12 +156,12 @@ function M.read(path, opts, callback, metadata_only)
         end)
       end
 
-      uv.fs_read(fd, metadata_only and 33 or stat.size, 0, function(read_err, data)
+      uv.fs_read(fd, metadata_only and HEADER_BYTES or stat.size, 0, function(read_err, data)
         if read_err or not data or cancelled or not metadata_only then
           finish(read_err, data)
           return
         end
-        uv.fs_read(fd, 12, stat.size - 12, function(tail_err, tail)
+        uv.fs_read(fd, IEND_BYTES, stat.size - IEND_BYTES, function(tail_err, tail)
           finish(tail_err, tail and data .. tail or nil)
         end)
       end)

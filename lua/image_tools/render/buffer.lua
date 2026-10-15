@@ -277,7 +277,7 @@ function M:attach(buf, path)
   end
 
   ---@type ImageToolsBufferMetadata
-  local meta = { path = path, pdf = path:lower():sub(-4) == ".pdf", page = 1, generation = 0 }
+  local meta = { path = path, pdf = path:lower():sub(-#".pdf") == ".pdf", page = 1, generation = 0 }
   self.buffers[buf] = meta
   vim.b[buf].image_tools_view = true
   vim.bo[buf].buftype, vim.bo[buf].bufhidden = "nofile", "hide"

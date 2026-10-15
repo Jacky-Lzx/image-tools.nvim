@@ -60,13 +60,15 @@ local dependency_modules = {
 ---@type table, table
 local Pool, Handle = {}, {}
 Pool.__index, Handle.__index = Pool, Handle
+local defaults = require("image_tools.defaults")
+local kitty = require("image_tools.terminal.constants")
 
 local placement = 0
 
 -- Allocate a process-scoped nonzero 24-bit placement id independently of upload ids.
 ---@return integer placement
 local function next_placement()
-  placement = placement % 0xFFFFFF + 1
+  placement = placement % kitty.MAX_ID + 1
   return placement
 end
 
@@ -219,8 +221,8 @@ function Handle:acquire(image, width, height, callback, retried)
     local done = false
     local cancellation = terminal.request(
       state.pixel.id,
-      protocol.place(state.pixel.id, width, height, 0, consumer.placement),
-      pool.opts.terminal_timeout or 1500,
+      protocol.place(state.pixel.id, width, height, kitty.REPLY_ALL, consumer.placement),
+      pool.opts.terminal_timeout or defaults.terminal_timeout,
       -- A failed placement can replace pixels only when this consumer is their sole active owner.
       ---@param place_err string?
       ---@return nil

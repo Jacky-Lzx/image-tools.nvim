@@ -37,6 +37,7 @@ local dependency_modules = {
 ---@field state? ImageToolsCanvasState Pending/visible canvas, absent after close.
 local M = {}
 M.__index = M
+local CANVAS_ZINDEX = 30
 local ns = vim.api.nvim_create_namespace("image_tools.canvas")
 
 -- Construct a file-viewer canvas controller with no window or preparation request yet.
@@ -204,7 +205,7 @@ function M:open(meta, owner_buf, owner_win, callback)
         style = "minimal",
         border = "none",
         focusable = false,
-        zindex = 30,
+        zindex = CANVAS_ZINDEX,
       })
       vim.wo[state.win].wrap, vim.wo[state.win].list, vim.wo[state.win].spell = false, false, false
       vim.wo[state.win].winblend, vim.wo[state.win].conceallevel = 0, 0

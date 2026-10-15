@@ -1,0 +1,43 @@
+-- Module: image_tools.defaults
+--
+-- Purpose:
+--   Define shared option defaults for configuration and partial internal callers.
+--
+-- Architecture:
+--   Keep this data-only module independent of runtime and media services.
+--   config.resolve deep-copies it; service fallbacks read the same values.
+--
+-- Ownership:
+--   Treat the returned table as read-only. Copy nested values before exposing
+--   them through resolved options or mutable service state.
+
+return {
+  auto_preview = true,
+  treesitter = true,
+  latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
+  buffer = {
+    enabled = true,
+    formats = { "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" },
+  },
+  pdfinfo = "pdfinfo",
+  pdf_density = 144,
+  insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after", prompt_for_file_name = false },
+  position = "cursor", -- "cursor" or "bottom_right"
+  transport = "auto", -- "auto", "file" or "direct"
+  terminal_timeout = 1500,
+  terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
+  disk_cache = { enabled = true, max_bytes = 512 * 1024 * 1024, max_files = 256 },
+  max_width = 60,
+  max_height = 30,
+  border = "rounded",
+  force = false,
+  cell_size = { width = 10, height = 20 },
+  max_bytes = 32 * 1024 * 1024,
+  max_dimension = 16384,
+  max_pixels = 64 * 1024 * 1024,
+  max_scan_lines = 10000,
+  convert_timeout = 10000,
+  convert_concurrency = 2,
+  magick = "magick",
+  rsvg = "rsvg-convert",
+}

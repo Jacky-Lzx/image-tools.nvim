@@ -1,15 +1,15 @@
 -- Module: image_tools.config
 --
 -- Purpose:
---   Define defaults and resolve independent, validated option tables.
+--   Resolve independent, validated option tables from shared defaults.
 --
 -- Architecture:
---   Used by the public facade and internal services. Consult the media entry point
---   for supported buffer formats; leave handler registration and resource
---   allocation to runtime.
+--   Used by the public facade and internal services. Copy image_tools.defaults
+--   and consult the media entry point for supported buffer formats; leave
+--   handler registration and resource allocation to runtime.
 --
 -- Ownership:
---   Keep private defaults and deep-copy caller options. Resolving configuration
+--   Deep-copy shared defaults and caller options. Resolving configuration
 --   does not change an active Runtime.
 
 ---@class ImageToolsOptions
@@ -45,36 +45,7 @@
 
 ---@class ImageToolsConfig
 local M = {}
-local defaults = {
-  auto_preview = true,
-  treesitter = true,
-  latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
-  buffer = {
-    enabled = true,
-    formats = { "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" },
-  },
-  pdfinfo = "pdfinfo",
-  pdf_density = 144,
-  insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after", prompt_for_file_name = false },
-  position = "cursor", -- "cursor" or "bottom_right"
-  transport = "auto", -- "auto", "file" or "direct"
-  terminal_timeout = 1500,
-  terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
-  disk_cache = { enabled = true, max_bytes = 512 * 1024 * 1024, max_files = 256 },
-  max_width = 60,
-  max_height = 30,
-  border = "rounded",
-  force = false,
-  cell_size = { width = 10, height = 20 },
-  max_bytes = 32 * 1024 * 1024,
-  max_dimension = 16384,
-  max_pixels = 64 * 1024 * 1024,
-  max_scan_lines = 10000,
-  convert_timeout = 10000,
-  convert_concurrency = 2,
-  magick = "magick",
-  rsvg = "rsvg-convert",
-}
+local defaults = require("image_tools.defaults")
 
 -- Deep-copy defaults/caller options, fill the cache path and reject invalid limits before Runtime
 -- replacement.

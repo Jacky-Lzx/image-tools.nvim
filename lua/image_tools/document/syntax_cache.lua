@@ -24,7 +24,8 @@
 ---@class ImageToolsSyntaxCache
 local M = {}
 local entries, attached = {}, {}
-local block_size, max_queries = 128, 128
+local CHECKPOINT_LINES = 128
+local MAX_QUERY_RESULTS = 128
 
 -- Cache syntax only: resolution callbacks, project roots and filesystem checks
 -- still run for each request. Buffer edits invalidate every prefix checkpoint.
@@ -59,18 +60,18 @@ function M.query(buf, row, kind, initial, scan)
   if entry.queries[row] then
     return entry.queries[row]
   end
-  local checkpoint = math.floor((row - 1) / block_size) * block_size
+  local checkpoint = math.floor((row - 1) / CHECKPOINT_LINES) * CHECKPOINT_LINES
   while entry.through < checkpoint do
     local start = entry.through
     local _, state =
-      scan(vim.api.nvim_buf_get_lines(buf, start, start + block_size, false), vim.deepcopy(entry.states[start]))
-    entry.through = start + block_size
+      scan(vim.api.nvim_buf_get_lines(buf, start, start + CHECKPOINT_LINES, false), vim.deepcopy(entry.states[start]))
+    entry.through = start + CHECKPOINT_LINES
     entry.states[entry.through] = state
   end
   local result = scan(vim.api.nvim_buf_get_lines(buf, checkpoint, row, false), vim.deepcopy(entry.states[checkpoint]))
   entry.queries[row] = result
   entry.order[#entry.order + 1] = row
-  if #entry.order > max_queries then
+  if #entry.order > MAX_QUERY_RESULTS then
     entry.queries[table.remove(entry.order, 1)] = nil
   end
   return result

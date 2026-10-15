@@ -69,12 +69,16 @@ local dependency_modules = {
 ---@field last_error? string Most recent reported upload/read error; cleared when acquire delivers a ready entry.
 local M = {}
 M.__index = M
-local next_id = math.floor(vim.uv.hrtime() % 0xEFFFFF) + 0x100000
+local defaults = require("image_tools.defaults")
+local kitty = require("image_tools.terminal.constants")
+local ID_SEED_MIN = 0x100000
+local RGBA_BYTES_PER_PIXEL = 4
+local next_id = math.floor(vim.uv.hrtime() % (kitty.MAX_ID - ID_SEED_MIN)) + ID_SEED_MIN
 
 -- Allocate the next process-scoped, nonzero 24-bit Kitty image id.
 ---@return integer id
 local function allocate_id()
-  next_id = (next_id % 0xFFFFFF) + 1
+  next_id = (next_id % kitty.MAX_ID) + 1
   return next_id
 end
 
@@ -116,7 +120,7 @@ function M:trim()
     end
   end
 
-  local limits = self.opts.terminal_cache or { max_images = 32, max_bytes = 64 * 1024 * 1024 }
+  local limits = self.opts.terminal_cache or defaults.terminal_cache
   while count > limits.max_images or bytes > limits.max_bytes do
     local oldest
     for _, entry in pairs(self.entries) do
@@ -197,8 +201,8 @@ function M:acquire(image, callback)
   local entry = self.entries[key]
   local cached = entry and entry.uploaded
   if not entry then
-    local limits = self.opts.terminal_cache or { max_images = 32, max_bytes = 64 * 1024 * 1024 }
-    local bytes = image.width * image.height * 4 -- conservative decoded RGBA estimate
+    local limits = self.opts.terminal_cache or defaults.terminal_cache
+    local bytes = image.width * image.height * RGBA_BYTES_PER_PIXEL -- Conservative decoded RGBA estimate.
     entry = {
       key = key,
       id = allocate_id(),
@@ -256,7 +260,7 @@ function M:acquire(image, callback)
     local cancellation = terminal.request(
       entry.id,
       command,
-      self.opts.terminal_timeout or 1500,
+      self.opts.terminal_timeout or defaults.terminal_timeout,
       ---@param err string?
       ---@return nil
       function(err)
@@ -304,7 +308,8 @@ function M:acquire(image, callback)
       end
       self.uploads = self.uploads + 1
 
-      local command = use_file and protocol.upload_file(entry.id, image.path) or protocol.upload(entry.id, data, 0)
+      local command = use_file and protocol.upload_file(entry.id, image.path)
+        or protocol.upload(entry.id, data, kitty.REPLY_ALL)
       request(
         command,
         ---@param err string?

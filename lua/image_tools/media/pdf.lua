@@ -19,6 +19,7 @@
 
 ---@class ImageToolsPdf
 local M = {}
+local SIGTERM = 15
 
 -- Run pdfinfo and report page count only if the source revision is still current.
 ---@param path string PDF path.
@@ -85,7 +86,7 @@ function M.info(path, opts, callback)
   return function()
     cancelled = true
     if job then
-      job:kill(15)
+      job:kill(SIGTERM)
     end
   end
 end

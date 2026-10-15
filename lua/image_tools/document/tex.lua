@@ -14,6 +14,7 @@
 --   preparation remains outside document lookup.
 
 local M = {}
+local GRAPHICSPATH_COMMAND = "\\graphicspath"
 local reference = require("image_tools.document.tex.reference")
 local clean, group, space, literal, escaped =
   reference.clean, reference.group, reference.space, reference.literal, reference.escaped
@@ -36,11 +37,15 @@ local excluded = { verbatim = true, ["verbatim*"] = true, lstlisting = true, min
 ---@return string[]? directories Nil when the declaration is absent/invalid.
 function M.graphicspath(original, start)
   local line = clean(original)
-  start = start or line:find("\\graphicspath", 1, true)
-  if not start or line:sub(start, start + 12) ~= "\\graphicspath" or escaped(line, start) then
+  start = start or line:find(GRAPHICSPATH_COMMAND, 1, true)
+  if
+    not start
+    or line:sub(start, start + #GRAPHICSPATH_COMMAND - 1) ~= GRAPHICSPATH_COMMAND
+    or escaped(line, start)
+  then
     return
   end
-  local first = space(line, start + 13)
+  local first = space(line, start + #GRAPHICSPATH_COMMAND)
   local last = group(line, first, "{", "}")
   if not last then
     return

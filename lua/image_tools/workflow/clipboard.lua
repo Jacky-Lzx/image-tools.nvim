@@ -24,6 +24,11 @@
 ---@class ImageToolsClipboard
 local M = {}
 local uv = vim.uv
+local defaults = require("image_tools.defaults")
+local limits = require("image_tools.media.conversion_limits")
+local SIGTERM = 15
+local DEFAULT_QUALITY = 75
+local DEFAULT_CLIPBOARD_TIMEOUT_MS = 5000
 local formats = { png = true, jpg = true, webp = true, avif = true }
 
 -- pngpaste uses AppKit's pasteboard conversion. It reads the clipboard without
@@ -80,7 +85,7 @@ function M.paste(opts, callback, dependencies)
     end
     state.done = true
     if state.job then
-      state.job:kill(15)
+      state.job:kill(SIGTERM)
     end
     if state.cancel_conversion then
       state.cancel_conversion()
@@ -136,7 +141,7 @@ function M.paste(opts, callback, dependencies)
       finish("Clipboard did not contain an image")
       return
     end
-    if stat.size > (opts.max_bytes or 32 * 1024 * 1024) then
+    if stat.size > (opts.max_bytes or defaults.max_bytes) then
       finish("Clipboard image exceeds max_bytes")
       return
     end
@@ -166,20 +171,20 @@ function M.paste(opts, callback, dependencies)
         magick,
         "-limit",
         "memory",
-        "128MiB",
+        limits.MAGICK_MEMORY,
         "-limit",
         "map",
-        "256MiB",
+        limits.MAGICK_MAP,
         "-limit",
         "disk",
-        "256MiB",
+        limits.MAGICK_DISK,
         png,
         "-auto-orient",
         "-quality",
-        tostring(opts.quality or 75),
+        tostring(opts.quality or DEFAULT_QUALITY),
         output,
       },
-      { timeout = opts.convert_timeout or 10000 },
+      { timeout = opts.convert_timeout or defaults.convert_timeout },
       vim.schedule_wrap(function(result)
         state.cancel_conversion = nil
         if state.done then
@@ -197,7 +202,7 @@ function M.paste(opts, callback, dependencies)
 
   state.job = vim.system(
     { executable, png },
-    { timeout = opts.clipboard_timeout or 5000 },
+    { timeout = opts.clipboard_timeout or DEFAULT_CLIPBOARD_TIMEOUT_MS },
     vim.schedule_wrap(function(result)
       state.job = nil
       if state.done then
@@ -209,16 +214,16 @@ function M.paste(opts, callback, dependencies)
         return
       end
       local stat = uv.fs_stat(png)
-      if not stat or stat.size > (opts.max_bytes or 32 * 1024 * 1024) then
+      if not stat or stat.size > (opts.max_bytes or defaults.max_bytes) then
         finish("Clipboard image missing or exceeds max_bytes")
         return
       end
 
       -- Validate PNG before copying it into the user's document resources.
       state.cancel_read = require("image_tools.media").read(png, {
-        max_bytes = opts.max_bytes or 32 * 1024 * 1024,
-        max_dimension = opts.max_dimension or 16384,
-        max_pixels = opts.max_pixels or 64 * 1024 * 1024,
+        max_bytes = opts.max_bytes or defaults.max_bytes,
+        max_dimension = opts.max_dimension or defaults.max_dimension,
+        max_pixels = opts.max_pixels or defaults.max_pixels,
       }, function(err)
         if state.done then
           cleanup()

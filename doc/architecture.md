@@ -17,7 +17,8 @@ columns; accepted preview requests are distinguished from acknowledged drawing.
 ```
 lua/image_tools/
   init.lua                 public API
-  config.lua               option defaults and validation
+  config.lua               option resolution and validation
+  defaults.lua             shared option defaults
   runtime.lua              editor lifecycle and subsystem coordination
   commands.lua             user commands
   health.lua               Neovim checkhealth entry point
@@ -41,6 +42,7 @@ lua/image_tools/
     pdf.lua                PDF metadata
     disk_cache.lua         converted-file storage and eviction
     conversion_queue.lua   process budget and scheduling
+    conversion_limits.lua  fixed conversion dimensions and resource limits
   render/
     preview.lua            floating preview controller
     buffer.lua             read-only file-buffer controller
@@ -51,6 +53,7 @@ lua/image_tools/
   terminal/
     init.lua               terminal detection, geometry and replies
     protocol.lua           Kitty commands and placeholder encoding
+    constants.lua          fixed Kitty wire-format values
     upload.lua             pixel upload, fallback and cache
     pixel_pool.lua         shared pixel ownership and placements
     transfer.lua           per-view placement manager
@@ -59,6 +62,15 @@ lua/image_tools/
     clipboard.lua          macOS clipboard import
     picker.lua             Snacks selection and preview integration
 ```
+
+`defaults.lua` is the single source for configurable defaults, including service
+fallbacks for partial internal options. Consumers treat it as read-only;
+`config.resolve()` deep-copies it before merging caller options. Fixed conversion
+limits live in `media/conversion_limits.lua`, and shared Kitty wire-format values
+live in `terminal/constants.lua`. Other format offsets, scan batches, timing
+budgets and rendering priorities are named within their owning modules. String
+and command offsets are derived from their actual lengths. This organization
+does not add configuration options or change existing limits.
 
 `require("image_tools.document")` retains `supported`, `parse`, `base`,
 `resolve`, `at_line` and `at_cursor`. Format modules use the path and

@@ -18,6 +18,8 @@ local uv = vim.uv
 local png = require("image_tools.media.png")
 local version = require("image_tools.media.file_version")
 local convertible = require("image_tools.media.formats").formats
+local defaults = require("image_tools.defaults")
+local limits = require("image_tools.media.conversion_limits")
 
 -- Choose a renderer, reuse or publish a validated cache PNG, and retain a temporary disk lease
 -- during work.
@@ -89,7 +91,7 @@ function M.prepare(path, opts, callback, metadata_only)
         .. ":"
         .. (use_rsvg and svg_renderer or opts.magick)
         .. ":svg-v2:"
-        .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or 144)) or "")
+        .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or defaults.pdf_density)) or "")
     )
     local output = opts.cache .. "/" .. key .. ".png"
     -- Read an existing pinned cache result or run a converter into an unpublished temporary PNG.
@@ -106,8 +108,8 @@ function M.prepare(path, opts, callback, metadata_only)
         command = {
           svg_renderer,
           "--format=png",
-          "--width=1920",
-          "--height=1080",
+          "--width=" .. limits.MAX_WIDTH,
+          "--height=" .. limits.MAX_HEIGHT,
           "--keep-aspect-ratio",
           "--output",
           temporary,
@@ -118,22 +120,22 @@ function M.prepare(path, opts, callback, metadata_only)
           opts.magick,
           "-limit",
           "memory",
-          "128MiB",
+          limits.MAGICK_MEMORY,
           "-limit",
           "map",
-          "256MiB",
+          limits.MAGICK_MAP,
           "-limit",
           "disk",
-          "256MiB",
+          limits.MAGICK_DISK,
         }
         if extension == "pdf" then
-          vim.list_extend(command, { "-density", tostring(opts.pdf_density or 144) })
+          vim.list_extend(command, { "-density", tostring(opts.pdf_density or defaults.pdf_density) })
         end
         vim.list_extend(command, {
           (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
           "-auto-orient",
           "-resize",
-          "1920x1080>",
+          limits.MAX_WIDTH .. "x" .. limits.MAX_HEIGHT .. ">",
           "png:" .. temporary,
         })
       end

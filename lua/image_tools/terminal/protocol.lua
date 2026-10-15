@@ -14,7 +14,7 @@
 --   no image/placement ids; callers own transmission and resource lifecycle.
 
 local M = {}
-local esc = "\27"
+local kitty = require("image_tools.terminal.constants")
 
 -- Row/column values from the Kitty graphics protocol specification:
 -- https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders
@@ -38,7 +38,7 @@ function M.command(fields, payload)
   for _, key in ipairs(keys) do
     parts[#parts + 1] = key .. "=" .. tostring(fields[key])
   end
-  return esc .. "_G" .. table.concat(parts, ",") .. (payload and ";" .. payload or "") .. esc .. "\\"
+  return kitty.ESC .. "_G" .. table.concat(parts, ",") .. (payload and ";" .. payload or "") .. kitty.ESC .. "\\"
 end
 
 -- Encode PNG bytes into direct-transmission chunks with an id only on the first chunk.
@@ -49,12 +49,15 @@ end
 function M.upload(id, png, quiet)
   local data = vim.base64.encode(png)
   local commands = {}
-  for offset = 1, #data, 4096 do
-    local fields = { m = offset + 4096 > #data and 0 or 1, q = quiet == nil and 2 or quiet }
+  for offset = 1, #data, kitty.UPLOAD_CHUNK_BYTES do
+    local fields = {
+      m = offset + kitty.UPLOAD_CHUNK_BYTES > #data and 0 or 1,
+      q = quiet == nil and kitty.REPLY_NONE or quiet,
+    }
     if offset == 1 then
-      fields.a, fields.f, fields.t, fields.i = "t", 100, "d", id
+      fields.a, fields.f, fields.t, fields.i = "t", kitty.PNG_FORMAT, "d", id
     end
-    commands[#commands + 1] = M.command(fields, data:sub(offset, offset + 4095))
+    commands[#commands + 1] = M.command(fields, data:sub(offset, offset + kitty.UPLOAD_CHUNK_BYTES - 1))
   end
   return table.concat(commands)
 end
@@ -64,7 +67,7 @@ end
 ---@param path string Absolute filename readable by the terminal.
 ---@return string command
 function M.upload_file(id, path)
-  return M.command({ a = "t", f = 100, t = "f", i = id, q = 0 }, vim.base64.encode(path))
+  return M.command({ a = "t", f = kitty.PNG_FORMAT, t = "f", i = id, q = kitty.REPLY_ALL }, vim.base64.encode(path))
 end
 
 -- Create a virtual Unicode-placeholder placement without transmitting pixels again.
@@ -75,7 +78,15 @@ end
 ---@param placement? integer Independent placement id.
 ---@return string command
 function M.place(id, width, height, quiet, placement)
-  return M.command({ a = "p", U = 1, i = id, p = placement, c = width, r = height, q = quiet == nil and 2 or quiet })
+  return M.command({
+    a = "p",
+    U = 1,
+    i = id,
+    p = placement,
+    c = width,
+    r = height,
+    q = quiet == nil and kitty.REPLY_NONE or quiet,
+  })
 end
 
 -- Hide one placement (or placements for an image) while retaining uploaded pixels.
@@ -83,14 +94,14 @@ end
 ---@param placement? integer Optional placement selector.
 ---@return string command
 function M.hide(id, placement)
-  return M.command({ a = "d", d = "i", i = id, p = placement, q = 2 })
+  return M.command({ a = "d", d = "i", i = id, p = placement, q = kitty.REPLY_NONE })
 end
 
 -- Free one plugin-owned image and all of its terminal placements.
 ---@param id integer Image to release.
 ---@return string command
 function M.delete(id)
-  return M.command({ a = "d", d = "I", i = id, q = 2 })
+  return M.command({ a = "d", d = "I", i = id, q = kitty.REPLY_NONE })
 end
 
 -- Kitty selects a virtual placement from the underline color (Neovim sp).
@@ -115,7 +126,7 @@ end
 ---@return string[] lines
 function M.grid(width, height)
   assert(width >= 1 and width <= M.max_cells and height >= 1 and height <= M.max_cells)
-  local lines, placeholder = {}, vim.fn.nr2char(0x10EEEE)
+  local lines, placeholder = {}, vim.fn.nr2char(kitty.PLACEHOLDER_CODEPOINT)
   for row = 1, height do
     local cells = {}
     for col = 1, width do

@@ -61,6 +61,8 @@
 
 ---@class ImageToolsTreesitter
 local M = {}
+local defaults = require("image_tools.defaults")
+local NS_PER_MS = 1e6
 local entries, attached, queries = {}, {}, {}
 local diagnostics = {}
 local totals = { parses = 0, hits = 0, indexed_rows = 0, fallbacks = {} }
@@ -225,7 +227,7 @@ local function index(buf, entry, finish)
             elseif
               last_row - row + 1 <= max_lines
               and end_byte - start_byte <= max_bytes
-              and last_row + 1 <= (entry.options.max_scan_lines or 10000)
+              and last_row + 1 <= (entry.options.max_scan_lines or defaults.max_scan_lines)
             then
               local text = table.concat(vim.api.nvim_buf_get_text(buf, row, col, last_row, last_col, {}), "\n")
               parsed[decode_key] = decoder.parse(text, row + 1, entry.options)
@@ -316,9 +318,9 @@ function M.query(buf, row, lang, ready, options)
   -- by a loaded buffer's parser cache after setup replacement or teardown.
   options = {
     latex = { max_reference_lines = max_lines, max_reference_bytes = max_bytes },
-    max_scan_lines = options.max_scan_lines or 10000,
+    max_scan_lines = options.max_scan_lines or defaults.max_scan_lines,
   }
-  local policy = lang == "latex" and table.concat({ max_lines, max_bytes, options.max_scan_lines or 10000 }, ":") or ""
+  local policy = lang == "latex" and table.concat({ max_lines, max_bytes, options.max_scan_lines }, ":") or ""
   if entry and entry.tree and entry.policy ~= policy then
     entry.rows, entry.directories, entry.errors, entry.references, entry.seen, entry.frontier = {}, {}, {}, {}, {}, 0
     entry.policy, entry.options = policy, options
@@ -376,7 +378,7 @@ function M.query(buf, row, lang, ready, options)
       end
       entry.pending = false
       local state = report(buf, lang, "treesitter")
-      state.parse_ms = (vim.uv.hrtime() - started) / 1e6
+      state.parse_ms = (vim.uv.hrtime() - started) / NS_PER_MS
       if not err and trees and trees[1] then
         queries[lang] = query
         local result = previous
@@ -420,7 +422,7 @@ function M.query(buf, row, lang, ready, options)
     local first, started = entry.frontier, vim.uv.hrtime()
     local ok, err = pcall(index, buf, entry, row)
     local state = diagnostics[buf]
-    state.index_ms = (vim.uv.hrtime() - started) / 1e6
+    state.index_ms = (vim.uv.hrtime() - started) / NS_PER_MS
     totals.indexed_rows = totals.indexed_rows + row - first
     if not ok then
       report(buf, lang, "lexer", "index_error", tostring(err))
