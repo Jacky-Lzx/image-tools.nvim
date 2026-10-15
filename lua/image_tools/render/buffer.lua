@@ -82,7 +82,7 @@ function M:header(buf)
   if meta.pdf then
     line = line .. "  " .. meta.page .. " / " .. (meta.pages or "?") .. "   [p previous  ]p next"
   end
-  line = line .. "   r reload"
+  line = line .. "   r reload   +/- zoom   0 fit   1 native   arrows pan"
   local lines = { line }
   if meta.error then
     vim.list_extend(lines, vim.split(meta.error, "\n", { plain = true }))
@@ -295,6 +295,21 @@ function M:attach(buf, path)
     vim.keymap.set("n", key, callback, { buffer = buf, silent = true, desc = desc })
   end
 
+  for key, value in pairs({ ["+"] = "in", ["-"] = "out", ["0"] = "fit", ["1"] = "native" }) do
+    mapping(key, function()
+      self:zoom(value)
+    end, "Image zoom " .. value)
+  end
+  for key, delta in pairs({
+    ["<Left>"] = { -5, 0 },
+    ["<Right>"] = { 5, 0 },
+    ["<Up>"] = { 0, -5 },
+    ["<Down>"] = { 0, 5 },
+  }) do
+    mapping(key, function()
+      self:pan(delta[1] * vim.v.count1, delta[2] * vim.v.count1)
+    end, "Pan image")
+  end
   mapping("r", function()
     self:reload(buf)
   end, "Reload image/PDF preview")
@@ -355,6 +370,7 @@ function M:sync()
           view = {
             buf = buf,
             saved = saved,
+            viewport = { zoom = "fit", x = 0, y = 0 },
             canvas = require("image_tools.render.canvas").new(self.opts, self.dependencies),
           }
           self.views[win] = view
@@ -389,7 +405,7 @@ function M:sync()
                 self:header(buf)
                 self:schedule()
               end
-            end)
+            end, view.viewport)
           end
         end
       end
@@ -408,6 +424,53 @@ function M:sync()
       meta.cancel_info = nil
     end
   end
+end
+
+-- Change only the current window's viewport; other splits retain their placements.
+function M:zoom(value)
+  local view = self.views[vim.api.nvim_get_current_win()]
+  if not view then
+    return false, "Current window is not an image/PDF viewer"
+  end
+  if value == "in" or value == "out" then
+    local current = view.canvas.state and view.canvas.state.zoom_factor or tonumber(view.viewport.zoom) or 1
+    value = math.max(0.125, math.min(8, current * (value == "in" and 2 or 0.5)))
+  end
+  if
+    value ~= "fit"
+    and value ~= "native"
+    and (type(value) ~= "number" or value ~= value or value < 0.125 or value > 8)
+  then
+    return false, "Zoom must be fit, native, in, out or a factor from 0.125 to 8"
+  end
+  view.viewport = { zoom = value, x = 0, y = 0 }
+  view.failed = nil
+  view.canvas:close()
+  self:schedule()
+  return true
+end
+
+function M:pan(x, y)
+  if
+    type(x) ~= "number"
+    or type(y) ~= "number"
+    or x ~= x
+    or y ~= y
+    or math.abs(x) == math.huge
+    or math.abs(y) == math.huge
+  then
+    return false, "Pan offsets must be finite numbers in terminal cells"
+  end
+  local view = self.views[vim.api.nvim_get_current_win()]
+  if not view then
+    return false, "Current window is not an image/PDF viewer"
+  end
+  view.viewport.x = math.max(0, view.viewport.x + math.floor(x))
+  view.viewport.y = math.max(0, view.viewport.y + math.floor(y))
+  view.failed = nil
+  view.canvas:close()
+  self:schedule()
+  return true
 end
 
 -- Open a supported source through a protected buffer, without taking over a modified unowned
@@ -463,6 +526,10 @@ function M:status(buf)
         window = view.canvas.state and view.canvas.state.win,
         page = view.canvas.state and view.canvas.state.page,
         cache = view.canvas.transfer:status(),
+        viewport = vim.deepcopy(view.viewport),
+        crop = view.canvas.state and vim.deepcopy(view.canvas.state.crop),
+        dimensions = view.canvas.state
+          and { width = view.canvas.state.image_width, height = view.canvas.state.image_height },
       }
     end
   end

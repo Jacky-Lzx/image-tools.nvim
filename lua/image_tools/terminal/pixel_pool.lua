@@ -152,7 +152,8 @@ end
 ---@param retried? boolean Internal one-retry guard for missing/evicted terminal pixels.
 ---@return ImageToolsCancel cancel Release this view; cancellation suppresses pending delivery.
 ---@param self ImageToolsPlacementManager
-function Handle:acquire(image, width, height, callback, retried)
+---@param crop? {x: integer, y: integer, width: integer, height: integer} Source pixel rectangle.
+function Handle:acquire(image, width, height, callback, retried, crop)
   local pool, uploader = self.pool, self.pool.uploader
   local terminal, protocol = pool:dependency("terminal"), pool:dependency("protocol")
   local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
@@ -221,7 +222,7 @@ function Handle:acquire(image, width, height, callback, retried)
     local done = false
     local cancellation = terminal.request(
       state.pixel.id,
-      protocol.place(state.pixel.id, width, height, kitty.REPLY_ALL, consumer.placement),
+      protocol.place(state.pixel.id, width, height, kitty.REPLY_ALL, consumer.placement, crop),
       pool.opts.terminal_timeout or defaults.terminal_timeout,
       -- A failed placement can replace pixels only when this consumer is their sole active owner.
       ---@param place_err string?
@@ -243,7 +244,7 @@ function Handle:acquire(image, width, height, callback, retried)
           then
             cancel()
             uploader:discard(state.pixel)
-            replacement = self:acquire(image, width, height, callback, true)
+            replacement = self:acquire(image, width, height, callback, true, crop)
           else
             fail(place_err)
           end

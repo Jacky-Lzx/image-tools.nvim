@@ -56,6 +56,18 @@ function M.register(runtime)
     report(runtime:next_page(-args.count))
   end, { count = 1, desc = "Previous PDF page", force = true })
 
+  command("ImageZoom", function(args)
+    report(runtime:zoom(tonumber(args.args) or args.args))
+  end, { nargs = 1, desc = "Set viewer zoom (fit/native/in/out/factor)", force = true })
+
+  command("ImagePan", function(args)
+    if #args.fargs ~= 2 then
+      report(false, "ImagePan requires X Y offsets in terminal cells")
+      return
+    end
+    report(runtime:pan(tonumber(args.fargs[1]), tonumber(args.fargs[2])))
+  end, { nargs = "+", desc = "Pan viewer by horizontal/vertical terminal cells", force = true })
+
   command("ImageReload", function()
     report(runtime:reload())
   end, { desc = "Reload the current image/PDF buffer", force = true })

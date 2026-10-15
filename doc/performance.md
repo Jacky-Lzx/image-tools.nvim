@@ -59,3 +59,8 @@ the Lua backend for Markdown/LaTeX/Typst. Timings include live path resolution.
 The benchmark uses temporary buffers, performs no conversion or terminal upload,
 and does not impose machine-dependent pass/fail thresholds. Compare runs on the
 same Neovim build and hardware; visible rendering still needs Kitty validation.
+
+Viewer zoom scales conversion output bounds and PDF density up to eight times,
+further constrained by configured dimension/pixel limits. Conversion keys and
+coalescing include the detail level. Panning changes only a placement's Kitty
+source rectangle, so native PNG pan/zoom does not require another pixel upload.

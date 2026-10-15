@@ -126,6 +126,41 @@ check(
   status.views[second].cache.uploads == 1 and status.views[second].cache.placements == 2,
   "Two actual Neovim split canvases share one terminal upload"
 )
+-- Zoom and pan belong to one window and reuse native PNG pixels.
+local other_frame = status.views[win].window
+check(image.zoom(2) and ready(second), "Zoom current split")
+local zoomed = image.status().buffer.views[second]
+check(
+  zoomed.viewport.zoom == 2 and image.status().buffer.views[win].window == other_frame,
+  "Zoom leaves the other split placement untouched"
+)
+check(
+  zoomed.crop.width < zoomed.dimensions.width or zoomed.crop.height < zoomed.dimensions.height,
+  "Zoom crops source pixels to the viewport"
+)
+check(image.pan(10000, 10000) and ready(second), "Pan clamps to the image edge")
+local panned = image.status().buffer.views[second]
+check(panned.crop.x > 0 or panned.crop.y > 0, "Panning changes the source rectangle")
+check(
+  panned.crop.x + panned.crop.width <= panned.dimensions.width
+    and panned.crop.y + panned.crop.height <= panned.dimensions.height,
+  "Crop remains inside source pixels"
+)
+local placement_command
+for _, command in ipairs(writes) do
+  if command:find("a=p", 1, true) then
+    placement_command = command
+  end
+end
+check(
+  placement_command:find(",x=" .. panned.crop.x .. ",", 1, true)
+    and placement_command:find(",w=" .. panned.crop.width .. ",", 1, true),
+  "Placement protocol carries the selected pixel crop"
+)
+check(panned.cache.uploads == 1, "PNG zoom and pan reuse the uploaded pixels")
+check(not image.zoom(0) and not image.zoom(0 / 0) and not image.pan(math.huge, 0), "Invalid view controls rejected")
+check(image.zoom("native") and ready(second), "Native pixel scale")
+check(image.zoom("fit") and ready(second), "Restore fit")
 local function canvas_color(owner)
   local canvas = image.status().buffer.views[owner].window
   local buf = vim.api.nvim_win_get_buf(canvas)
@@ -189,6 +224,14 @@ end
 check(first_path ~= nil, "PDF converted to PNG for upload")
 local first_color = vim.system({ "magick", first_path, "-format", "%[pixel:p{10,10}]", "info:" }):wait().stdout
 check(first_color:match("255,0,0") or first_color:match("100%%,0%%,0%%"), "First PDF page is red: " .. first_color)
+local initial_dimensions = image.status().buffer.views[second].dimensions
+check(image.zoom(2) and ready(second), "PDF zoom re-renders")
+local detailed = image.status().buffer.views[second].dimensions
+check(
+  detailed.width > initial_dimensions.width and detailed.height > initial_dimensions.height,
+  "PDF zoom increases actual raster resolution"
+)
+check(image.zoom("fit") and ready(second), "PDF fit restored")
 check(image.page(2), "Go to specified page")
 check(ready(), "Second PDF page rendered")
 local second_path

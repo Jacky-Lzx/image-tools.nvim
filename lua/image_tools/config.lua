@@ -41,6 +41,7 @@
 ---@field cache? string Converted PNG directory; resolve fills the default when absent.
 ---@field root? string|fun(document: string): string? Reference/project base override.
 ---@field resolve? fun(document: string, source: string): string? Optional local path resolver.
+---@field render_scale? number Internal converted-raster detail multiplier, capped at eight.
 ---@field _treesitter_ready? fun() Internal continuation for an authoritative pending parse.
 
 ---@class ImageToolsConfig

@@ -40,8 +40,9 @@ end
 ---@param height integer Rows.
 ---@param callback ImageToolsPlacementCallback Acknowledged placement or error.
 ---@return ImageToolsCancel cancel
-function M:acquire(image, width, height, callback)
-  return self.handle:acquire(image, width, height, callback)
+---@param crop? {x: integer, y: integer, width: integer, height: integer} Source pixel rectangle.
+function M:acquire(image, width, height, callback, crop)
+  return self.handle:acquire(image, width, height, callback, nil, crop)
 end
 
 -- Release view leases; clear all pixels only if this manager owns a private pool.

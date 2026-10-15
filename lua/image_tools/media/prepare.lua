@@ -138,6 +138,7 @@ function M.request(path, opts, callback)
     opts.rsvg or "rsvg-convert",
     tostring(opts.page or 1),
     tostring(opts.pdf_density or defaults.pdf_density),
+    tostring(opts.render_scale or 1),
     tostring(opts.transport ~= nil),
     tostring(opts.max_bytes),
     tostring(opts.max_dimension),

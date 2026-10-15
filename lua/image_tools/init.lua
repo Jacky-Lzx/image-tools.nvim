@@ -162,4 +162,13 @@ function M.toggle()
   return runtime():toggle()
 end
 
+-- Adjust the current file-viewer window independently of other splits.
+function M.zoom(value)
+  return runtime():zoom(value)
+end
+
+function M.pan(x, y)
+  return runtime():pan(x, y)
+end
+
 return M

@@ -31,4 +31,24 @@ function M.fit(image, cell, max_width, max_height, upscale)
     math.max(1, math.min(max_height, math.ceil(rows * scale)))
 end
 
+-- Crop a scaled image to its viewport. Offsets are terminal cells; crop coordinates are pixels.
+function M.viewport(image, cell, width, height, viewport)
+  local columns, rows = image.width / cell.width, image.height / cell.height
+  local fit = math.min(width / columns, height / rows)
+  local scale = viewport.zoom == "native" and 1 or fit * (tonumber(viewport.zoom) or 1)
+  local full_width, full_height = math.ceil(columns * scale), math.ceil(rows * scale)
+  local x = math.max(0, math.min(viewport.x or 0, math.max(0, full_width - width)))
+  local y = math.max(0, math.min(viewport.y or 0, math.max(0, full_height - height)))
+  local w, h = math.min(width, full_width), math.min(height, full_height)
+  local left = math.min(image.width - 1, math.floor(x * cell.width / scale))
+  local top = math.min(image.height - 1, math.floor(y * cell.height / scale))
+  local crop = {
+    x = left,
+    y = top,
+    width = math.min(image.width - left, math.max(1, math.ceil(w * cell.width / scale))),
+    height = math.min(image.height - top, math.max(1, math.ceil(h * cell.height / scale))),
+  }
+  return w, h, crop, x, y, scale / fit
+end
+
 return M

@@ -355,6 +355,14 @@ function Runtime:next_page(delta)
   return self.buffers:step(delta or 1)
 end
 
+function Runtime:zoom(value)
+  return self.buffers:zoom(value)
+end
+
+function Runtime:pan(x, y)
+  return self.buffers:pan(x, y)
+end
+
 -- Force source/metadata refresh in the current image/PDF viewer.
 ---@return boolean accepted
 ---@return string? error

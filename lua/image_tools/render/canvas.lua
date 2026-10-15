@@ -29,6 +29,10 @@ local dependency_modules = {
 ---@field view_height integer Available image rows below the header.
 ---@field col integer Zero-based relative-window column after gutters.
 ---@field row integer Zero-based relative-window row below the header.
+---@field crop? table Source pixel rectangle.
+---@field image_width? integer Prepared raster width.
+---@field image_height? integer Prepared raster height.
+---@field zoom_factor? number Effective magnification relative to fit.
 ---@field render? ImageToolsRenderSession Owned preparation/placement session.
 ---@class ImageToolsCanvas
 ---@field opts ImageToolsOptions Runtime settings.
@@ -114,8 +118,9 @@ end
 ---@param owner_win integer Regular owner window.
 ---@param callback fun(err: string?) Nil after drawing; errors after resource cleanup.
 ---@return nil
-function M:open(meta, owner_buf, owner_win, callback)
+function M:open(meta, owner_buf, owner_win, callback, viewport)
   self:close()
+  viewport = viewport or { zoom = "fit", x = 0, y = 0 }
 
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   local supported, reason = terminal.supports(self.opts)
@@ -159,60 +164,71 @@ function M:open(meta, owner_buf, owner_win, callback)
   end
 
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
-  state.render:start(meta.path, vim.tbl_extend("force", self.opts, { page = meta.page }), {
-    current = current,
-    -- A late result may close only its own state, never a newer replacement request.
-    ---@return nil
-    stale = function()
-      if self.state == state then
-        self:close()
-      end
-    end,
-    error = fail,
-    -- Compute cells after preparation using the current owner/pane geometry.
-    ---@param image ImageToolsImage
-    ---@return integer width
-    ---@return integer height
-    size = function(image)
-      width, height, col, row = M.viewport(owner_win)
-      state.view_width, state.view_height, state.col, state.row = width, height, col, row
-      return require("image_tools.render.geometry").fit(
-        image,
-        terminal.cell_size(self.opts.cell_size),
-        math.min(width, protocol.max_cells),
-        math.min(height, protocol.max_cells),
-        true
-      )
-    end,
-    -- Materialize placeholders only after the terminal acknowledges this independent placement.
-    ---@param entry ImageToolsPlacement
-    ---@param width integer Terminal columns.
-    ---@param height integer Terminal rows.
-    ---@return nil
-    draw = function(entry, width, height)
-      state.buf = vim.api.nvim_create_buf(false, true)
-      vim.bo[state.buf].bufhidden, vim.bo[state.buf].filetype = "wipe", "image_tools_canvas"
-      vim.bo[state.buf].swapfile = false
-      require("image_tools.render.placeholder").draw(state, ns, "ImageToolsCanvas_", entry, width, height, protocol)
-      vim.bo[state.buf].modifiable, vim.bo[state.buf].modified = false, false
-      state.win = vim.api.nvim_open_win(state.buf, false, {
-        relative = "win",
-        win = owner_win,
-        row = row,
-        col = col,
-        width = width,
-        height = height,
-        style = "minimal",
-        border = "none",
-        focusable = false,
-        zindex = CANVAS_ZINDEX,
-      })
-      vim.wo[state.win].wrap, vim.wo[state.win].list, vim.wo[state.win].spell = false, false, false
-      vim.wo[state.win].winblend, vim.wo[state.win].conceallevel = 0, 0
+  state.render:start(
+    meta.path,
+    vim.tbl_extend("force", self.opts, {
+      page = meta.page,
+      render_scale = math.max(1, math.ceil(tonumber(viewport.zoom) or 1)),
+    }),
+    {
+      current = current,
+      -- A late result may close only its own state, never a newer replacement request.
+      ---@return nil
+      stale = function()
+        if self.state == state then
+          self:close()
+        end
+      end,
+      error = fail,
+      -- Compute cells after preparation using the current owner/pane geometry.
+      ---@param image ImageToolsImage
+      ---@return integer width
+      ---@return integer height
+      size = function(image)
+        width, height, col, row = M.viewport(owner_win)
+        state.view_width, state.view_height, state.col, state.row = width, height, col, row
+        local w, h, crop, x, y, factor = require("image_tools.render.geometry").viewport(
+          image,
+          terminal.cell_size(self.opts.cell_size),
+          math.min(width, protocol.max_cells),
+          math.min(height, protocol.max_cells),
+          viewport
+        )
+        viewport.x, viewport.y = x, y
+        state.crop, state.zoom_factor = crop, factor
+        state.image_width, state.image_height = image.width, image.height
+        return w, h, crop
+      end,
+      -- Materialize placeholders only after the terminal acknowledges this independent placement.
+      ---@param entry ImageToolsPlacement
+      ---@param width integer Terminal columns.
+      ---@param height integer Terminal rows.
+      ---@return nil
+      draw = function(entry, width, height)
+        state.buf = vim.api.nvim_create_buf(false, true)
+        vim.bo[state.buf].bufhidden, vim.bo[state.buf].filetype = "wipe", "image_tools_canvas"
+        vim.bo[state.buf].swapfile = false
+        require("image_tools.render.placeholder").draw(state, ns, "ImageToolsCanvas_", entry, width, height, protocol)
+        vim.bo[state.buf].modifiable, vim.bo[state.buf].modified = false, false
+        state.win = vim.api.nvim_open_win(state.buf, false, {
+          relative = "win",
+          win = owner_win,
+          row = row,
+          col = col,
+          width = width,
+          height = height,
+          style = "minimal",
+          border = "none",
+          focusable = false,
+          zindex = CANVAS_ZINDEX,
+        })
+        vim.wo[state.win].wrap, vim.wo[state.win].list, vim.wo[state.win].spell = false, false, false
+        vim.wo[state.win].winblend, vim.wo[state.win].conceallevel = 0, 0
 
-      callback(nil)
-    end,
-  })
+        callback(nil)
+      end,
+    }
+  )
 end
 
 return M

@@ -77,7 +77,8 @@ end
 ---@param quiet? integer q policy; defaults to 2.
 ---@param placement? integer Independent placement id.
 ---@return string command
-function M.place(id, width, height, quiet, placement)
+---@param crop? {x: integer, y: integer, width: integer, height: integer} Source pixel rectangle.
+function M.place(id, width, height, quiet, placement, crop)
   return M.command({
     a = "p",
     U = 1,
@@ -86,6 +87,10 @@ function M.place(id, width, height, quiet, placement)
     c = width,
     r = height,
     q = quiet == nil and kitty.REPLY_NONE or quiet,
+    x = crop and crop.x,
+    y = crop and crop.y,
+    w = crop and crop.width,
+    h = crop and crop.height,
   })
 end
 

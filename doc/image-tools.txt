@@ -134,7 +134,7 @@ max_images = 0 disables retention. Setup, suspend and exit release owned images.
 SCOPE                                                      *image-tools-scope*
 
 PNG, JPG, JPEG, WebP, AVIF, HEIC, GIF (first frame), BMP, TIF/TIFF, PDF and SVG
-previews. Converted previews fit within 1920x1080; native PNG dimensions are
+previews. Converted previews fit within 1920x1080 at default zoom; native PNG dimensions are
 preserved and validated against max_dimension/max_pixels. Floating previews
 do not upscale; picker and file-buffer previews can upscale to fit their pane.
 Complete same-line Markdown inline images, angle-bracket destinations, quoted
@@ -324,3 +324,15 @@ Markdown reference images: ![alt][id], ![id][], ![id]. Definitions may follow
 uses and must be complete on one line, within max_scan_lines. Labels ignore case
 and collapse whitespace; the first definition outside code wins. Image wikilinks
 ![[path.png|label]] use literal document-relative paths, without vault search.
+
+Image/PDF viewer controls: `+` / `-` zoom by a factor of two, `0` fits the
+window, `1` uses native prepared-pixel scale, and arrow keys pan by five terminal
+cells (counts supported). `:ImageZoom fit|native|in|out|FACTOR`, `zoom(value)`,
+`:ImagePan X Y` and `pan(x, y)` expose the same controls. Numeric zoom is relative
+to fit and ranges from 0.125 to 8. Zoom resets pan; pan clamps to image edges.
+Each visible split retains independent controls across resize/reload/page changes;
+leaving its buffer resets that window's controls. Cropped placements reuse uploaded
+pixels. PDF and other converted formats prepare larger rasters when zoomed in; PDF
+density and output bounds scale together, bounded by source/output limits and the
+existing conversion queue. Native scale refers to the prepared raster, including
+configured PDF density. Original files are unchanged.

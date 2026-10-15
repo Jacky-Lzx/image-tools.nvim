@@ -43,6 +43,18 @@ function M.prepare(path, opts, callback, metadata_only)
       cancelled = true
     end
   end
+  local scale = math.max(
+    1,
+    math.min(
+      8,
+      opts.render_scale or 1,
+      opts.max_dimension / limits.MAX_WIDTH,
+      opts.max_dimension / limits.MAX_HEIGHT,
+      math.sqrt(opts.max_pixels / (limits.MAX_WIDTH * limits.MAX_HEIGHT))
+    )
+  )
+  local output_width, output_height = math.floor(limits.MAX_WIDTH * scale), math.floor(limits.MAX_HEIGHT * scale)
+  local density = math.max(1, math.floor((opts.pdf_density or defaults.pdf_density) * scale))
   local cancelled, process, cache_release = false, nil, nil
   -- Deliver a result if active and release the worker disk lease after the callback.
   ---@param err? string Conversion/read error.
@@ -90,8 +102,12 @@ function M.prepare(path, opts, callback, metadata_only)
       version.key(path, stat)
         .. ":"
         .. (use_rsvg and svg_renderer or opts.magick)
-        .. ":svg-v2:"
-        .. (extension == "pdf" and (page .. ":" .. (opts.pdf_density or defaults.pdf_density)) or "")
+        .. ":viewport-v3:"
+        .. output_width
+        .. "x"
+        .. output_height
+        .. ":"
+        .. (extension == "pdf" and (page .. ":" .. density) or "")
     )
     local output = opts.cache .. "/" .. key .. ".png"
     -- Read an existing pinned cache result or run a converter into an unpublished temporary PNG.
@@ -108,8 +124,8 @@ function M.prepare(path, opts, callback, metadata_only)
         command = {
           svg_renderer,
           "--format=png",
-          "--width=" .. limits.MAX_WIDTH,
-          "--height=" .. limits.MAX_HEIGHT,
+          "--width=" .. output_width,
+          "--height=" .. output_height,
           "--keep-aspect-ratio",
           "--output",
           temporary,
@@ -129,13 +145,13 @@ function M.prepare(path, opts, callback, metadata_only)
           limits.MAGICK_DISK,
         }
         if extension == "pdf" then
-          vim.list_extend(command, { "-density", tostring(opts.pdf_density or defaults.pdf_density) })
+          vim.list_extend(command, { "-density", tostring(density) })
         end
         vim.list_extend(command, {
           (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
           "-auto-orient",
           "-resize",
-          limits.MAX_WIDTH .. "x" .. limits.MAX_HEIGHT .. ">",
+          output_width .. "x" .. output_height .. ">",
           "png:" .. temporary,
         })
       end

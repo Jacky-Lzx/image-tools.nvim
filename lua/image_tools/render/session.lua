@@ -19,7 +19,7 @@
 ---@field current fun(): boolean Caller authority check for owner/source/generation.
 ---@field stale fun() Caller cleanup when authority is lost.
 ---@field error fun(err: string) Caller presentation after session resources are released.
----@field size fun(image: ImageToolsImage): integer, integer Placement columns and rows.
+---@field size fun(image: ImageToolsImage): integer, integer, table? Placement columns, rows and optional source crop.
 ---@field draw fun(entry: ImageToolsPlacement, width: integer, height: integer) Called only after acknowledgement.
 ---@class ImageToolsRenderSession
 ---@field image table Media dependency providing prepare.
@@ -104,7 +104,7 @@ function M:start(path, opts, view)
       fail(err)
       return
     end
-    local width, height = view.size(image)
+    local width, height, crop = view.size(image)
     self:keep(self.transfer:acquire(image, width, height, function(transfer_err, entry)
       if not current(entry) then
         return
@@ -121,7 +121,7 @@ function M:start(path, opts, view)
       if not ok then
         fail(draw_err)
       end
-    end))
+    end, crop))
   end))
 end
 

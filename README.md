@@ -51,7 +51,7 @@ corresponding operations.
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
-`open(path)`, `page(n)`, `next_page(delta)`, `reload()`.
+`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`.
 
 `require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd.
@@ -122,7 +122,7 @@ The default `"cursor"` places it near the cursor.
 excluded from automatic file interception by default.
 
 Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size and nanosecond mtime/ctime.
-Converted previews fit within 1920x1080; native PNGs retain their dimensions and
+Converted previews fit within 1920x1080 at default zoom; native PNGs retain their dimensions and
 are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
 picker and file-buffer images can upscale to fit their viewport. Originals are never modified.
 Converted disk images are managed asynchronously by `disk_cache` limits.
@@ -448,3 +448,15 @@ sources retain their placements; superseded asynchronous results are discarded.
 Lua reference scanning retains unchanged prefix checkpoints after edits. For
 repeatable cold/warm lookup, tail-edit and movement timings, see
 [the recognition benchmark](doc/performance.md#recognition-latency-benchmark).
+
+Image/PDF viewer controls: `+` / `-` zoom by a factor of two, `0` fits the
+window, `1` uses native prepared-pixel scale, and arrow keys pan by five terminal
+cells (counts supported). `:ImageZoom fit|native|in|out|FACTOR`, `zoom(value)`,
+`:ImagePan X Y` and `pan(x, y)` expose the same controls. Numeric zoom is relative
+to fit and ranges from 0.125 to 8. Zoom resets pan; pan clamps to image edges.
+Each visible split retains independent controls across resize/reload/page changes;
+leaving its buffer resets that window's controls. Cropped placements reuse uploaded
+pixels. PDF and other converted formats prepare larger rasters when zoomed in; PDF
+density and output bounds scale together, bounded by source/output limits and the
+existing conversion queue. Native scale refers to the prepared raster, including
+configured PDF density. Original files are unchanged.
