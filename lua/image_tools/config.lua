@@ -16,7 +16,7 @@
 ---@field auto_preview boolean Enable automatic reference previews.
 ---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
 ---@field latex {max_reference_lines: integer, max_reference_bytes: integer} Budgets for one LaTeX reference.
----@field buffer {enabled: boolean, formats: string[]} Automatic file-buffer interception settings.
+---@field buffer {enabled: boolean, formats: string[], keymaps: table<string, string|boolean>|boolean} Automatic file-buffer interception settings.
 ---@field pdfinfo string PDF metadata executable.
 ---@field pdf_density integer Rasterization DPI, included in PDF conversion keys.
 ---@field insert ImageToolsInsertOptions Defaults merged into individual import operations.
@@ -99,6 +99,29 @@ function M.resolve(opts)
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
   assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
   assert(type(options.buffer.enabled) == "boolean", "buffer.enabled must be boolean")
+  assert(
+    options.buffer.keymaps == false or type(options.buffer.keymaps) == "table",
+    "buffer.keymaps must be a table or false"
+  )
+  if options.buffer.keymaps then
+    local used = {}
+    for action, key in pairs(options.buffer.keymaps) do
+      assert(defaults.buffer.keymaps[action], "Unknown viewer keymap action: " .. tostring(action))
+      assert(key == false or type(key) == "string" and key ~= "", "Viewer keys must be nonempty strings or false")
+      if key then
+        local normalized = vim.api.nvim_replace_termcodes(key, true, true, true)
+        assert(not used[normalized], "Duplicate viewer key: " .. key)
+        used[normalized] = action
+      end
+    end
+  end
+  for _, tool in ipairs({ "magick", "rsvg", "pdfinfo" }) do
+    assert(type(options[tool]) == "string" and options[tool] ~= "", tool .. " must be an executable name or path")
+  end
+  assert(
+    options.insert.pngpaste == nil or type(options.insert.pngpaste) == "string" and options.insert.pngpaste ~= "",
+    "insert.pngpaste must be an executable name or path"
+  )
   for _, extension in ipairs(options.buffer.formats) do
     assert(
       type(extension) == "string"

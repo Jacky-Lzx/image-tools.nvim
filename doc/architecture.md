@@ -58,6 +58,8 @@ lua/image_tools/
     pixel_pool.lua         shared pixel ownership and placements
     transfer.lua           per-view placement manager
   workflow/
+    content.lua              bounded asynchronous content hashing and reuse
+    assets.lua               read-only document resource inspection
     insert.lua             file import and document text transaction
     clipboard.lua          macOS clipboard import
     picker.lua             Snacks selection and preview integration

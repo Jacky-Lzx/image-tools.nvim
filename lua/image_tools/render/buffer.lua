@@ -80,9 +80,17 @@ function M:header(buf)
   end
   local line = vim.fs.basename(meta.path):gsub("[\r\n]", " ")
   if meta.pdf then
-    line = line .. "  " .. meta.page .. " / " .. (meta.pages or "?") .. "   [p previous  ]p next"
+    line = line .. "  " .. meta.page .. " / " .. (meta.pages or "?")
   end
-  line = line .. "   r reload   +/- zoom   0 fit   1 native   arrows pan"
+  local keys = self.opts.buffer.keymaps
+  if keys == nil then
+    keys = require("image_tools.defaults").buffer.keymaps
+  end
+  for _, action in ipairs({ "reload", "info", "zoom_in", "zoom_out", "fit", "native", "next_page", "previous_page" }) do
+    if keys and keys[action] and (meta.pdf or action ~= "next_page" and action ~= "previous_page") then
+      line = line .. "   " .. keys[action] .. " " .. action:gsub("_", " ")
+    end
+  end
   local lines = { line }
   if meta.error then
     vim.list_extend(lines, vim.split(meta.error, "\n", { plain = true }))
@@ -121,6 +129,15 @@ function M:release(buf)
   self.buffers[buf] = nil
   if meta and meta.cancel_info then
     meta.cancel_info()
+  end
+  if meta and vim.api.nvim_buf_is_valid(buf) then
+    for _, owned in ipairs(meta.mappings or {}) do
+      for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+        if mapping.callback == owned.callback then
+          pcall(vim.api.nvim_buf_del_keymap, buf, "n", owned.key)
+        end
+      end
+    end
   end
   for win, view in pairs(vim.tbl_extend("force", {}, self.views)) do
     if view.buf == buf then
@@ -286,41 +303,51 @@ function M:attach(buf, path)
   self:header(buf)
   vim.bo[buf].filetype = "image_tools"
 
-  -- Install a viewer-local silent normal-mode mapping bound to the captured buffer.
-  ---@param key string Mapping key.
-  ---@param callback function Viewer operation.
-  ---@param desc string Mapping description.
-  ---@return nil
-  local function mapping(key, callback, desc)
-    vim.keymap.set("n", key, callback, { buffer = buf, silent = true, desc = desc })
+  -- Record owned mappings so replacement setup can remove them without erasing user overrides.
+  meta.mappings = {}
+  local keys = self.opts.buffer.keymaps
+  if keys == nil then
+    keys = require("image_tools.defaults").buffer.keymaps
   end
-
-  for key, value in pairs({ ["+"] = "in", ["-"] = "out", ["0"] = "fit", ["1"] = "native" }) do
-    mapping(key, function()
+  local function mapping(action, callback, desc)
+    local key = keys and keys[action]
+    if not key then
+      return
+    end
+    local normalized = vim.api.nvim_replace_termcodes(key, true, true, true)
+    for _, existing in ipairs(vim.api.nvim_buf_get_keymap(buf, "n")) do
+      if vim.api.nvim_replace_termcodes(existing.lhs, true, true, true) == normalized then
+        return
+      end
+    end
+    vim.keymap.set("n", key, callback, { buffer = buf, silent = true, desc = desc })
+    meta.mappings[#meta.mappings + 1] = { key = key, callback = callback }
+  end
+  for action, value in pairs({ zoom_in = "in", zoom_out = "out", fit = "fit", native = "native" }) do
+    mapping(action, function()
       self:zoom(value)
     end, "Image zoom " .. value)
   end
-  for key, delta in pairs({
-    ["<Left>"] = { -5, 0 },
-    ["<Right>"] = { 5, 0 },
-    ["<Up>"] = { 0, -5 },
-    ["<Down>"] = { 0, 5 },
-  }) do
-    mapping(key, function()
+  for action, delta in pairs({ pan_left = { -5, 0 }, pan_right = { 5, 0 }, pan_up = { 0, -5 }, pan_down = { 0, 5 } }) do
+    mapping(action, function()
       self:pan(delta[1] * vim.v.count1, delta[2] * vim.v.count1)
     end, "Pan image")
   end
-  mapping("r", function()
+  mapping("reload", function()
     self:reload(buf)
   end, "Reload image/PDF preview")
+  mapping("info", function()
+    vim.cmd("ImageInfo")
+  end, "Image metadata")
   if meta.pdf then
-    mapping("]p", function()
+    mapping("next_page", function()
       self:step(vim.v.count1, buf)
     end, "Next PDF page")
-    mapping("[p", function()
+    mapping("previous_page", function()
       self:step(-vim.v.count1, buf)
     end, "Previous PDF page")
   end
+
   self:reload(buf)
 end
 

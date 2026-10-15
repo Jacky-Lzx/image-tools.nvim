@@ -56,6 +56,32 @@ function M.register(runtime)
     report(runtime:next_page(-args.count))
   end, { count = 1, desc = "Previous PDF page", force = true })
 
+  command("ImageInfo", function()
+    local info, err = runtime:info()
+    if not info then
+      report(false, err)
+      return
+    end
+    local lines = {
+      info.path,
+      "Format: " .. (info.format or "unknown"),
+      "Source: " .. (info.bytes and (info.bytes .. " bytes") or "missing/unreadable"),
+      "Prepared raster: " .. (info.width and string.format("%d x %d pixels", info.width, info.height) or "pending"),
+      "State: " .. (info.error or (info.ready and "ready" or "pending")),
+    }
+    if info.page then
+      lines[#lines + 1] = "PDF page: " .. info.page .. " / " .. (info.pages or "?")
+    end
+    if info.zoom then
+      lines[#lines + 1] = "Zoom: " .. tostring(info.zoom)
+    end
+    local cache = info.terminal_cache
+    lines[#lines + 1] =
+      string.format("Terminal cache: %d image(s), %d hit(s), %d upload(s)", cache.images, cache.hits, cache.uploads)
+    lines[#lines + 1] = "Disk cache: " .. info.disk_cache
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "image-tools" })
+  end, { desc = "Show current image/PDF metadata and cache statistics", force = true })
+
   command("ImageCheckAssets", function()
     runtime:check_assets({}, function(err, result)
       if err then

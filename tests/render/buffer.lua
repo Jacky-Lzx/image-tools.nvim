@@ -206,6 +206,39 @@ check(ready(second), "Returning to hidden file restores preview")
 image.setup({ auto_preview = false, cache = tmp .. "/cache" })
 check(ready(second), "Repeated setup reconnects loaded image buffers")
 check(vim.fn.sha256(table.concat(vim.fn.readfile(png, "b"), "\n")) == original_hash, "Setup does not alter source")
+-- Metadata is a read-only snapshot and keymap reconfiguration releases only owned bindings.
+local metadata = assert(image.info())
+check(metadata.path == png and metadata.width and metadata.height and metadata.ready, "Viewer metadata snapshot")
+local notify, message = vim.notify, nil
+vim.notify = function(text)
+  message = text
+end
+vim.cmd("ImageInfo")
+vim.notify = notify
+check(
+  message:find("Prepared raster:", 1, true) and message:find("Terminal cache:", 1, true),
+  "ImageInfo presents dimensions and cache counters"
+)
+vim.keymap.set("n", "r", function() end, { buffer = buf, desc = "user reload override" })
+image.setup({
+  auto_preview = false,
+  cache = tmp .. "/cache",
+  buffer = { keymaps = { zoom_in = "z", zoom_out = false } },
+})
+check(ready(second), "Custom keymaps keep the viewer usable")
+check(
+  vim.fn.maparg("+", "n", false, true).buffer == nil and vim.fn.maparg("-", "n", false, true).buffer == nil,
+  "Reconfiguration removes replaced/disabled owned mappings"
+)
+check(vim.fn.maparg("z", "n", false, true).buffer == 1, "Custom zoom key installed")
+check(vim.fn.maparg("r", "n", false, true).desc == "user reload override", "User replacement mapping survives setup")
+vim.fn.maparg("z", "n", false, true).callback()
+check(ready(second) and image.status().buffer.views[second].viewport.zoom == 2, "Custom key invokes zoom")
+image.setup({ auto_preview = false, cache = tmp .. "/cache", buffer = { keymaps = false } })
+check(ready(second) and vim.fn.maparg("z", "n", false, true).buffer == nil, "All plugin mappings can be disabled")
+check(vim.fn.maparg("r", "n", false, true).desc == "user reload override", "Disabling keymaps retains user bindings")
+image.setup({ auto_preview = false, cache = tmp .. "/cache" })
+check(ready(second), "Default controls restored")
 -- Real two-page PDF fixture with distinct colors; prove paging changes pixels.
 vim.uv.fs_copyfile(vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.pdf", tmp .. "/pages.pdf")
 local pdf = tmp .. "/pages.pdf"
@@ -214,6 +247,10 @@ check(image.open(pdf), "ImageOpen opens PDF")
 check(ready(), "First PDF page rendered: " .. vim.inspect(image.status()))
 local pdfbuf = vim.api.nvim_get_current_buf()
 check(image.status().buffer.pages == 2 and image.status().buffer.page == 1, "Actual PDF metadata")
+check(
+  image.info().pages == 2 and image.info().page == 1 and image.info().format == "pdf",
+  "PDF info exposes bounds and format"
+)
 local first_path
 for _, command in ipairs(writes) do
   local encoded = command:match("t=f;([^\27]+)")

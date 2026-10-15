@@ -39,6 +39,8 @@ local dependency_modules = {
 ---@field configured boolean Whether an active undisposed Runtime exists.
 ---@field auto_preview boolean Current automatic-preview setting; false before setup.
 ---@field transport "auto"|"file"|"direct" Current policy; auto before setup.
+---@field tools? table<string, string> Configured tool executable paths.
+---@field cell_size? ImageToolsCellSize Configured fallback cell geometry.
 ---@field path? string Current floating preview source, including pending preparation.
 ---@field window? integer Float id; absent until acknowledged pixels are drawn.
 ---@field buffer? table Current file-viewer metadata and per-window state.
@@ -469,6 +471,34 @@ function Runtime:toggle()
   return self.options.auto_preview
 end
 
+-- Describe the active viewer without starting media work or populating caches.
+function Runtime:info()
+  local buffer = self.buffers:status()
+  local state = self.preview.state
+  local view = buffer and buffer.views[vim.api.nvim_get_current_win()]
+  local path = buffer and buffer.path or state and on_current_line(state) and state.path
+  if not path then
+    return nil, "No active image/PDF viewer or floating preview"
+  end
+  local dimensions = view and view.dimensions or {}
+  local stat = vim.uv.fs_stat(path)
+  return {
+    path = path,
+    format = require("image_tools.media.formats").extension(path),
+    bytes = stat and stat.size,
+    width = buffer and dimensions.width or state and state.image_width,
+    height = buffer and dimensions.height or state and state.image_height,
+    page = buffer and buffer.page or (path:lower():match("%.pdf$") and 1 or nil),
+    pages = buffer and buffer.pages,
+    error = buffer and buffer.error,
+    zoom = view and view.viewport.zoom,
+    crop = view and vim.deepcopy(view.crop),
+    ready = not not (buffer and view and view.window or not buffer and state and state.win),
+    terminal_cache = self.preview.transfer:status(),
+    disk_cache = self.options.cache,
+  }
+end
+
 -- Return service/configuration snapshots without starting a parser or performing disk inspection.
 ---@return ImageToolsRuntimeStatus status
 function Runtime:status()
@@ -479,6 +509,13 @@ function Runtime:status()
     path = self.preview and self.preview.state and self.preview.state.path or nil,
     window = self.preview and self.preview.state and self.preview.state.win or nil,
     transport = self.options and self.options.transport or "auto",
+    tools = {
+      magick = self.options.magick,
+      rsvg = self.options.rsvg,
+      pdfinfo = self.options.pdfinfo,
+      pngpaste = self.options.insert.pngpaste or "pngpaste",
+    },
+    cell_size = vim.deepcopy(self.options.cell_size),
     disk_cache = vim.tbl_extend("force", self.options.disk_cache, { path = self.options.cache }),
     conversion_queue = require("image_tools.media.conversion_queue").status(),
     media = require("image_tools.media.prepare").status(),

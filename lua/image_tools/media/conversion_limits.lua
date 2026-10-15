@@ -5,7 +5,8 @@
 --
 -- Architecture:
 --   Preview and clipboard command builders share ImageMagick limits. Preview
---   renderers also share one output bounding box, independent of terminal cells.
+--   renderers share a default output box, scaled for viewer detail independently
+--   of terminal cells and constrained by configured validation limits.
 --
 -- Ownership:
 --   Treat the returned table as read-only; command builders own their arrays.

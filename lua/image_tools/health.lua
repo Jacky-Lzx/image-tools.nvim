@@ -6,7 +6,7 @@
 --
 -- Architecture:
 --   Read terminal capabilities, the public status snapshot and media/disk_cache
---   inspection. Tool detection uses standard executable names; diagnostics do
+--   inspection. Tool detection uses configured executable names; diagnostics do
 --   not start a parser or initialize the Runtime.
 --
 -- Ownership:
@@ -90,6 +90,9 @@ end
 -- Report terminal/tool support and service/cache diagnostics without initializing the plugin.
 ---@return nil
 function M.check()
+  local state = require("image_tools").status()
+  local tools = state.tools
+    or { magick = defaults.magick, rsvg = defaults.rsvg, pdfinfo = defaults.pdfinfo, pngpaste = "pngpaste" }
   vim.health.start("image-tools")
   local supported, reason = require("image_tools.terminal").supports({})
   if supported then
@@ -98,40 +101,41 @@ function M.check()
     vim.health.warn(reason)
   end
 
-  if vim.fn.executable("magick") == 1 then
-    vim.health.ok("ImageMagick found: non-PNG previews available")
+  if vim.fn.executable(tools.magick) == 1 then
+    vim.health.ok("ImageMagick found: non-PNG previews available (" .. tools.magick .. ")")
   else
-    vim.health.warn("ImageMagick missing: PNG previews only")
+    vim.health.warn(
+      "ImageMagick missing: " .. tools.magick .. "; native PNG remains available; SVG may use rsvg-convert"
+    )
   end
 
   if vim.fn.has("mac") == 1 then
-    if vim.fn.executable("pngpaste") == 1 then
-      vim.health.ok("pngpaste found: macOS clipboard paste available")
+    if vim.fn.executable(tools.pngpaste) == 1 then
+      vim.health.ok("pngpaste found: macOS clipboard paste available (" .. tools.pngpaste .. ")")
     else
-      vim.health.warn("Install pngpaste for clipboard images: brew install pngpaste")
+      vim.health.warn("Clipboard executable missing: " .. tools.pngpaste .. " (brew install pngpaste)")
     end
   end
 
-  if vim.fn.executable("rsvg-convert") == 1 then
-    vim.health.ok("rsvg-convert found: SVG preview renderer")
+  if vim.fn.executable(tools.rsvg) == 1 then
+    vim.health.ok("rsvg-convert found: SVG preview renderer (" .. tools.rsvg .. ")")
   else
-    vim.health.info("SVG preview falls back to ImageMagick internal MSVG renderer")
+    vim.health.info("SVG executable missing: " .. tools.rsvg .. "; falls back to ImageMagick internal MSVG renderer")
   end
 
   if vim.fn.executable("gs") ~= 1 then
     vim.health.info("Ghostscript delegate is needed for ImageMagick PDF preview")
   end
 
-  if vim.fn.executable("pdfinfo") == 1 then
-    vim.health.ok("pdfinfo found: PDF buffer page counts available")
+  if vim.fn.executable(tools.pdfinfo) == 1 then
+    vim.health.ok("pdfinfo found: PDF buffer page counts available (" .. tools.pdfinfo .. ")")
   else
-    vim.health.warn("Install poppler for PDF buffers: brew install poppler")
+    vim.health.warn("PDF metadata executable missing: " .. tools.pdfinfo .. " (brew install poppler)")
   end
 
-  local cell = require("image_tools.terminal").cell_size(vim.deepcopy(defaults.cell_size))
+  local cell = require("image_tools.terminal").cell_size(vim.deepcopy(state.cell_size or defaults.cell_size))
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
 
-  local state = require("image_tools").status()
   vim.health.info("Transport: " .. state.transport .. " (auto tries local files and falls back to direct data)")
 
   if state.terminal_cache then

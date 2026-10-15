@@ -24,6 +24,9 @@ local dependency_modules = {
 ---@field owner_win integer Regular window from which preview was requested.
 ---@field cursor integer[] Captured one-based row and zero-based byte column.
 ---@field path string Absolute source path.
+---@field source_version? string Filesystem revision captured when preparation starts.
+---@field image_width? integer Prepared raster width.
+---@field image_height? integer Prepared raster height.
 ---@field changedtick integer Version kept current when edits preserve the source.
 ---@field automatic boolean Whether notification-silent mode was requested.
 ---@field reference boolean Whether cursor column/reference selection participates in authority.
@@ -166,6 +169,7 @@ function M:open(path, options)
     ---@return integer width
     ---@return integer height
     size = function(image)
+      state.image_width, state.image_height = image.width, image.height
       return require("image_tools.render.geometry").fit(
         image,
         terminal.cell_size(self.opts.cell_size),

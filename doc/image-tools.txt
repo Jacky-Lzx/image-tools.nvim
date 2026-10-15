@@ -353,3 +353,31 @@ referenced elsewhere. Directory inspection is nonrecursive and excludes symlinks
 No files are deleted. `check_assets(opts, callback)` returns a cancel function;
 the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
 `document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.
+
+VIEWER KEYMAPS                                         *image-tools-keymaps*
+
+Configure buffer.keymaps by action; unspecified actions keep default keys. Set
+an action to false, or the whole keymaps option to false, to disable mappings.
+Existing user buffer-local mappings take precedence; reconfiguration removes
+only still-owned plugin mappings.
+
+Actions/defaults: reload=r, info=i, zoom_in=+, zoom_out=-, fit=0, native=1,
+pan_left=<Left>, pan_right=<Right>, pan_up=<Up>, pan_down=<Down>, next_page=]p,
+previous_page=[p. The page actions are PDF-only. Commands remain available.
+
+:ImageInfo                                                    *:ImageInfo*
+    Show source path/format/bytes, prepared raster dimensions, readiness, PDF
+    bounds, zoom, terminal-cache counters and disk-cache directory. info() returns
+    the same metadata plus crop; absent dimensions are pending. No conversion is
+    started. Without a preview, info() returns nil and an error.
+
+Configured magick, pdfinfo, rsvg and insert.pngpaste executables are checked by
+checkhealth. The Ghostscript hint checks gs on PATH; ImageMagick selects its own
+PDF delegate.
+
+:ImageZoom                                                    *:ImageZoom*
+:ImagePan                                                      *:ImagePan*
+:ImageCheckAssets                                      *:ImageCheckAssets*
+    See the viewer and asset-check usage above.
+
+vim:tw=78:ts=8:noet:ft=help:norl:

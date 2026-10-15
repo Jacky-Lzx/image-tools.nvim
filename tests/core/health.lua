@@ -115,6 +115,33 @@ api.setup({ auto_preview = false, treesitter = false, cache = folder })
 text = report()
 check(text:find("Tree-sitter: disabled; using Lua scanner", 1, true), "Explicit scanner backend is described")
 check(text:find("index hit(s)", 1, true), "Syntax counters appear without parser initialization")
+-- Diagnostics must check the executables used by actual operations.
+local executable, probed = vim.fn.executable, {}
+local custom = { magick = "/custom tools/magick", rsvg = "/custom tools/rsvg", pdfinfo = "/custom tools/pdfinfo" }
+vim.fn.executable = function(path)
+  probed[path] = true
+  return path:match("^/custom tools/") and 1 or executable(path)
+end
+api.setup(
+  vim.tbl_extend(
+    "force",
+    custom,
+    { auto_preview = false, cache = folder, insert = { pngpaste = "/custom tools/pngpaste" } }
+  )
+)
+text = report()
+check(
+  probed[custom.magick] and probed[custom.rsvg] and probed[custom.pdfinfo],
+  "Configured renderer/metadata paths are probed"
+)
+check(
+  text:find(custom.magick, 1, true) and text:find(custom.pdfinfo, 1, true),
+  "Configured paths appear in health output"
+)
+if vim.fn.has("mac") == 1 then
+  check(probed["/custom tools/pngpaste"], "Configured clipboard tool is probed")
+end
+vim.fn.executable = executable
 for name, callback in pairs(original) do
   vim.health[name] = callback
 end

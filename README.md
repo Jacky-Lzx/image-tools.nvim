@@ -42,16 +42,18 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
 - `:ImagePreviewToggle` toggles automatic current-line previews.
-- `:checkhealth image_tools` checks the terminal and conversion tools.
+- `:ImageInfo` displays current image/PDF metadata and cache counters.
+- `:ImageCheckAssets` reports missing references and possibly unused assets.
+- `:checkhealth image_tools` checks the terminal and configured conversion tools.
 
-Health tool detection uses the standard executable names (`magick`, `pdfinfo`,
-`rsvg-convert`, `gs`, `pngpaste`); configured executable overrides apply to the
-corresponding operations.
+Health tool detection checks configured `magick`, `pdfinfo`, `rsvg` and
+`insert.pngpaste` executables, using their standard names when unset. Ghostscript
+remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
-`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`.
+`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`, `info()`.
 
 `require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd.
@@ -477,3 +479,28 @@ referenced elsewhere. Directory inspection is nonrecursive and excludes symlinks
 No files are deleted. `check_assets(opts, callback)` returns a cancel function;
 the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
 `document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.
+
+Viewer keymaps are configured by action. Unspecified actions keep their defaults;
+set an action to false to disable it, or set `buffer.keymaps = false` to disable
+all plugin mappings. Existing user buffer-local mappings take precedence. Setup
+replacement removes only mappings still owned by the previous instance. Commands
+and API calls remain available when mappings are disabled.
+
+```lua
+require("image_tools").setup({
+  buffer = { keymaps = { zoom_in = "z", zoom_out = "Z", pan_left = "h",
+    pan_right = "l", pan_up = "k", pan_down = "j", info = "i", reload = false } },
+  insert = { deduplicate = true },
+})
+```
+
+Available actions: `reload`, `info`, `zoom_in`, `zoom_out`, `fit`, `native`,
+`pan_left`, `pan_right`, `pan_up`, `pan_down`, `next_page`, `previous_page`. Default
+keys are `r`, `i`, `+`, `-`, `0`, `1`, arrow keys, `]p`, `[p`, respectively.
+
+`:ImageInfo` / `info()` describe the current file viewer or owning floating
+preview: source path/format/bytes, prepared raster dimensions, readiness, PDF
+page bounds when known, current zoom/crop, terminal-cache counters and disk-cache
+directory. This does not initiate conversion or configure an unused plugin.
+Prepared raster dimensions can be pending and can differ from original dimensions.
+`info()` returns `(nil, error)` when there is no active preview.

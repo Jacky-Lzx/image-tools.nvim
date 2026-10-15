@@ -11,6 +11,16 @@ normalized.buffer.formats[1], normalized.insert.directory = "pdf", "changed"
 eq(supplied.buffer.formats[1], "png", "Normalized lists do not mutate caller options")
 eq(supplied.insert.directory, "assets", "Normalized nested options do not mutate caller options")
 eq(config.resolve().insert.directory, "Figures", "Default options stay independent")
+eq(
+  pcall(config.resolve, { buffer = { keymaps = { zoom_in = "r" } } }),
+  false,
+  "Conflicting viewer key actions fail before runtime replacement"
+)
+eq(
+  pcall(config.resolve, { buffer = { keymaps = { unknown = "x" } } }),
+  false,
+  "Unknown viewer key actions fail validation"
+)
 local previews, buffers, renderers = {}, {}, {}
 local dependencies = {
   preview = {

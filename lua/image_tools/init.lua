@@ -181,4 +181,12 @@ function M.check_assets(opts, callback)
   end)
 end
 
+-- Metadata inspection does not implicitly configure an unused plugin.
+function M.info()
+  if not instance then
+    return nil, "No active image preview"
+  end
+  return instance:info()
+end
+
 return M
