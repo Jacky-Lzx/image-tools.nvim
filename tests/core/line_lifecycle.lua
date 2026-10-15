@@ -50,7 +50,7 @@ vim.api.nvim_buf_set_lines(owner, 0, -1, false, {
   "```",
 })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
-api.setup({ auto_preview = true, position = "bottom_right" })
+api.setup({ auto_preview = true, auto_preview_delay = 0, position = "bottom_right" })
 vim.wait(20, function()
   return #requests > 0
 end)
@@ -148,7 +148,7 @@ vim.api.nvim_buf_set_lines(
   { "\\includegraphics{" .. root .. "/tests/fixtures/fixture.png}", "plain text" }
 )
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
-api.setup({ auto_preview = true })
+api.setup({ auto_preview = true, auto_preview_delay = 0 })
 local expected = #requests + 1
 vim.wait(100, function()
   return #requests == expected
@@ -166,7 +166,7 @@ vim.bo.filetype = "typst"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { '#image("fixture.png")', "plain text" })
 vim.api.nvim_buf_set_name(0, root .. "/tests/fixtures/preview.typ")
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
-api.setup({ auto_preview = true })
+api.setup({ auto_preview = true, auto_preview_delay = 0 })
 expected = #requests + 1
 vim.wait(100, function()
   return #requests == expected
@@ -200,7 +200,7 @@ old_handler({})
 eq(api.status().window, window, "Old event callback cannot close replacement preview")
 eq(api.status().auto_preview, false, "Old callback cannot alter replacement configuration")
 local request_count = #requests
-api.setup({ auto_preview = true })
+api.setup({ auto_preview = true, auto_preview_delay = 0 })
 api.setup({ auto_preview = false })
 vim.wait(30, function()
   return false

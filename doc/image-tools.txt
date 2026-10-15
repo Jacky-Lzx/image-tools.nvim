@@ -382,6 +382,12 @@ previous_page=[p. The page actions are PDF-only. Commands remain available.
     survive close and retain no image resources; setup resets them. Without a
     viewer or retained failure, info() returns nil and an error.
 
+auto_preview_delay defaults to 100 milliseconds before preparing a new automatic
+selection. Moving to a different source replaces the waiting request; leaving a
+reference, closing, clearing caches or replacing setup cancels it. Same-source
+movement/edits retain the timer and already-started conversion. Manual preview()
+and hover() bypass this delay. Set to 0 for immediate automatic preparation.
+
 preview_loading_delay defaults to 300 milliseconds. Pending floating previews
 show a line-end loading hint after this delay; success, failure or cancellation
 removes it. Set to 0 to disable hints. Automatic failures remain silent.

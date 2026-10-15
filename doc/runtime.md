@@ -53,3 +53,9 @@ render resources. info() falls back to that diagnostic when no viewer is active;
 setup replacement drops it. Render sessions expose preparing/placing/ready stages
 and remember the failing stage. A request-owned delayed line-end hint is removed
 on drawing, failure or cancellation, without changing document text.
+
+New automatic selections retain a request-owned delay timer before media work
+starts. Selection remains live during the wait. Same-source movement updates
+authority without restarting the timer; a different source replaces it. Closing,
+clearing or replacing the Runtime cancels it. Manual hover/preview bypasses the
+delay and invalidates queued automatic work.

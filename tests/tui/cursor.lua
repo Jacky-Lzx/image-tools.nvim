@@ -11,7 +11,7 @@ vim.api.nvim_buf_set_name(0, temporary .. "/cursor.md")
 vim.bo.filetype = "markdown"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { text, "plain text" })
 vim.api.nvim_win_set_cursor(0, { 1, column("second.png") })
-image.setup({ auto_preview = true, position = "bottom_right", cache = temporary .. "/cache" })
+image.setup({ auto_preview = true, auto_preview_delay = 0, position = "bottom_right", cache = temporary .. "/cache" })
 local window
 local steps = {
   function()

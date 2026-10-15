@@ -62,12 +62,18 @@ An optional `root` replaces the document directory, or `resolve(document, source
 LaTeX additionally searches literal `graphicspath` directories and tries omitted
 extensions. Remote image references are rejected; the plugin does not fetch them.
 
-Automatic preview starts when the cursor enters an image line, including when
+Automatic preview selects an image when the cursor enters its line, including when
 it is outside the image link. On a line with multiple images, the reference under
 the cursor takes priority; moving onto another image switches the preview. Outside
 all references, the first image is used. Moving within the selected reference,
 entering Insert mode or editing surrounding text keeps its preview and pending
 conversion while the selected source stays unchanged.
+
+New automatic selections wait `auto_preview_delay` milliseconds (default 100)
+before starting preparation. Crossing references cancels the waiting request;
+movement or surrounding edits that retain the same source keep its timer and any
+already-started conversion. Manual `:ImagePreview`, `hover()` and `preview()` bypass
+this delay. Set `auto_preview_delay = 0` for immediate automatic preparation.
 
 Leaving the selected reference's row range closes the previous preview and
 previews the new row if it contains an image. Markdown and Typst references cover
@@ -85,6 +91,7 @@ release all retained terminal images and cancel pending requests.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  auto_preview_delay = 100, -- milliseconds before preparing a new automatic selection; 0 is immediate
   preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },

@@ -84,8 +84,8 @@ local dependencies = {
     end,
   },
 }
-local a = Runtime.new(config.resolve({ root = "/private/tmp/first" }), dependencies)
-local b = Runtime.new(config.resolve({ root = "/private/tmp/second" }), dependencies)
+local a = Runtime.new(config.resolve({ root = "/private/tmp/first", auto_preview_delay = 0 }), dependencies)
+local b = Runtime.new(config.resolve({ root = "/private/tmp/second", auto_preview_delay = 0 }), dependencies)
 eq(vim.fn.exists("#image_tools"), 0, "Constructing runtimes installs no handlers")
 eq(vim.fn.exists(":ImagePreview"), 0, "Constructing runtimes installs no commands")
 eq({ buffers[1].setups, buffers[2].setups }, { 0, 0 }, "Buffer setup waits for start")

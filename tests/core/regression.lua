@@ -312,7 +312,7 @@ vim.wait(100, function()
   return false
 end)
 eq(api.status().window, nil)
-api.setup({ auto_preview = true })
+api.setup({ auto_preview = true, auto_preview_delay = 0 })
 vim.bo.filetype = "markdown"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { "![fixture](" .. fixture .. ")" })
 vim.api.nvim_win_set_cursor(0, { 1, 3 })

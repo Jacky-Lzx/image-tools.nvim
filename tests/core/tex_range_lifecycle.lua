@@ -72,7 +72,13 @@ end
 for _, treesitter in ipairs(vim.env.IMAGE_TOOLS_PARSER_ROOT and { false, true } or { false }) do
   local buf = buffer()
   vim.api.nvim_win_set_cursor(0, { 3, 0 })
-  image.setup({ treesitter = treesitter, auto_preview = true, position = "bottom_right", buffer = { enabled = false } })
+  image.setup({
+    treesitter = treesitter,
+    auto_preview = true,
+    auto_preview_delay = 0,
+    position = "bottom_right",
+    buffer = { enabled = false },
+  })
   local before = #requests
   check(
     vim.wait(1000, function()

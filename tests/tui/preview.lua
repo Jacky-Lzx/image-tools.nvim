@@ -10,6 +10,7 @@ vim.api.nvim_create_autocmd("TermResponse", {
 local image = require("image_tools")
 image.setup({
   auto_preview = true,
+  auto_preview_delay = 0,
   position = "bottom_right",
   cache = temporary .. "/cache",
   transport = vim.env.IMAGE_TOOLS_TEST_TRANSPORT or "auto",

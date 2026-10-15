@@ -22,7 +22,7 @@ vim.list_extend(lines, {
 })
 vim.api.nvim_buf_set_lines(0, 0, -1, false, lines)
 vim.api.nvim_win_set_cursor(0, { 117, 0 })
-image.setup({ position = "bottom_right", auto_preview = true, buffer = { enabled = false } })
+image.setup({ position = "bottom_right", auto_preview = true, auto_preview_delay = 0, buffer = { enabled = false } })
 local win, results = nil, { latex = true }
 local function move(row)
   vim.api.nvim_win_set_cursor(0, { row, 0 })

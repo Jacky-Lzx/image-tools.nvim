@@ -28,6 +28,7 @@ local dependency_modules = {
 ---@field silent? boolean Suppress preview notifications.
 ---@field reference? boolean Internal flag for document-reference authority.
 ---@field reference_range? ImageToolsRange Internal selected reference coverage.
+---@field automatic? boolean Internal automatic request; manual calls bypass the delay.
 ---@class ImageToolsReferenceRequest
 ---@field buf integer Captured buffer id.
 ---@field win integer Captured window id.
@@ -185,6 +186,7 @@ end
 -- Invalidate pending reference authority and close only the floating preview.
 ---@return nil
 function Runtime:close()
+  self:cancel_auto_preview()
   self.reference_request = nil
   self.pending_reference = nil
   if self.preview then
@@ -196,6 +198,7 @@ end
 -- terminal pixels.
 ---@return nil
 function Runtime:clear_cache()
+  self:cancel_auto_preview()
   self.reference_request, self.pending_reference = nil, nil
   if self.buffers then
     self.buffers:clear_cache()
@@ -224,6 +227,7 @@ end
 ---@return boolean accepted Request accepted; successful display is asynchronous.
 ---@return string? error
 function Runtime:open_preview(path, opts)
+  self:cancel_auto_preview()
   if type(path) ~= "string" or path == "" then
     return false, "An image path is required"
   end
@@ -408,6 +412,9 @@ end
 ---@return string? error
 function Runtime:hover(opts)
   opts = opts or {}
+  if not opts.automatic then
+    self:cancel_auto_preview()
+  end
   local cursor = vim.api.nvim_win_get_cursor(0)
   local buf, win, tick =
     vim.api.nvim_get_current_buf(), vim.api.nvim_get_current_win(), vim.api.nvim_buf_get_changedtick(0)
@@ -432,6 +439,7 @@ function Runtime:hover(opts)
   end
   request.range = range_of(reference)
   if status == "pending" then
+    self:cancel_auto_preview()
     self.pending_reference = request
     self.preview:close()
     return false, err
@@ -452,7 +460,40 @@ function Runtime:hover(opts)
     self.preview.state.cursor = cursor
     return true
   end
+  if opts.automatic and self.options.auto_preview and self.options.auto_preview_delay > 0 then
+    local delayed = self.delayed_reference
+    if delayed and delayed.path == path and delayed.buf == buf and delayed.win == win then
+      delayed.row, delayed.col, delayed.tick, delayed.range = request.row, request.col, tick, request.range
+      return true
+    end
+    self:cancel_auto_preview()
+    self.preview:close()
+    request.path = path
+    self.delayed_reference = request
+    self.auto_preview_timer = vim.defer_fn(function()
+      if self.delayed_reference ~= request then
+        return
+      end
+      self.auto_preview_timer = nil
+      self.delayed_reference = nil
+      if not self.disposed and self.options.auto_preview and owns_pending(request) then
+        self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
+      end
+    end, self.options.auto_preview_delay)
+    return true
+  end
   return self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
+end
+
+-- Drop delayed automatic work without affecting already-started render sessions.
+function Runtime:cancel_auto_preview()
+  self.delayed_reference = nil
+  local timer = self.auto_preview_timer
+  self.auto_preview_timer = nil
+  if timer and not timer:is_closing() then
+    timer:stop()
+    timer:close()
+  end
 end
 
 -- Toggle automatic reference preview, close current work and refresh when newly enabled.
@@ -571,13 +612,13 @@ function Runtime:refresh()
       return -- Reference previews recheck horizontal movement for another image.
     end
     if state.reference then
-      self:hover({ silent = true })
+      self:hover({ silent = true, automatic = true })
       return
     end
     self:close()
   end
   if self.options.auto_preview and self:dependency("document").supported(vim.bo.filetype) then
-    self:hover({ silent = true })
+    self:hover({ silent = true, automatic = true })
   end
 end
 
