@@ -36,7 +36,7 @@
 ---@field max_pixels integer Maximum validated PNG pixel count.
 ---@field max_scan_lines integer Highest document row eligible for reference lookup.
 ---@field convert_timeout integer Converter/PDF metadata process timeout in milliseconds.
----@field convert_concurrency integer Process-wide FIFO conversion budget.
+---@field convert_concurrency integer Process-wide FIFO conversion/hash budget.
 ---@field magick string ImageMagick executable.
 ---@field rsvg string Preferred SVG renderer executable.
 ---@field cache? string Converted PNG directory; resolve fills the default when absent.

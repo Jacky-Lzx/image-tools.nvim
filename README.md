@@ -103,7 +103,7 @@ require("image_tools").setup({
   magick = "magick",
   rsvg = "rsvg-convert",
   convert_timeout = 10000,
-  convert_concurrency = 2, -- simultaneous converter processes
+  convert_concurrency = 2, -- simultaneous conversion/hash processes
   max_bytes = 32 * 1024 * 1024,
   max_dimension = 16384,
   max_pixels = 64 * 1024 * 1024,
@@ -470,6 +470,16 @@ configured destination directory. Reuse takes precedence over the requested
 filename; the directory is not searched recursively. Reads/hashing are bounded
 by max_bytes; symlinks are excluded. Cancellation or failed insertion removes
 only files created by that transaction, preserving reused files.
+
+Deduplication hashes run in isolated headless Neovim processes, with no extra
+tools or user configuration. They share the `convert_concurrency` process budget
+and have a 10-second timeout. A 128-entry in-memory LRU caches only digests by
+path/inode/size/nanosecond mtime/ctime; live file checks invalidate changed entries.
+Concurrent requests for the same revision share a worker; its last subscriber's
+cancellation stops it. Encoding and hashing keep file bytes out of the editor
+process, although each worker still uses memory proportional to `max_bytes`.
+Cold hashes include process startup overhead; repeated unchanged candidates avoid
+rehashing. See [the import hashing benchmark](doc/performance.md#import-hashing-benchmark).
 
 `:ImageCheckAssets` opens a quickfix report of missing references and possibly
 unused image files in the current document's import directory. It supports

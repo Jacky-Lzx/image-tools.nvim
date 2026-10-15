@@ -58,7 +58,8 @@ lua/image_tools/
     pixel_pool.lua         shared pixel ownership and placements
     transfer.lua           per-view placement manager
   workflow/
-    content.lua              bounded asynchronous content hashing and reuse
+    content.lua            background hash coalescing, digest LRU and reuse
+    hash_worker.lua        isolated headless-Neovim hashing entry point
     assets.lua               read-only document resource inspection
     insert.lua             file import and document text transaction
     clipboard.lua          macOS clipboard import
@@ -94,6 +95,7 @@ tests/
     runtime.lua              setup, dependency injection and teardown
     health.lua               diagnostics and cache inspection
     line_lifecycle.lua       line selection, edits and asynchronous cancellation
+    preview_diagnostics.lua stages, retained failures and delayed loading hints
     cursor_lifecycle.lua     cursor-based reference selection
     tex_range_lifecycle.lua  multiline reference lifecycle
   document/                  existing format/parser/indexing suites
@@ -111,6 +113,7 @@ tests/
     pixel_pool.lua           shared ownership and independent placements
   workflow/
     insert.lua               import, extmarks, batches and rollback
+    content.lua              binary hashes, revisions, cache and worker cancellation
     clipboard.lua            simulated clipboard commands
     picker.lua               optional real Snacks integration
   tui/
@@ -170,7 +173,7 @@ cancellation function delegates to close. Successful preparation keeps each
 subscriber's disk lease until the view closes.
 
 The FIFO `media/conversion_queue` is process-scoped with one explicit budget configured
-by Runtime start. Preview and clipboard converters share it. Reducing the budget
+by Runtime start. Preview/clipboard converters and import hash workers share it. Reducing the budget
 does not abandon running workers: queued work waits for sufficient exits.
 The new concurrency limit applies when queued processes start; each job retains
 the command and options captured when queued. Existing insertion operations retain
@@ -197,8 +200,12 @@ search with cached prefix context. `at_cursor` selects by row and byte column;
 `at_line` selects the first covering reference in document order. The runtime
 tries cursor selection first and falls back only on a selection miss.
 
-`workflow/content` performs bounded asynchronous content hashing and same-directory
-import reuse. `workflow/insert` records reused outputs separately from newly
+`workflow/content` coalesces revision-keyed hash requests, maintains a 128-entry
+digest LRU and finds same-directory imports. `workflow/hash_worker` runs only as
+an isolated headless-Neovim script: it owns bounded file bytes and encoding/hash
+allocations. Each subscriber can cancel independently; the last owner cancels
+the queued/running worker. Both worker and parent recheck file revisions before
+delivery. `workflow/insert` records reused outputs separately from newly
 created files so rollback cannot delete existing resources. `workflow/assets`
 checks a captured document in scheduled batches and lists possibly unused regular
 files in its import directory; it never modifies resources.

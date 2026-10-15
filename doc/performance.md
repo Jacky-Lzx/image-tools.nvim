@@ -64,3 +64,29 @@ Viewer zoom scales conversion output bounds and PDF density up to eight times,
 further constrained by configured dimension/pixel limits. Conversion keys and
 coalescing include the detail level. Panning changes only a placement's Kitty
 source rectangle, so native PNG pan/zoom does not require another pixel upload.
+
+## Import hashing benchmark
+
+Run `nvim --headless -u NONE -i NONE --noplugin -l tests/bench/deduplicate.lua`
+from the repository. The benchmark hashes temporary binary files of 1, 8 and
+32 MiB twice and reports cold/warm total time and the largest event-loop timer
+gap. A 1 ms repeating timer samples editor responsiveness; these are observations,
+not scheduling guarantees or end-to-end insertion timings. No timing threshold
+is used. Set `IMAGE_TOOLS_CONTENT_BASELINE` to an absolute saved pre-change
+`content.lua` to compare implementations on the same machine.
+
+In one local Neovim 0.12.6 run, the 32 MiB baseline took 100.61 ms cold and
+97.68 ms on repeat, with a 92.02 ms maximum cold loop gap. Background hashing
+took 113.12 ms cold and 0.03 ms on repeat, with a 1.53 ms maximum cold loop gap.
+Cold process startup adds latency; the improvement is editor responsiveness and
+avoiding repeated work. Results depend on hardware, load and filesystem caches.
+
+Hash workers share the conversion queue's concurrency budget and have a fixed
+10-second timeout. Their file data and Base64/SHA256 allocations are confined to
+child processes, bounded by max_bytes per worker. The editor holds at most 128
+digest metadata entries, keyed by path/inode/size/high-resolution mtime/ctime.
+Every hit checks the current revision; changed sources invalidate the digest.
+Concurrent subscribers share a worker and cancel independently. Source revisions
+are checked in the worker and again before the parent publishes/caches its result.
+Directory lookup still scans candidates by extension/size and performs live stats;
+this cache removes repeated content reads and hashing, not directory traversal.

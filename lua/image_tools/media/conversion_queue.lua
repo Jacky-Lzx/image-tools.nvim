@@ -1,11 +1,11 @@
 -- Module: image_tools.media.conversion_queue
 --
 -- Purpose:
---   Enforce a shared FIFO process budget for image and clipboard conversion.
+--   Enforce a shared FIFO process budget for conversion and import hashing.
 --
 -- Architecture:
 --   Accept process commands/options and run them through vim.system. Runtime
---   configuration sets the process-wide limit; media and clipboard workers
+--   configuration sets the process-wide limit; media, clipboard and hash workers
 --   share it, while PNG reads/PDF metadata bypass it.
 --
 -- Ownership:
