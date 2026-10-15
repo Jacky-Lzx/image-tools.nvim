@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Read tool versions
+        id: versions
+        run: |
+          . tests/ci/versions.sh
+          printf 'stylua=%s\n' "$STYLUA_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: JohnnyMorganz/stylua-action@76fd70c03e6340ceaf673366712db9b20560b402 # v5
+        with:
+          token: ${{ github.token }}
+          version: ${{ steps.versions.outputs.stylua }}
+          args: --check lua tests
+      - name: Validate shell scripts and whitespace
+        run: |
+          sh -n tests/run.sh tests/ci/install-fixtures.sh tests/ci/versions.sh
+          git diff --check
+
+  tests:
+    name: macOS / ${{ matrix.suite }}
+    runs-on: macos-15
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [basic, integration]
+    env:
+      NO_COLOR: '1'
+      TERM: xterm-256color
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Read tool versions
+        id: versions
+        run: |
+          . tests/ci/versions.sh
+          printf 'neovim=%s\ntree-sitter=%s\n' "$NVIM_VERSION" "$TREE_SITTER_VERSION" >> "$GITHUB_OUTPUT"
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1
+        with:
+          neovim: true
+          version: ${{ steps.versions.outputs.neovim }}
+      - name: Install media dependencies
+        run: brew install imagemagick ghostscript poppler librsvg
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: matrix.suite == 'integration'
+        with:
+          node-version: '24'
+      - name: Install integration dependencies
+        if: matrix.suite == 'integration'
+        env:
+          TREE_SITTER_VERSION: ${{ steps.versions.outputs.tree-sitter }}
+        run: |
+          brew install typst
+          brew install --cask basictex
+          echo /Library/TeX/texbin >> "$GITHUB_PATH"
+          npm install --prefix "$RUNNER_TEMP/tree-sitter" "tree-sitter-cli@$TREE_SITTER_VERSION"
+          echo "$RUNNER_TEMP/tree-sitter/node_modules/.bin" >> "$GITHUB_PATH"
+      - name: Build pinned integration fixtures
+        if: matrix.suite == 'integration'
+        run: |
+          sh tests/ci/install-fixtures.sh "$RUNNER_TEMP/image-tools-fixtures"
+          echo "IMAGE_TOOLS_PARSER_ROOT=$RUNNER_TEMP/image-tools-fixtures/runtime" >> "$GITHUB_ENV"
+          echo "IMAGE_TOOLS_SNACKS_ROOT=$RUNNER_TEMP/image-tools-fixtures/snacks.nvim" >> "$GITHUB_ENV"
+      - name: Record environment
+        run: |
+          mkdir -p artifacts
+          {
+            cat tests/ci/versions.sh
+            nvim --version
+            magick --version
+            gs --version
+            pdfinfo -v
+            python3 --version
+            brew list --versions
+          } > artifacts/environment.txt 2>&1
+      - name: Verify integration prerequisites
+        if: matrix.suite == 'integration'
+        run: nvim --headless -u NONE -i NONE --noplugin -l tests/ci/preflight.lua
+      - name: Run suites
+        shell: bash
+        run: |
+          set -o pipefail
+          sh tests/run.sh 2>&1 | tee artifacts/tests.log
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: macos-${{ matrix.suite }}-logs
+          path: artifacts/
+          if-no-files-found: ignore

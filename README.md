@@ -211,6 +211,12 @@ clipboard paste can separately request format conversion.
 
 ## Development
 
+GitHub Actions runs formatting checks plus basic and complete integration jobs.
+The integration job pins Neovim, Tree-sitter parsers/CLI and Snacks, requires its
+dependencies before suites can skip them, and retains environment/test logs.
+See [automated validation and real Kitty acceptance](doc/testing.md) for pinned
+fixture reproduction, coverage boundaries and manual rendering steps.
+
 Run `sh tests/run.sh`. Tests cover real Neovim floating windows with a captured
 terminal transport, protocol payloads, path parsing and asynchronous cancellation.
 When Python 3 is available, the runner also launches a real Neovim TUI in a PTY

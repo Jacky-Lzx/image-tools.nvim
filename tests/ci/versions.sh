@@ -1,0 +1,7 @@
+# Sourced by CI and the local fixture installer. Update pins as one reviewed change.
+NVIM_VERSION=v0.12.6
+STYLUA_VERSION=2.6.0
+TREE_SITTER_VERSION=0.27.1
+LATEX_REVISION=fa8df448fc2c0192a8c2f8cfc97de53cb2b4ecb9
+TYPST_REVISION=46cf4ded12ee974a70bf8457263b67ad7ee0379d
+SNACKS_REVISION=882c996cf28183f4d63640de0b4c02ec886d01f2

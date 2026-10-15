@@ -292,6 +292,13 @@ Setup replacement and explicit clearing free all shared terminal pixels.
 
 DEVELOPMENT                                               *image-tools-development*
 
+GitHub Actions runs formatting, basic and complete integration jobs. Tool/parser
+and Snacks pins live in tests/ci/versions.sh; install-fixtures.sh builds disposable
+integration fixtures, and preflight.lua rejects missing promised dependencies.
+Logs record actual environment versions. See doc/testing.md for local reproduction
+and a real Kitty rendering acceptance guide. CI's PTY responder proves protocol
+behavior, not visible pixels; native clipboard validation is still manual.
+
 Run sh tests/run.sh. Its commented groups cover API/lifecycle, media/transport,
 insertion/picker, document scanners/parsers, file buffers and PTY/TUI tests.
 Suites are grouped under tests/core, document, media, render, terminal and
