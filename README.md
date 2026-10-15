@@ -435,3 +435,8 @@ the runtime's shared data. Explicit clearing also pauses file-buffer canvases
 until buffer/tab entry, resume, `:ImageOpen`, or `:ImageReload` refreshes them.
 `status().terminal_cache` reports runtime-wide totals and active `placements`;
 per-buffer view cache statistics refer to that same pool.
+
+Floating previews check source versions on focus gain and cursor idle, including
+external rewrites and removal. `:ImageReload` / `reload()` refresh the current file
+viewer, or the floating preview when called from its owning document. Unchanged
+sources retain their placements; superseded asynchronous results are discarded.

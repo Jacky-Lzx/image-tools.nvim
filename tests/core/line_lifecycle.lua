@@ -205,4 +205,27 @@ vim.wait(30, function()
   return false
 end)
 eq(#requests, request_count, "Queued refresh from replaced runtime cannot run")
+-- External rewrites refresh floats without requiring a cursor or document change.
+local source = vim.env.IMAGE_TOOLS_TEST_TMP .. "/refresh.png"
+vim.fn.writefile({ "first" }, source)
+api.preview(source)
+local before = #requests
+requests[before].callback(nil, fixture)
+window = assert(api.status().window)
+vim.api.nvim_exec_autocmds("FocusGained", {})
+eq(#requests, before, "Unchanged source retains its float")
+vim.fn.writefile({ "replacement with a different size" }, source)
+vim.api.nvim_exec_autocmds("FocusGained", {})
+eq(#requests, before + 1, "External rewrite starts fresh preparation")
+requests[#requests].callback(nil, fixture)
+assert(api.status().window)
+api.reload()
+eq(#requests, before + 2, "Manual reload also supports floating previews")
+local stale = requests[#requests]
+vim.fn.delete(source)
+vim.api.nvim_exec_autocmds("CursorHold", {})
+eq(#requests, before + 3, "Removal is detected on idle")
+stale.callback(nil, fixture)
+eq(api.status().window, nil, "Old reload cannot revive a replaced preview")
+api.close()
 print("image-tools line lifecycle: " .. checks .. " assertions passed")

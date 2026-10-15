@@ -314,3 +314,8 @@ is a separate opt-in test with a prepared system clipboard; the runner uses
 fake clipboard tools and an explicit suite list that excludes manual tests.
 
  vim:tw=78:ts=8:ft=help:norl:
+
+Floating previews check source versions on focus gain and cursor idle, including
+external rewrites and removal. `:ImageReload` / `reload()` refresh the current file
+viewer, or the floating preview when called from its owning document. Unchanged
+sources retain their placements; superseded asynchronous results are discarded.

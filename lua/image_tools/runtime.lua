@@ -226,7 +226,13 @@ function Runtime:open_preview(path, opts)
     return false, "An image path is required"
   end
   path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
-  return self.preview:open(path, opts)
+  local stat = vim.uv.fs_stat(path)
+  local version = stat and require("image_tools.media.file_version").key(path, stat)
+  local ok, err = self.preview:open(path, opts)
+  if self.preview.state then
+    self.preview.state.source_version = version
+  end
+  return ok, err
 end
 
 -- Import/reference one file or a batch at a captured document position; nil paths prompt for a
@@ -353,7 +359,31 @@ end
 ---@return boolean accepted
 ---@return string? error
 function Runtime:reload()
-  return self.buffers:reload(vim.api.nvim_get_current_buf())
+  if self.buffers:status() then
+    return self.buffers:reload(vim.api.nvim_get_current_buf())
+  end
+  local state = self.preview.state
+  if state and on_current_line(state) then
+    return self:open_preview(state.path, {
+      silent = state.automatic,
+      reference = state.reference,
+      reference_range = state.reference_range,
+    })
+  end
+  return false, "No image/PDF viewer or floating preview to reload"
+end
+
+-- Recheck external changes on idle/focus events, outside the cursor-movement hot path.
+function Runtime:refresh_source()
+  local state = self.preview.state
+  if not state or not on_current_line(state) then
+    return
+  end
+  local stat = vim.uv.fs_stat(state.path)
+  local version = stat and require("image_tools.media.file_version").key(state.path, stat)
+  if version ~= state.source_version then
+    self:reload()
+  end
 end
 
 -- Select the cursor reference, falling back to the first covering reference only on a selection
@@ -520,6 +550,12 @@ function Runtime:start()
   self:autocmd({ "BufEnter", "WinEnter", "VimResume" }, {
     callback = function()
       self:schedule_refresh()
+    end,
+  })
+
+  self:autocmd({ "FocusGained", "CursorHold", "CursorHoldI" }, {
+    callback = function()
+      self:refresh_source()
     end,
   })
 
