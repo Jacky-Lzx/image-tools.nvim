@@ -361,6 +361,30 @@ No files are deleted. `check_assets(opts, callback)` returns a cancel function;
 the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
 `document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.
 
+PROJECT ASSET INSPECTION                         *image-tools-project-assets*
+
+:ImageCheckAssets! [directory] recursively checks project documents and the union
+of their configured import directories. The default root is the nearest .git
+ancestor or the current document directory. Supported extensions: md, markdown,
+tex, ltx, typ. API: check_assets({scope="project", project_root="/project"}, cb).
+Reports include scope, project_root, documents, warnings and references (canonical
+image path -> list of filename/lnum/col locations). Document reports also include
+scope and references. Shared images are unused only if no scanned document refers
+to them. No files are deleted or rewritten.
+
+Loaded buffers contribute unsaved text. Offline documents use temporary unnamed
+buffers; focus and existing buffers are preserved. Live edits/rename/unload and
+disk-document changes reject stale reports. Cancellation releases scratch buffers.
+Adapters share Lua reference enumeration, including code/comment exclusions.
+Offline LaTeX has no master-document VimTeX state; use root/resolve as needed.
+
+assets.max_entries defaults to 10000 per recursive traversal;
+assets.max_document_bytes defaults to 2097152 per offline document.
+max_scan_lines applies per document. Truncation/unreadable or oversized documents
+produce warnings and mark results incomplete. assets.exclude_dirs defaults to
+{ ".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "build", ".cache" }.
+Exclusions match directory names; symlinks are skipped.
+
 VIEWER KEYMAPS                                         *image-tools-keymaps*
 
 Configure buffer.keymaps by action; unspecified actions keep default keys. Set

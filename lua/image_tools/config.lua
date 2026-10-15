@@ -22,6 +22,7 @@
 ---@field pdfinfo string PDF metadata executable.
 ---@field pdf_density integer Rasterization DPI, included in PDF conversion keys.
 ---@field insert ImageToolsInsertOptions Defaults merged into individual import operations.
+---@field assets table Project inspection entry/size budgets and excluded directory names.
 ---@field position "cursor"|"bottom_right" Floating preview anchor policy.
 ---@field transport "auto"|"file"|"direct" Upload transport policy.
 ---@field terminal_timeout integer Milliseconds allowed for each upload/placement acknowledgement.
@@ -106,6 +107,19 @@ function M.resolve(opts)
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
   assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
+  for _, name in ipairs({ "max_entries", "max_document_bytes" }) do
+    assert(
+      type(options.assets[name]) == "number" and options.assets[name] >= 1 and options.assets[name] % 1 == 0,
+      "assets." .. name .. " must be a positive integer"
+    )
+  end
+  assert(type(options.assets.exclude_dirs) == "table", "assets.exclude_dirs must be a list")
+  for _, name in ipairs(options.assets.exclude_dirs) do
+    assert(
+      type(name) == "string" and name ~= "" and not name:find("[/\\]"),
+      "assets.exclude_dirs must contain directory names"
+    )
+  end
   assert(type(options.buffer.enabled) == "boolean", "buffer.enabled must be boolean")
   assert(
     options.buffer.keymaps == false or type(options.buffer.keymaps) == "table",

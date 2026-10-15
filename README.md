@@ -498,6 +498,34 @@ No files are deleted. `check_assets(opts, callback)` returns a cancel function;
 the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
 `document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.
 
+`:ImageCheckAssets! [directory]` checks a project. With no directory it uses the
+nearest `.git` ancestor of the current document, or the document directory.
+`check_assets({ scope = "project", project_root = "/project" }, callback)` exposes
+the same operation. It recursively discovers `.md`, `.markdown`, `.tex`, `.ltx`
+and `.typ` documents and inspects the union of their configured import directories
+recursively. Shared images are only reported unused when no scanned document
+references them. Reports add `scope`, `project_root`, `documents`, `warnings` and
+`references`: a map from canonical image paths to `{ filename, lnum, col }` locations.
+Document-only reports also include `scope` and `references`.
+
+Loaded supported buffers supply their current unsaved text. Offline documents use
+temporary unnamed buffers without changing focus or loading the original file into
+the buffer list. Live edits/rename/unload or a changed disk document reject the
+report; cancellation releases temporary buffers. Reference enumeration is shared
+through the format adapters and uses the Lua scanners, including code/comment
+exclusions, forward Markdown definitions and multiline LaTeX commands.
+Offline LaTeX does not infer a master document's VimTeX state; configure `root`
+or `resolve` when references depend on that project context.
+
+`assets = { max_entries = 10000, max_document_bytes = 2 * 1024 * 1024,
+exclude_dirs = { ".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "build", ".cache" } }`
+configures inspection. Each recursive traversal has its own entry budget; each
+offline document has a byte budget, and `max_scan_lines` applies per document.
+Skipped/unreadable documents or exhausted budgets mark `truncated` and produce
+quickfix warnings. Unused results are provisional when any document was skipped.
+Directory exclusions apply by name and symlinks are skipped. No assets or source
+documents are modified or deleted.
+
 Viewer keymaps are configured by action. Unspecified actions keep their defaults;
 set an action to false to disable it, or set `buffer.keymaps = false` to disable
 all plugin mappings. Existing user buffer-local mappings take precedence. Setup

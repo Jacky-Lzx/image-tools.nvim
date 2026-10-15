@@ -27,6 +27,7 @@
 ---@field directories? string[] LaTeX graphicspath context captured by a backend.
 ---@class ImageToolsDocumentAdapter
 ---@field find fun(buf: integer, row: integer, col: integer?, opts: table): string?, string?, string?, ImageToolsReference?
+---@field references fun(buf: integer, row: integer, opts: table): table[] Resolved literal references opening on this row.
 ---@field image_formats fun(): string[] Insertion/picker extension list.
 ---@field supports_image fun(path: string): boolean Filename-based insertion capability.
 ---@field markup fun(path: string, alt: string?): string Format-specific reference text.
@@ -105,6 +106,60 @@ end
 ---@return ImageToolsReference? reference Selected range when resolved, or pending LaTeX coverage.
 function M.at_line(buf, row, opts)
   return find(buf, row, nil, opts)
+end
+
+-- Enumerate adapter-owned references in scheduled batches without changing editor focus.
+-- Offline inspection uses an unnamed scratch buffer plus private path/filetype overrides.
+function M.enumerate(buf, opts, callback)
+  opts = vim.tbl_extend("keep", opts or {}, { max_scan_lines = require("image_tools.defaults").max_scan_lines })
+  local active, row = true, 1
+  local name, tick, ft = vim.api.nvim_buf_get_name(buf), vim.api.nvim_buf_get_changedtick(buf), vim.bo[buf].filetype
+  local adapter = formats.get(opts._document_filetype or ft)
+  local count = vim.api.nvim_buf_line_count(buf)
+  local limit = math.min(count, opts.max_scan_lines)
+  local report = { references = {}, scanned = 0, truncated = count > limit }
+  local step
+  local function done(err)
+    active = false
+    callback(err, not err and report or nil)
+  end
+  step = function()
+    if not active then
+      return
+    end
+    if not adapter then
+      done("Unsupported document filetype")
+      return
+    end
+    if
+      not vim.api.nvim_buf_is_valid(buf)
+      or not vim.api.nvim_buf_is_loaded(buf)
+      or vim.api.nvim_buf_get_name(buf) ~= name
+      or vim.api.nvim_buf_get_changedtick(buf) ~= tick
+      or vim.bo[buf].filetype ~= ft
+    then
+      done("Document changed or unloaded during reference enumeration")
+      return
+    end
+    for _ = 1, 20 do
+      if row > limit then
+        done()
+        return
+      end
+      local ok, refs = pcall(adapter.references, buf, row, opts)
+      if not ok then
+        done(tostring(refs))
+        return
+      end
+      vim.list_extend(report.references, refs)
+      report.scanned, row = row, row + 1
+    end
+    vim.schedule(step)
+  end
+  vim.schedule(step)
+  return function()
+    active = false
+  end
 end
 
 return M

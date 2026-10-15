@@ -44,6 +44,11 @@ return {
     insert_strategy = "insert_line_after",
     prompt_for_file_name = false,
   },
+  assets = {
+    max_entries = 10000,
+    max_document_bytes = 2 * 1024 * 1024,
+    exclude_dirs = { ".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "build", ".cache" },
+  },
   position = "cursor", -- "cursor" or "bottom_right"
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500,

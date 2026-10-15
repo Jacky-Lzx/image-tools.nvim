@@ -233,13 +233,34 @@ function M.find(buf, row, col, opts)
       image.src = src
       local path, err = require("image_tools.document.paths").resolve(
         src,
-        vim.api.nvim_buf_get_name(buf),
+        opts._document_path or vim.api.nvim_buf_get_name(buf),
         image.literal and vim.tbl_extend("force", opts, { literal = true }) or opts
       )
       return path, err, nil, vim.tbl_extend("force", image, { start_row = row, end_row = row })
     end
   end
   return nil, "No supported image reference under the cursor", "miss"
+end
+
+-- Enumerate resolved references using the same lexer/exclusions as cursor lookup.
+function M.references(buf, row, opts)
+  local candidates = M.parse(vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or "", true)
+  if
+    #candidates == 0
+    or require("image_tools.document.syntax_cache").query(buf, row, "markdown", {}, scan_context).blocked
+  then
+    return {}
+  end
+  local results = {}
+  for _, candidate in ipairs(candidates) do
+    local path, err, _, ref = M.find(buf, row, candidate.start_col, opts)
+    results[#results + 1] = {
+      path = path,
+      error = err,
+      reference = ref or vim.tbl_extend("force", candidate, { start_row = row, end_row = row }),
+    }
+  end
+  return results
 end
 
 -- Return a fresh list of all preview formats allowed for Markdown insertion/picker filtering.

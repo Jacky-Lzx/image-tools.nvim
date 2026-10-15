@@ -61,6 +61,7 @@ lua/image_tools/
     content.lua            background hash coalescing, digest LRU and reuse
     hash_worker.lua        isolated headless-Neovim hashing entry point
     assets.lua               read-only document resource inspection
+    asset_project.lua        project discovery, scratch documents and reference aggregation
     insert.lua             file import and document text transaction
     clipboard.lua          macOS clipboard import
     picker.lua             Snacks selection and preview integration
@@ -207,5 +208,11 @@ allocations. Each subscriber can cancel independently; the last owner cancels
 the queued/running worker. Both worker and parent recheck file revisions before
 delivery. `workflow/insert` records reused outputs separately from newly
 created files so rollback cannot delete existing resources. `workflow/assets`
-checks a captured document in scheduled batches and lists possibly unused regular
-files in its import directory; it never modifies resources.
+uses `document.enumerate` to scan adapter-owned references in scheduled batches.
+Its document mode lists possibly unused regular files in one import directory.
+`workflow/asset_project` discovers project documents asynchronously, prefers live
+buffers, and supplies private document path/filetype overrides to unnamed scratch
+buffers for disk text. It combines reference locations before recursively checking
+the union of import directories. Entry/byte/line budgets flag incomplete reports;
+buffer snapshots and disk revision rechecks reject stale results. Neither mode
+modifies source documents or assets.

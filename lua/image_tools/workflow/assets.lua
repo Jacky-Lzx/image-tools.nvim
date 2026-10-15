@@ -1,10 +1,10 @@
 -- Module: image_tools.workflow.assets
 --
 -- Purpose:
---   Report missing image references and possibly unused assets for one document.
+--   Report missing references and possibly unused assets for a document or project.
 -- Architecture:
---   Probe adapter-selected references in scheduled batches, then inspect regular
---   files in the configured import directory. Never delete or rewrite resources.
+--   Enumerate adapter-owned references, then inspect the document import directory.
+--   Delegate project aggregation to asset_project. Never delete or rewrite resources.
 -- Ownership:
 --   Capture buffer identity and text version. Cancellation, rename, unload or text
 --   changes suppress stale reports; pending filesystem callbacks retain no editor authority.
@@ -12,19 +12,24 @@ local M = {}
 local uv = vim.uv
 
 function M.check(opts, callback)
+  if opts.scope == "project" then
+    return require("image_tools.workflow.asset_project").check(opts, callback)
+  end
   local buf = opts.buf and opts.buf ~= 0 and opts.buf or vim.api.nvim_get_current_buf()
-  local document = vim.api.nvim_buf_get_name(buf)
+  local original_name = vim.api.nvim_buf_get_name(buf)
+  local document = opts._document_path or original_name
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local filetype = vim.bo[buf].filetype
-  local kind = require("image_tools.document.formats").kind(filetype)
+  local kind = require("image_tools.document.formats").kind(opts._document_filetype or filetype)
   local active = true
-  local report = { document = document, missing = {}, unreferenced = {}, scanned = 0 }
+  local report =
+    { document = document, missing = {}, unreferenced = {}, scanned = 0, scope = "document", references = {} }
   local function current()
     return active
       and vim.api.nvim_buf_is_valid(buf)
       and vim.api.nvim_buf_is_loaded(buf)
       and vim.bo[buf].filetype == filetype
-      and vim.api.nvim_buf_get_name(buf) == document
+      and vim.api.nvim_buf_get_name(buf) == original_name
       and vim.api.nvim_buf_get_changedtick(buf) == tick
   end
   local function done(err)
@@ -63,11 +68,8 @@ function M.check(opts, callback)
     end
   end
   report.directory = directory
-  local referenced, row = {}, 1
-  local count = vim.api.nvim_buf_line_count(buf)
-  local limit = math.min(count, opts.max_scan_lines)
-  report.truncated = count > limit
-  local lookup = vim.tbl_extend("force", opts, { treesitter = false })
+  local referenced = {}
+  local cancel_enumeration
   local function inspect_directory()
     uv.fs_scandir(directory, function(err, scan)
       vim.schedule(function()
@@ -113,56 +115,47 @@ function M.check(opts, callback)
       end)
     end)
   end
-  local step
-  step = function()
+  cancel_enumeration = require("image_tools.document").enumerate(buf, opts, function(err, enumeration)
     if stale() then
       return
     end
-    for _ = 1, 20 do
-      if row > limit then
-        inspect_directory()
-        return
-      end
-      local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
-      local columns = {}
-      if kind == "markdown" then
-        for _, image in ipairs(require("image_tools.document.markdown").parse(line, true)) do
-          columns[#columns + 1] = image.start_col
-        end
-      else
-        local pattern = kind == "tex" and "\\includegraphics" or "image%s*%("
-        local pos = 1
-        while pos <= #line do
-          local start, finish = line:find(pattern, pos, kind == "tex")
-          if not start then
-            break
-          end
-          columns[#columns + 1], pos = start - 1, finish + 1
-        end
-      end
-      for _, col in ipairs(columns) do
-        local path, err = require("image_tools.document").at_cursor(buf, row, col, lookup)
-        if path then
-          referenced[uv.fs_realpath(path) or path] = true
-          local stat = uv.fs_stat(path)
-          if not stat or stat.type ~= "file" then
-            report.missing[#report.missing + 1] =
-              { bufnr = buf, lnum = row, col = col + 1, text = "Missing image: " .. path }
-          end
-        elseif
-          err
-          and (err:match("^Undefined image") or err:match("^Image not found") or err:match("^Invalid image path"))
-        then
-          report.missing[#report.missing + 1] = { bufnr = buf, lnum = row, col = col + 1, text = err }
-        end
-      end
-      report.scanned, row = row, row + 1
+    if err then
+      done(err)
+      return
     end
-    vim.schedule(step)
-  end
-  vim.schedule(step)
+    report.scanned, report.truncated = enumeration.scanned, enumeration.truncated
+    for _, item in ipairs(enumeration.references) do
+      local ref = item.reference
+      local location = { filename = document, lnum = ref.start_row, col = ref.start_col + 1 }
+      if not opts._document_path then
+        location.bufnr = buf
+      end
+      if item.path then
+        local key = uv.fs_realpath(item.path) or item.path
+        referenced[key] = true
+        report.references[key] = report.references[key] or {}
+        report.references[key][#report.references[key] + 1] = vim.deepcopy(location)
+        local stat = uv.fs_stat(item.path)
+        if not stat or stat.type ~= "file" then
+          location.text = "Missing image: " .. item.path
+          report.missing[#report.missing + 1] = location
+        end
+      elseif item.error and not item.error:match("^Remote image") then
+        location.text = item.error
+        report.missing[#report.missing + 1] = location
+      end
+    end
+    if opts._references_only then
+      done()
+    else
+      inspect_directory()
+    end
+  end)
   return function()
     active = false
+    if cancel_enumeration then
+      cancel_enumeration()
+    end
   end
 end
 return M

@@ -97,6 +97,7 @@ run_test render/session.lua
 run_test workflow/insert.lua
 run_test workflow/content.lua
 run_test workflow/assets.lua
+run_test workflow/asset_project.lua
 run_test workflow/clipboard.lua
 run_test workflow/picker.lua
 

@@ -141,7 +141,7 @@ function M.find(buf, row, col, opts)
       end
     end
   end
-  local document = vim.api.nvim_buf_get_name(buf)
+  local document = opts._document_path or vim.api.nvim_buf_get_name(buf)
   local resolve_opts = vim.tbl_extend(
     "force",
     opts,
@@ -183,6 +183,26 @@ function M.find(buf, row, col, opts)
 end
 
 local image_formats = { "png", "jpg", "jpeg", "pdf" }
+-- Emit each multiline command once, on its opening row; use the cached Lua backend.
+function M.references(buf, row, opts)
+  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+  if not line:find("\\includegraphics", 1, true) then
+    return {}
+  end
+  local results = {}
+  for _, candidate in ipairs(reference.nearby(buf, row, opts)) do
+    if candidate.start_row == row then
+      local context = require("image_tools.document.syntax_cache").query(buf, row, "tex", {}, scan)
+      if not context.blocked then
+        local path, err, _, ref =
+          M.find(buf, row, candidate.start_col, vim.tbl_extend("force", opts, { treesitter = false }))
+        results[#results + 1] = { path = path, error = err, reference = ref or candidate }
+      end
+    end
+  end
+  return results
+end
+
 -- Return independently allocated insertion/picker formats accepted by the LaTeX adapter.
 ---@return string[] extensions
 function M.image_formats()

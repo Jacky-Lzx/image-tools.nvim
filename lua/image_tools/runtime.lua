@@ -361,7 +361,7 @@ function Runtime:next_page(delta)
   return self.buffers:step(delta or 1)
 end
 
--- Inspect only the captured document and configured asset directory; never mutate files.
+-- Inspect a captured document or project and its import directories; never mutate files.
 function Runtime:check_assets(opts, callback)
   return require("image_tools.workflow.assets").check(vim.tbl_deep_extend("force", self.options, opts or {}), callback)
 end

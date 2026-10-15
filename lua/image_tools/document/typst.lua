@@ -262,7 +262,7 @@ function M.find(buf, row, col, opts)
   end
   local candidates = syntax and syntax.candidates
     or require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
-  local document = vim.api.nvim_buf_get_name(buf)
+  local document = opts._document_path or vim.api.nvim_buf_get_name(buf)
   for _, image in ipairs(candidates) do
     if col == nil or col >= image.start_col and col < image.end_col then
       if image.src:find("%c") then
@@ -286,6 +286,26 @@ function M.find(buf, row, col, opts)
 end
 
 local image_formats = { "png", "jpg", "jpeg", "gif", "webp", "svg", "pdf" }
+-- Keep reference enumeration inside the adapter so inspection shares syntax exclusions.
+function M.references(buf, row, opts)
+  local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1] or ""
+  if not line:find("image%s*%(") then
+    return {}
+  end
+  local results = {}
+  local candidates = require("image_tools.document.syntax_cache").query(buf, row, "typst", {}, M.scan)
+  for _, candidate in ipairs(candidates) do
+    local path, err, _, ref =
+      M.find(buf, row, candidate.start_col, vim.tbl_extend("force", opts, { treesitter = false }))
+    results[#results + 1] = {
+      path = path,
+      error = err,
+      reference = ref or vim.tbl_extend("force", candidate, { start_row = row, end_row = row }),
+    }
+  end
+  return results
+end
+
 -- Return independently allocated formats supported by Typst insertion and picker filtering.
 ---@return string[] extensions
 function M.image_formats()

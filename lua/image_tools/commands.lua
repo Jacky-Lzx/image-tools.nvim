@@ -91,37 +91,53 @@ function M.register(runtime)
     vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "image-tools" })
   end, { desc = "Show current image/PDF metadata and cache statistics", force = true })
 
-  command("ImageCheckAssets", function()
-    runtime:check_assets({}, function(err, result)
-      if err then
-        report(false, err)
-        return
+  command("ImageCheckAssets", function(args)
+    if args.args ~= "" and not args.bang then
+      report(false, "Use :ImageCheckAssets! [directory] for project inspection")
+      return
+    end
+    runtime:check_assets(
+      { scope = args.bang and "project" or "document", project_root = args.args ~= "" and args.args or nil },
+      function(err, result)
+        if err then
+          report(false, err)
+          return
+        end
+        local items = vim.deepcopy(result.missing)
+        for _, path in ipairs(result.unreferenced) do
+          items[#items + 1] = {
+            filename = path,
+            lnum = 1,
+            text = result.scope == "project" and "Possibly unused in scanned project documents"
+              or "Possibly unused in this document (may be used elsewhere)",
+            type = "W",
+          }
+        end
+        if result.scope == "project" then
+          for _, message in ipairs(result.warnings) do
+            items[#items + 1] = { text = message .. "; unused results are incomplete", type = "W" }
+          end
+        elseif result.truncated then
+          items[#items + 1] = {
+            filename = result.document,
+            lnum = result.scanned,
+            text = "Scan stopped at max_scan_lines; unused results are incomplete",
+            type = "W",
+          }
+        end
+        vim.fn.setqflist(
+          {},
+          " ",
+          { title = "Image assets: " .. (result.project_root or result.document), items = items }
+        )
+        if #items > 0 then
+          vim.cmd("copen")
+        else
+          vim.notify("No image asset issues found")
+        end
       end
-      local items = vim.deepcopy(result.missing)
-      for _, path in ipairs(result.unreferenced) do
-        items[#items + 1] = {
-          filename = path,
-          lnum = 1,
-          text = "Possibly unused in this document (may be used elsewhere)",
-          type = "W",
-        }
-      end
-      if result.truncated then
-        items[#items + 1] = {
-          filename = result.document,
-          lnum = result.scanned,
-          text = "Scan stopped at max_scan_lines; unused results are incomplete",
-          type = "W",
-        }
-      end
-      vim.fn.setqflist({}, " ", { title = "Image assets: " .. result.document, items = items })
-      if #items > 0 then
-        vim.cmd("copen")
-      else
-        vim.notify("No image asset issues found")
-      end
-    end)
-  end, { desc = "Report missing references and possibly unused assets", force = true })
+    )
+  end, { bang = true, nargs = "?", complete = "dir", desc = "Check image assets (! scans a project)", force = true })
 
   command("ImageZoom", function(args)
     report(runtime:zoom(tonumber(args.args) or args.args))
