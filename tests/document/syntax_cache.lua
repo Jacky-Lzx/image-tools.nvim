@@ -108,6 +108,31 @@ for row = 1, 140 do
   C.query(simple, row, "test", {}, scan)
 end
 check(C.query(simple, 300, "test", {}, scan).total == 300, "Evicted query reuses checkpoints correctly")
+-- Editing, inserting and deleting in the suffix preserve earlier checkpoints/results.
+C.query(simple, 257, "test", {}, scan)
+C.query(simple, 300, "test", {}, scan)
+vim.api.nvim_buf_set_lines(simple, 290, 291, false, { "edited" })
+before = visits
+check(
+  C.query(simple, 257, "test", {}, scan).total == 257 and visits == before,
+  "Suffix edit preserves an earlier query"
+)
+check(
+  C.query(simple, 300, "test", {}, scan).total == 300 and visits - before == 44,
+  "Suffix edit scans only from the preserved checkpoint"
+)
+vim.api.nvim_buf_set_lines(simple, 256, 256, false, { "inserted" })
+before = visits
+check(
+  C.query(simple, 301, "test", {}, scan).total == 301 and visits - before == 45,
+  "Insertion on a checkpoint boundary retains the exact prefix"
+)
+vim.api.nvim_buf_set_lines(simple, 128, 257, false, {})
+before = visits
+check(
+  C.query(simple, 172, "test", {}, scan).total == 172 and visits - before == 44,
+  "Deletion invalidates shifted queries and later checkpoints"
+)
 vim.cmd("bunload! " .. simple)
 vim.fn.bufload(simple)
 vim.api.nvim_buf_set_lines(simple, 0, -1, false, lines)

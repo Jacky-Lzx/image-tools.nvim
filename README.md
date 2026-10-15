@@ -444,3 +444,7 @@ Floating previews check source versions on focus gain and cursor idle, including
 external rewrites and removal. `:ImageReload` / `reload()` refresh the current file
 viewer, or the floating preview when called from its owning document. Unchanged
 sources retain their placements; superseded asynchronous results are discarded.
+
+Lua reference scanning retains unchanged prefix checkpoints after edits. For
+repeatable cold/warm lookup, tail-edit and movement timings, see
+[the recognition benchmark](doc/performance.md#recognition-latency-benchmark).

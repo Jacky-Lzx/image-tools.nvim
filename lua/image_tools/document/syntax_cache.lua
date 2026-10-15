@@ -9,9 +9,9 @@
 --   resolution outside the cache.
 --
 -- Ownership:
---   Own per-buffer entries and attachments. Edits/reloads invalidate cached
---   context, and detach releases entries; Tree-sitter indexing is managed
---   separately.
+--   Own per-buffer entries and attachments. Edits invalidate the changed suffix;
+--   reloads invalidate all cached context. Detach releases entries. Tree-sitter
+--   indexing is managed separately.
 
 ---@class ImageToolsSyntaxCacheEntry
 ---@field tick integer Buffer text version used by the cached scanner context.
@@ -28,7 +28,7 @@ local CHECKPOINT_LINES = 128
 local MAX_QUERY_RESULTS = 128
 
 -- Cache syntax only: resolution callbacks, project roots and filesystem checks
--- still run for each request. Buffer edits invalidate every prefix checkpoint.
+-- still run for each request. Edits retain checkpoints and queries before the changed suffix.
 -- Reuse a row result or scan from the nearest checkpoint with a deep-copied prefix state.
 ---@param buf integer Buffer id; zero resolves to current.
 ---@param row integer One-based target row.
@@ -46,8 +46,28 @@ function M.query(buf, row, kind, initial, scan)
   end
   if not attached[buf] then
     attached[buf] = vim.api.nvim_buf_attach(buf, false, {
-      on_lines = function()
-        entries[buf] = nil
+      on_lines = function(_, _, changedtick, first)
+        local cached = entries[buf]
+        if not cached or not changedtick then
+          entries[buf] = nil
+          return
+        end
+        cached.tick = changedtick
+        cached.through = math.min(cached.through, math.floor(first / CHECKPOINT_LINES) * CHECKPOINT_LINES)
+        for row in pairs(cached.states) do
+          if row > cached.through then
+            cached.states[row] = nil
+          end
+        end
+        local order = {}
+        for _, row in ipairs(cached.order) do
+          if row <= first then
+            order[#order + 1] = row
+          else
+            cached.queries[row] = nil
+          end
+        end
+        cached.order = order
       end,
       on_reload = function()
         entries[buf] = nil

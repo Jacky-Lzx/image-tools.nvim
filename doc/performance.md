@@ -6,15 +6,15 @@ the current row, so commented option rows can trigger a multiline preview.
 Rows beyond `max_scan_lines` are rejected before reference detection.
 
 The Lua syntax cache keeps checkpoints every 128 lines and up to 128 queried
-results per buffer. Any edit/reload invalidates that cache; unloading or deleting
-the buffer releases it. Tree-sitter instead keeps an incremental capture index:
+results per buffer. Edits retain checkpoints and query results strictly before the changed suffix;
+insertions/deletions invalidate shifted rows. Reload invalidates the whole cache;
+unloading or deleting the buffer releases it. Tree-sitter instead keeps an incremental capture index:
 edits invalidate the affected suffix and overlapping reference ranges, preserving
 valid prefixes. Queries advance the index through the requested row, while LaTeX
 argument decoding may look ahead to the reference's end within its configured
 limits. Paths, custom resolvers, VimTeX roots and filesystem checks stay live.
 
-The tests verify cache/index reuse using counters and reference identities. The
-repository does not provide a maintained end-to-end latency benchmark; these
+The tests verify cache/index reuse using counters and reference identities. The recognition benchmark below measures Lua lookup latency; these
 checks do not establish terminal decode/render timing. A cold candidate query
 may still need preceding context, and a Tree-sitter root parse can cover the
 whole document even when capture traversal is bounded.
@@ -49,3 +49,13 @@ Inspection is read-only and batched, with a three-second timeout: it does not
 create cache directories, initialize the plugin, change access order or evict
 files. Missing directories are reported as unused caches; unreadable directories
 and timed-out inspections produce diagnostics instead of an estimated usage.
+
+## Recognition latency benchmark
+
+Run `nvim --headless -u NONE -i NONE --noplugin -l tests/bench/latency.lua`
+from the repository. It reports p50/p95 milliseconds for cold lookup, warm lookup,
+tail edits and movement across image rows in 1,000/10,000-line documents, using
+the Lua backend for Markdown/LaTeX/Typst. Timings include live path resolution.
+The benchmark uses temporary buffers, performs no conversion or terminal upload,
+and does not impose machine-dependent pass/fail thresholds. Compare runs on the
+same Neovim build and hardware; visible rendering still needs Kitty validation.
