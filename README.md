@@ -85,6 +85,7 @@ release all retained terminal images and cancel pending requests.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   buffer = { enabled = true }, -- automatic binary image/PDF file buffers
@@ -503,4 +504,11 @@ preview: source path/format/bytes, prepared raster dimensions, readiness, PDF
 page bounds when known, current zoom/crop, terminal-cache counters and disk-cache
 directory. This does not initiate conversion or configure an unused plugin.
 Prepared raster dimensions can be pending and can differ from original dimensions.
-`info()` returns `(nil, error)` when there is no active preview.
+`stage` distinguishes `preparing`, `placing` (waiting for terminal upload/placement),
+`ready` and `failed`. Floating requests still pending after `preview_loading_delay`
+milliseconds show a line-end loading hint, removed on completion or cancellation.
+Automatic failures remain notification-silent. When no viewer is active, `info()`
+and `:ImageInfo` show the most recent floating-preview failure, including its path,
+`error` and `error_stage`, with `last_error = true`. This diagnostic retains no
+image resources and survives closing a preview; repeated setup resets it.
+`info()` returns `(nil, error)` when neither an active viewer nor a retained failure exists.

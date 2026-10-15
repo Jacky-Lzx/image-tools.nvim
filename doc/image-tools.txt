@@ -369,7 +369,15 @@ previous_page=[p. The page actions are PDF-only. Commands remain available.
     Show source path/format/bytes, prepared raster dimensions, readiness, PDF
     bounds, zoom, terminal-cache counters and disk-cache directory. info() returns
     the same metadata plus crop; absent dimensions are pending. No conversion is
-    started. Without a preview, info() returns nil and an error.
+    started. stage is preparing, placing (waiting for terminal acknowledgement),
+    ready or failed. Without an active viewer, the most recent failed floating
+    request is returned with last_error=true, error and error_stage. Diagnostics
+    survive close and retain no image resources; setup resets them. Without a
+    viewer or retained failure, info() returns nil and an error.
+
+preview_loading_delay defaults to 300 milliseconds. Pending floating previews
+show a line-end loading hint after this delay; success, failure or cancellation
+removes it. Set to 0 to disable hints. Automatic failures remain silent.
 
 Configured magick, pdfinfo, rsvg and insert.pngpaste executables are checked by
 checkhealth. The Ghostscript hint checks gs on PATH; ImageMagick selects its own

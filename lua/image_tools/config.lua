@@ -14,6 +14,7 @@
 
 ---@class ImageToolsOptions
 ---@field auto_preview boolean Enable automatic reference previews.
+---@field preview_loading_delay integer Milliseconds before a loading hint; zero disables it.
 ---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
 ---@field latex {max_reference_lines: integer, max_reference_bytes: integer} Budgets for one LaTeX reference.
 ---@field buffer {enabled: boolean, formats: string[], keymaps: table<string, string|boolean>|boolean} Automatic file-buffer interception settings.
@@ -57,6 +58,12 @@ function M.resolve(opts)
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   assert(type(options.treesitter) == "boolean", "treesitter must be boolean")
+  assert(
+    type(options.preview_loading_delay) == "number"
+      and options.preview_loading_delay >= 0
+      and options.preview_loading_delay % 1 == 0,
+    "preview_loading_delay must be a non-negative integer"
+  )
   assert(vim.tbl_contains({ "auto", "file", "direct" }, options.transport), "transport must be auto, file or direct")
   assert(type(options.disk_cache.enabled) == "boolean", "disk_cache.enabled must be boolean")
   for _, name in ipairs({ "max_files", "max_bytes" }) do

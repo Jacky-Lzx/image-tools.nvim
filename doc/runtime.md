@@ -47,3 +47,9 @@ buffers stay attached but paused until buffer/tab entry, resume, explicit openin
 or reload refreshes them. Disk conversions are independent; use
 `clear_disk_cache(callback)` / `:ImageCacheClear` to remove unused disk outputs
 manually, in addition to automatic disk-cache eviction.
+
+Floating previews retain the most recent failure as metadata after releasing all
+render resources. info() falls back to that diagnostic when no viewer is active;
+setup replacement drops it. Render sessions expose preparing/placing/ready stages
+and remember the failing stage. A request-owned delayed line-end hint is removed
+on drawing, failure or cancellation, without changing document text.

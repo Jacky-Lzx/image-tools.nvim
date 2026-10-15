@@ -38,12 +38,39 @@ local dependency_modules = {
 ---@field generation integer Monotonic close/replacement token.
 ---@field state? ImageToolsPreviewState Current pending/visible preview; nil after close.
 ---@field transfer ImageToolsTransfer Shared-pool view placement manager.
+---@field last_error? table Most recent failed request, without live resources.
 local M = {}
 M.__index = M
 local SCREEN_MARGIN_CELLS = 4
 local BORDER_CELLS = 2 -- One cell on each side of the floating window.
 local PREVIEW_ZINDEX = 50
 local LASTSTATUS = { MULTIPLE_WINDOWS = 1, ALWAYS = 2, GLOBAL = 3 }
+local loading_ns = vim.api.nvim_create_namespace("image_tools.preview_loading")
+
+-- Loading hints belong to the request and must disappear on every completion path.
+local function clear_loading(state)
+  if state.loading_timer then
+    if not state.loading_timer:is_closing() then
+      state.loading_timer:stop()
+      state.loading_timer:close()
+    end
+    state.loading_timer = nil
+  end
+  if state.loading_mark and vim.api.nvim_buf_is_valid(state.owner_buf) then
+    pcall(vim.api.nvim_buf_del_extmark, state.owner_buf, loading_ns, state.loading_mark)
+    state.loading_mark = nil
+  end
+end
+
+function M:record_error(path, err, stage, state)
+  self.last_error = {
+    path = path,
+    error = tostring(err),
+    error_stage = stage,
+    width = state and state.image_width,
+    height = state and state.image_height,
+  }
+end
 
 -- Construct a floating-preview controller and its placement manager without opening a window.
 ---@param opts ImageToolsOptions Runtime settings.
@@ -74,6 +101,7 @@ function M:close()
   if not state then
     return
   end
+  clear_loading(state)
   if state.render then
     state.render:close()
   end
@@ -115,6 +143,7 @@ function M:open(path, options)
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   local supported, reason = terminal.supports(self.opts)
   if not supported then
+    self:record_error(path, reason, "terminal")
     if not options.silent then
       vim.notify(reason, vim.log.levels.WARN, { title = "image-tools" })
     end
@@ -134,6 +163,18 @@ function M:open(path, options)
   ---@cast state ImageToolsPreviewState
   self.state = state
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
+  local delay = self.opts.preview_loading_delay or 300
+  if delay > 0 then
+    state.loading_timer = vim.defer_fn(function()
+      state.loading_timer = nil
+      if self.state == state and vim.api.nvim_buf_is_valid(state.owner_buf) then
+        state.loading_mark = vim.api.nvim_buf_set_extmark(state.owner_buf, loading_ns, state.cursor[1] - 1, 0, {
+          virt_text = { { "Loading image…", "Comment" } },
+          virt_text_pos = "eol",
+        })
+      end
+    end, delay)
+  end
   state.render:start(path, self.opts, {
     -- Validate generation, owner, text version and current selected cursor/range authority.
     ---@return boolean current
@@ -159,6 +200,7 @@ function M:open(path, options)
     ---@param err string
     ---@return nil
     error = function(err)
+      self:record_error(path, err, state.render.error_stage, state)
       self:close()
       if not options.silent then
         vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
@@ -186,6 +228,7 @@ function M:open(path, options)
     ---@param height integer Terminal rows.
     ---@return nil
     draw = function(entry, width, height)
+      clear_loading(state)
       state.cursor = vim.api.nvim_win_get_cursor(state.owner_win)
       state.buf = vim.api.nvim_create_buf(false, true)
       vim.bo[state.buf].buftype = "nofile"

@@ -478,6 +478,19 @@ function Runtime:info()
   local view = buffer and buffer.views[vim.api.nvim_get_current_win()]
   local path = buffer and buffer.path or state and on_current_line(state) and state.path
   if not path then
+    if self.preview.last_error then
+      local failure = self.preview.last_error
+      local failed_stat = vim.uv.fs_stat(failure.path)
+      return vim.tbl_extend("force", self.preview.last_error, {
+        format = require("image_tools.media.formats").extension(failure.path),
+        bytes = failed_stat and failed_stat.size,
+        stage = "failed",
+        ready = false,
+        last_error = true,
+        terminal_cache = self.preview.transfer:status(),
+        disk_cache = self.options.cache,
+      })
+    end
     return nil, "No active image/PDF viewer or floating preview"
   end
   local dimensions = view and view.dimensions or {}
@@ -491,6 +504,9 @@ function Runtime:info()
     page = buffer and buffer.page or (path:lower():match("%.pdf$") and 1 or nil),
     pages = buffer and buffer.pages,
     error = buffer and buffer.error,
+    stage = buffer and (buffer.error and "failed" or view and view.stage or "preparing")
+      or state.render and state.render.stage
+      or "preparing",
     zoom = view and view.viewport.zoom,
     crop = view and vim.deepcopy(view.crop),
     ready = not not (buffer and view and view.window or not buffer and state and state.win),

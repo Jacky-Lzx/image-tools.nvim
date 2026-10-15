@@ -27,6 +27,8 @@
 ---@field active boolean False after close; late-returned handles are released immediately.
 ---@field releases ImageToolsCancel[] Owned cleanup handles, released in reverse acquisition order.
 ---@field stage? "preparing"|"placing"|"ready" Duplicate-delivery guard; absent before start.
+---@field error? string Last failure, retained after releasing resources.
+---@field error_stage? string Stage which failed.
 local M = {}
 M.__index = M
 
@@ -91,6 +93,7 @@ function M:start(path, opts, view)
   ---@param err string Preparation, placement or drawing error.
   ---@return nil
   local function fail(err)
+    self.error, self.error_stage = tostring(err), self.stage
     self:close()
     view.error(err)
   end
@@ -99,12 +102,12 @@ function M:start(path, opts, view)
     if self.stage ~= "preparing" or not current() then
       return
     end
-    self.stage = "placing"
     if err then
       fail(err)
       return
     end
     local width, height, crop = view.size(image)
+    self.stage = "placing"
     self:keep(self.transfer:acquire(image, width, height, function(transfer_err, entry)
       if not current(entry) then
         return
@@ -112,7 +115,6 @@ function M:start(path, opts, view)
       if self.stage ~= "placing" then
         return
       end
-      self.stage = "ready"
       if transfer_err then
         fail(transfer_err)
         return
@@ -120,6 +122,8 @@ function M:start(path, opts, view)
       local ok, draw_err = pcall(view.draw, entry, width, height)
       if not ok then
         fail(draw_err)
+      else
+        self.stage = "ready"
       end
     end, crop))
   end))

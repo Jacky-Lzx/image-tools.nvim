@@ -552,6 +552,7 @@ function M:status(buf)
       views[win] = {
         window = view.canvas.state and view.canvas.state.win,
         page = view.canvas.state and view.canvas.state.page,
+        stage = view.canvas.state and view.canvas.state.render and view.canvas.state.render.stage,
         cache = view.canvas.transfer:status(),
         viewport = vim.deepcopy(view.viewport),
         crop = view.canvas.state and vim.deepcopy(view.canvas.state.crop),

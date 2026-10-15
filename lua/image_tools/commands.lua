@@ -67,8 +67,17 @@ function M.register(runtime)
       "Format: " .. (info.format or "unknown"),
       "Source: " .. (info.bytes and (info.bytes .. " bytes") or "missing/unreadable"),
       "Prepared raster: " .. (info.width and string.format("%d x %d pixels", info.width, info.height) or "pending"),
-      "State: " .. (info.error or (info.ready and "ready" or "pending")),
+      "State: " .. (info.stage or (info.ready and "ready" or "preparing")),
     }
+    if info.error then
+      lines[#lines + 1] = "Error"
+        .. (info.error_stage and (" (" .. info.error_stage .. ")") or "")
+        .. ": "
+        .. info.error
+    end
+    if info.last_error then
+      lines[#lines + 1] = "Most recent failed preview"
+    end
     if info.page then
       lines[#lines + 1] = "PDF page: " .. info.page .. " / " .. (info.pages or "?")
     end

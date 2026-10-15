@@ -13,6 +13,7 @@
 
 return {
   auto_preview = true,
+  preview_loading_delay = 300, -- milliseconds; zero disables the loading hint
   treesitter = true,
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   buffer = {
