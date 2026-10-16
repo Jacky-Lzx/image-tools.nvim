@@ -211,6 +211,11 @@ clipboard paste can separately request format conversion.
 
 ## Development
 
+For hands-on testing, open the [manual test gallery](examples/README.md). It
+includes every supported image extension, transparency, wide/tall images, a path
+with spaces and Unicode, and a three-page PDF with distinct pages for paging.
+The assets are bundled; regeneration is optional.
+
 GitHub Actions runs formatting checks plus basic and complete integration jobs.
 The integration job pins Neovim, Tree-sitter parsers/CLI and Snacks, requires its
 dependencies before suites can skip them, and retains environment/test logs.

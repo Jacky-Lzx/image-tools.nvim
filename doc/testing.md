@@ -54,6 +54,12 @@ and optional plugins remain outside the plugin checkout and active editor config
 
 ## Real Kitty acceptance
 
+The [manual test gallery](../examples/README.md) bundles all supported image
+extensions, transparency and aspect-ratio examples, spaces/Unicode in paths and
+a three-page PDF. It includes an isolated-editor command and expected results
+for users testing their own setup. The smaller fixtures below remain useful for
+the core acceptance sequence.
+
 Run these checks in a direct local Kitty session, with multiplexers disabled.
 Record `kitty --version`, `nvim --version`, platform and transport setting with
 the result. From the repository, start an isolated editor:
