@@ -41,23 +41,40 @@ function M.command(fields, payload)
   return kitty.ESC .. "_G" .. table.concat(parts, ",") .. (payload and ";" .. payload or "") .. kitty.ESC .. "\\"
 end
 
--- Encode PNG bytes into direct-transmission chunks with an id only on the first chunk.
+-- Encode one raw slice at a time. A multiple-of-three raw slice produces a
+-- complete 4096-byte Base64 chunk without padding between continuation chunks.
+---@param id integer Image id, emitted only on the first chunk.
+---@param png string Complete source bytes retained by the iterator.
+---@param quiet? integer Kitty q policy; defaults to 2.
+---@return fun(): string?, boolean? next_chunk Complete APC command and final flag, or nil after the last chunk.
+function M.upload_chunks(id, png, quiet)
+  local offset = 1
+  local raw_bytes = kitty.UPLOAD_CHUNK_BYTES / 4 * 3
+  return function()
+    if offset > #png then
+      return
+    end
+    local last = math.min(#png, offset + raw_bytes - 1)
+    local fields = { m = last == #png and 0 or 1, q = quiet == nil and kitty.REPLY_NONE or quiet }
+    if offset == 1 then
+      fields.a, fields.f, fields.t, fields.i = "t", kitty.PNG_FORMAT, "d", id
+    end
+    local command = M.command(fields, vim.base64.encode(png:sub(offset, last)))
+    offset = last + 1
+    return command, last == #png
+  end
+end
+
+-- Compatibility encoder for callers needing one complete string. Runtime
+-- transmission consumes upload_chunks incrementally instead.
 ---@param id integer Allocated image id.
 ---@param png string Complete PNG bytes.
 ---@param quiet? integer Kitty q policy; defaults to 2.
 ---@return string commands Concatenated APC upload chunks.
 function M.upload(id, png, quiet)
-  local data = vim.base64.encode(png)
   local commands = {}
-  for offset = 1, #data, kitty.UPLOAD_CHUNK_BYTES do
-    local fields = {
-      m = offset + kitty.UPLOAD_CHUNK_BYTES > #data and 0 or 1,
-      q = quiet == nil and kitty.REPLY_NONE or quiet,
-    }
-    if offset == 1 then
-      fields.a, fields.f, fields.t, fields.i = "t", kitty.PNG_FORMAT, "d", id
-    end
-    commands[#commands + 1] = M.command(fields, data:sub(offset, offset + kitty.UPLOAD_CHUNK_BYTES - 1))
+  for command in M.upload_chunks(id, png, quiet) do
+    commands[#commands + 1] = command
   end
   return table.concat(commands)
 end

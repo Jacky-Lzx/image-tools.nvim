@@ -20,11 +20,22 @@ rebuild its suffix, since a changed code fence can affect later definitions.
 The label map is assembled in document order so the first visible definition
 still wins. Reloads and scan-limit changes rebuild the index; detaching releases it.
 
-LaTeX additionally keeps up to 128 decoded neighborhoods per buffer, keyed by
-row and line/byte/scan budgets. Repeated lookups skip text reads and decoding.
-Edits invalidate overlapping lookahead and shifted suffix rows; reloads and
-detaching discard the cache. Returned candidates are independent copies, and
-environment context, roots, resolvers and target filesystem checks remain live.
+LaTeX additionally keeps up to 128 row results, 128 command-position blocks of
+32 lines and 256 anchored command decodes per buffer. Adjacent rows share the
+position index and decoded commands rather than reparsing overlapping text.
+Line/byte/scan budgets remain part of decode keys. Cold index reads can include
+the surrounding block boundaries; blocks exceeding the byte budget use the
+bounded query slice instead. Edits invalidate overlapping lookahead and shifted
+suffix entries; reloads and detaching discard all three caches. Returned
+candidates are independent copies, and environment context, roots, resolvers
+and target filesystem checks remain live. An earlier malformed command cannot
+consume a later reference beyond its own configured reference budget.
+
+Markdown formula lookup confirms matching backtick runs before excluding code.
+Multiline code-span lookahead stops at paragraph/fence boundaries and the scan
+ceiling. The syntax cache tracks code-span lookahead dependencies: editing a
+future closer invalidates earlier affected checkpoints and query results.
+Unrelated suffix edits preserve formula prefix snapshots in both document types.
 
 Project asset inspection reads directory entries in batches of at most 32
 concurrent `lstat` requests, yielding between batches. Live-buffer observers and
@@ -124,6 +135,27 @@ Viewer zoom scales conversion output bounds and PDF density up to eight times,
 further constrained by configured dimension/pixel limits. Conversion keys and
 coalescing include the detail level. Panning changes only a placement's Kitty
 source rectangle, so native PNG pan/zoom does not require another pixel upload.
+
+## Direct-upload encoding benchmark
+
+Direct transfer uses a shared terminal send queue. Encoding yields between
+batches of at most 32 Kitty chunks (96 KiB of raw PNG bytes), without allocating a complete
+Base64 image or concatenating the entire wire stream. Source PNG bytes remain
+resident until transmission finishes. Other plugin graphics commands wait until
+the final chunk, as required by the
+[Kitty chunking protocol](https://sw.kovidgoyal.net/kitty/graphics-protocol/#remote-client).
+Cancelling a partial upload sends its deletion before draining the queue;
+queued cancellations release their bytes without starting an upload. Reply
+handlers are installed before the first chunk, while response timeouts begin
+after the last chunk. Queued placement/file requests start their timeout only
+when written. Queue and transmission duration still contribute to transfer timing.
+
+Run `nvim --headless -u NONE -i NONE --noplugin -l tests/bench/upload.lua`.
+It measures total encoding/scheduling time and the maximum 1 ms timer gap for
+1/8/32 MiB inputs with a simulated immediately acknowledging terminal. Set
+`IMAGE_TOOLS_PROTOCOL_BASELINE` to an absolute saved pre-change `protocol.lua`
+to compare whole-image encoding on the same machine. It excludes disk reads,
+real terminal I/O, PNG decoding and visible rendering, and has no timing thresholds.
 
 ## Import hashing benchmark
 

@@ -87,7 +87,8 @@ end
 ---@return table module
 ---@param self ImageToolsPixelPool
 function Pool:dependency(name)
-  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
+  local dependency = self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
+  return name == "terminal" and require("image_tools.terminal.stream").wrap(dependency) or dependency
 end
 
 -- Create an independent view lease set over this pool.

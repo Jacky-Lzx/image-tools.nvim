@@ -89,6 +89,7 @@ run_test media/prepare.lua
 run_test media/math.lua # formula workers; optional real latex/dvipng compilation
 run_test media/conversion_queue.lua
 run_test terminal/transfer.lua
+run_test terminal/stream.lua
 run_test terminal/pixel_pool.lua
 run_test render/session.lua
 

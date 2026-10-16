@@ -35,7 +35,34 @@ local function environment(line, pos, command)
   return line:sub(pos):match("^\\" .. command .. "%s*{([%a*]+)}()")
 end
 
-local function scanner(markdown, limits)
+-- An unmatched backtick run is literal Markdown text. Confirm a closing run
+-- before entering code, including multiline spans within the scan ceiling.
+-- Blank lines and fences end the paragraph in which a code span can occur.
+local function code_end(buf, row, pos, ticks, ceiling)
+  while row <= ceiling do
+    local line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
+    if not line then
+      return nil, nil, row
+    end
+    if pos == 1 and (line:match("^%s*$") or line:match("^ ? ? ?```") or line:match("^ ? ? ?~~~")) then
+      return nil, nil, row
+    end
+    while pos <= #line do
+      local first, last = line:find("`+", pos)
+      if not first then
+        break
+      end
+      if last - first + 1 == ticks then
+        return row, last, row
+      end
+      pos = last + 1
+    end
+    row, pos = row + 1, 1
+  end
+  return nil, nil, ceiling
+end
+
+local function scanner(markdown, limits, buf, ceiling)
   return function(lines, state)
     local refs = {}
     for _, original in ipairs(lines) do
@@ -48,14 +75,18 @@ local function scanner(markdown, limits)
       end
       local fence = markdown and (line:match("^ ? ? ?(```+)") or line:match("^ ? ? ?(~~~+)"))
       local blocked = false
-      if fence and not active then
+      local code_context = state.html_code or state.html or state.code_row
+      if fence and not active and not code_context then
         if not state.fence then
           state.fence, state.fence_length = fence:sub(1, 1), #fence
         elseif fence:sub(1, 1) == state.fence and #fence >= state.fence_length and line:match("^%s*[`~]+%s*$") then
           state.fence = nil
         end
         blocked = true
-      elseif state.fence or markdown and not active and (line:match("^    ") or line:match("^ ? ? ?\t")) then
+      elseif
+        state.fence
+        or markdown and not active and not code_context and (line:match("^    ") or line:match("^ ? ? ?\t"))
+      then
         blocked = true
       end
       local pos, segment = 1, 1
@@ -74,17 +105,32 @@ local function scanner(markdown, limits)
             break
           end
           state.html, pos = nil, last + 1
-        elseif state.ticks then
-          local run = line:match("^`+", pos)
-          if run and #run == state.ticks then
-            state.ticks = nil
+        elseif state.code_row then
+          if row == state.code_row then
+            pos, state.code_row = state.code_col + 1, nil
+          else
+            break
           end
-          pos = pos + (run and #run or 1)
+        elseif state.html_code then
+          local _, last = line:lower():find("</" .. state.html_code .. "%s*>", pos)
+          if not last then
+            break
+          end
+          state.html_code, pos = nil, last + 1
         elseif not active and markdown and line:sub(pos, pos + 3) == "<!--" then
           state.html, pos = true, pos + 4
+        elseif not active and markdown and char == "<" then
+          local tag = line:sub(pos):lower():match("^<([%a]+)[%s>]")
+          if tag == "code" or tag == "pre" then
+            state.html_code = tag
+          end
+          pos = pos + 1
         elseif not active and markdown and char == "`" and not tex.escaped(line, pos) then
           local run = line:match("^`+", pos)
-          state.ticks, pos = #run, pos + #run
+          local through
+          state.code_row, state.code_col, through = code_end(buf, row, pos + #run, #run, ceiling)
+          state.code_through = math.max(state.code_through or 0, through)
+          pos = pos + #run
         elseif not active and not markdown and char == "\\" and not tex.escaped(line, pos) then
           local name, after = environment(line, pos, "begin")
           if excluded[name] then
@@ -199,9 +245,13 @@ function M.find(buf, row, col, opts)
   then
     return
   end
-  local scan = scanner(kind == "markdown", limits)
-  local key = table.concat({ kind, limits.max_lines, limits.max_bytes }, ":")
-  local result = require("image_tools.document.syntax_cache").query(buf, row, key, {}, scan, "math")
+  local scan = scanner(kind == "markdown", limits, buf, opts.max_scan_lines)
+  local key = table.concat({ kind, limits.max_lines, limits.max_bytes, opts.max_scan_lines }, ":")
+  -- Editing a future closer can change an earlier literal backtick. Report
+  -- that dependency while preserving snapshots before unaffected edits.
+  local result = require("image_tools.document.syntax_cache").query(buf, row, key, {}, scan, "math", function(state)
+    return state.code_through
+  end)
   local refs = vim.deepcopy(result.references)
   local state = vim.deepcopy(result.state)
   if state.active then

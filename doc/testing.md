@@ -6,6 +6,13 @@ runner stops on the first failure and preserves its exit status. See README for
 the optional dependency switches and the distinction between recognition,
 window lifecycle, protocol responses and visible pixels.
 
+`tests/terminal/stream.lua` checks incremental Base64 boundaries, serialized
+concurrent graphics, queued/partial cancellation, write failures, deferred
+response timeouts and handler cleanup. `tests/document/tex_multiline.lua` also
+checks shared decodes across rows, edit invalidation, nested command exclusion,
+oversized neighboring lines and cache eviction. Encoding/scheduling measurements
+are available through `tests/bench/upload.lua`; see [performance](performance.md).
+
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on pushes, pull requests and manual dispatches:

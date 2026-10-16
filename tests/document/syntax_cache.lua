@@ -28,8 +28,13 @@ for _, ft in ipairs({ "tex", "typst" }) do
   local buf = buffer(ft, lines)
   calls = {}
   check(not D.at_line(buf, 10000, opts), "No image in " .. ft)
+  local fetched = 0
+  for _, call in ipairs(calls) do
+    fetched = fetched + call[2] - call[1]
+  end
   check(
-    #calls == 1 and calls[1][2] == 10000 and calls[1][1] >= (ft == "tex" and 9936 or 9999),
+    ft == "tex" and fetched <= 128 and calls[1][1] >= 9872
+      or ft == "typst" and #calls == 1 and calls[1][2] == 10000 and calls[1][1] == 9999,
     "Plain line performs bounded local reads in " .. ft
   )
 end

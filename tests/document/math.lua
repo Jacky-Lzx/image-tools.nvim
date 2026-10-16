@@ -159,4 +159,56 @@ local comment = buffer("markdown", { "$$a % fake $$", " + b$$" })
 check(formula(comment, 1).end_row == 2, "TeX comments inside Markdown formulas cannot close delimiters")
 check(not formula(buffer("markdown", { "$5 and $10" }), 1), "Currency pair is not a formula")
 check(not formula(buffer("markdown", { "$ spaced $" }), 1), "Spaced Markdown dollars are excluded")
+local unmatched = buffer("markdown", { "Literal unmatched ` text $same$", "$next$" })
+check(formula(unmatched, 1).formula == "$same$", "Unmatched backticks are literal on the same row")
+check(formula(unmatched, 2).formula == "$next$", "Unmatched backticks do not hide later formulas")
+local span = buffer("markdown", { "`` code ` $hidden$", "$hidden$ `` $visible$", "$after$" })
+check(not formula(span, 1), "Exact-length backtick runs open multiline code")
+check(formula(span, 2).formula == "$visible$", "Multiline code closes before visible formula")
+check(formula(span, 3).formula == "$after$", "Multiline code does not leak after closer")
+vim.api.nvim_buf_set_lines(span, 1, 2, false, { "$formerly_code$" })
+check(formula(span, 1).formula == "$hidden$", "Removing future code closer invalidates prefix snapshots")
+vim.api.nvim_buf_set_lines(span, 1, 2, false, { "$hidden$ `` $visible$" })
+check(not formula(span, 1), "Adding future code closer invalidates cached literal opener")
+local paragraph = buffer("markdown", { "unmatched `", "", "$visible$ `" })
+check(formula(paragraph, 3).formula == "$visible$", "Code spans cannot cross blank paragraphs")
+local html = buffer("markdown", {
+  '<CODE class="example">$hidden$</CODE> $visible$',
+  "<pre>",
+  "$hidden$ ` <!--",
+  "```",
+  "    </pre> $after$",
+})
+check(formula(html, 1).formula == "$visible$", "HTML code tags support attributes and case-insensitive names")
+check(not formula(html, 3), "HTML pre content is excluded")
+check(formula(html, 5).formula == "$after$", "HTML code contents cannot leak Markdown state")
+vim.api.nvim_buf_set_lines(html, 1, 2, false, { "ordinary" })
+check(formula(html, 3).formula == "$hidden$", "Editing HTML opening tag updates later context")
+local bounded_code = buffer("markdown", { "` $visible$", "later `" })
+check(
+  formula(bounded_code, 1, nil, config.resolve({ max_scan_lines = 1 })).formula == "$visible$",
+  "Code-span lookahead respects scan ceiling"
+)
+local prefix = {}
+for row = 1, 400 do
+  prefix[row] = "ordinary"
+end
+prefix[10], prefix[11], prefix[257] = "` code", "code `", "$prefix$"
+local incremental = buffer("markdown", prefix)
+check(formula(incremental, 257).formula == "$prefix$", "Formula prefix cache warmed")
+local original_get, reads = vim.api.nvim_buf_get_lines, 0
+vim.api.nvim_buf_get_lines = function(...)
+  local lines = original_get(...)
+  reads = reads + #lines
+  return lines
+end
+vim.api.nvim_buf_set_lines(incremental, 390, 391, false, { "suffix edit" })
+check(formula(incremental, 257).formula == "$prefix$", "Unrelated edits retain formula prefix snapshots")
+vim.api.nvim_buf_get_lines = original_get
+check(reads <= opts.math.max_lines + 1, "Suffix edits do not rescan the formula prefix")
+prefix[127], prefix[129], prefix[131] = "` code", "$hidden$", "code ` $visible$"
+local future = buffer("markdown", prefix)
+check(not formula(future, 129), "Code-span lookahead crosses a checkpoint")
+vim.api.nvim_buf_set_lines(future, 130, 131, false, { "no closer" })
+check(formula(future, 129).formula == "$hidden$", "Future edit invalidates a preceding code-span checkpoint")
 print("document math: " .. checks .. " assertions passed")

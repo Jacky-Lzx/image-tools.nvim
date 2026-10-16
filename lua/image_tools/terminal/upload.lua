@@ -97,7 +97,8 @@ end
 ---@param name string Logical dependency name, such as terminal, protocol or image.
 ---@return table module
 function M:dependency(name)
-  return self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
+  local dependency = self.dependencies[name] or require(dependency_modules[name] or ("image_tools." .. name))
+  return name == "terminal" and require("image_tools.terminal.stream").wrap(dependency) or dependency
 end
 
 -- Remove the local entry and send terminal deletion without waiting for a reply.
@@ -252,14 +253,15 @@ function M:acquire(image, callback)
   end
 
   -- Track one bounded terminal acknowledgement wait for the current image id.
-  ---@param command string Encoded Kitty graphics command.
+  ---@param command? string Encoded file-upload command; absent for direct data.
   ---@param continuation fun(err: string?) Receives nil for OK, or a terminal/write/timeout error.
+  ---@param data? string PNG source bytes for bounded direct transmission.
   ---@return nil
-  local function request(command, continuation)
+  local function request(command, continuation, data)
     local done = false
-    local cancellation = terminal.request(
+    local cancellation = (data and terminal.upload or terminal.request)(
       entry.id,
-      command,
+      data or command,
       self.opts.terminal_timeout or defaults.terminal_timeout,
       ---@param err string?
       ---@return nil
@@ -308,8 +310,7 @@ function M:acquire(image, callback)
       end
       self.uploads = self.uploads + 1
 
-      local command = use_file and protocol.upload_file(entry.id, image.path)
-        or protocol.upload(entry.id, data, kitty.REPLY_ALL)
+      local command = use_file and protocol.upload_file(entry.id, image.path) or nil
       request(
         command,
         ---@param err string?
@@ -330,7 +331,8 @@ function M:acquire(image, callback)
           self.last_transport = use_file and "file" or "direct"
           entry.transport = self.last_transport
           ready()
-        end
+        end,
+        data
       )
     end
 

@@ -196,6 +196,13 @@ last successful transport/error. Caches store metadata, not full PNGs in Lua.
 Every upload/placement has a bounded response wait. Cancellation removes response
 handlers and timers and deletes incomplete images. Failed file uploads and lost
 cached images use fresh ids, preventing late replies from matching the retry.
+Direct uploads encode and send raw data in batches of at most 96 KiB, yielding
+between batches.
+Other plugin graphics commands wait until the current image's final chunk;
+cancellation aborts a partial upload before releasing that queue. Response timers
+start when commands are sent, after the final chunk for a direct upload. PNG
+source bytes remain in memory during transfer; full-image Base64/protocol copies
+are avoided.
 
 ## Current scope
 
@@ -413,7 +420,9 @@ starred variants where LaTeX provides them. Nested `aligned`, `cases`, matrices
 and other math content inside these delimiters are passed through to LaTeX.
 
 LaTeX comments, `\verb` and verbatim/listing/comment environments are skipped.
-Markdown fenced/indented code, backtick code spans and HTML comments are skipped.
+Markdown fenced/indented code, matched backtick code spans, HTML comments and
+`<code>`/`<pre>` contents are skipped. Backtick spans can cross lines within a
+paragraph and `max_scan_lines`; unmatched runs remain literal text.
 Single Markdown dollars require non-whitespace just after the opening delimiter
 and just before the closing delimiter; a closing dollar cannot precede a digit.
 Unclosed expressions and formulas exceeding `math.max_lines` (64),

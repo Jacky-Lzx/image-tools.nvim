@@ -66,8 +66,10 @@ end
 ---@param timeout integer Response timeout in milliseconds.
 ---@param callback fun(err: string?) Nil means OK; errors include write failures and timeouts.
 ---@param placement? integer Match placement responses by both ids; nil matches upload responses.
+---@param deferred? boolean Streaming caller arms the response timeout after the final chunk.
 ---@return ImageToolsCancel cancel Removes the handler/timer without delivering a cancellation callback.
-function M.request(id, command, timeout, callback, placement)
+---@return fun() arm Start the timeout unless the request already completed/cancelled.
+function M.request(id, command, timeout, callback, placement, deferred)
   local finished, autocmd = false, nil
   local timer = vim.uv.new_timer()
 
@@ -119,13 +121,20 @@ function M.request(id, command, timeout, callback, placement)
     end,
   })
 
-  timer:start(
-    timeout,
-    0,
-    vim.schedule_wrap(function()
-      done("ETIMEDOUT: no Kitty graphics response")
-    end)
-  )
+  local function arm()
+    if not finished then
+      timer:start(
+        timeout,
+        0,
+        vim.schedule_wrap(function()
+          done("ETIMEDOUT: no Kitty graphics response")
+        end)
+      )
+    end
+  end
+  if not deferred then
+    arm()
+  end
 
   local ok, err = pcall(M.write, command)
   if not ok then
@@ -136,7 +145,7 @@ function M.request(id, command, timeout, callback, placement)
     if not finished then
       cleanup()
     end
-  end
+  end, arm
 end
 
 -- Use the terminal's real cell geometry; a configurable fallback is useful

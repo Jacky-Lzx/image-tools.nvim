@@ -55,6 +55,7 @@ lua/image_tools/
   terminal/
     init.lua               terminal detection, geometry and replies
     protocol.lua           Kitty commands and placeholder encoding
+    stream.lua             shared graphics queue and cancellable incremental uploads
     constants.lua          fixed Kitty wire-format values
     upload.lua             pixel upload, fallback and cache
     pixel_pool.lua         shared pixel ownership and placements
@@ -113,6 +114,7 @@ tests/
     session.lua              preparation/placement resource lifecycle
   terminal/
     transfer.lua             protocol transmission, replies and cache reuse
+    stream.lua               bounded batches, serialization, cancellation and timeout cleanup
     pixel_pool.lua           shared ownership and independent placements
   workflow/
     insert.lua               import, extmarks, batches and rollback
@@ -146,13 +148,21 @@ relative image link resolves within the fixture directory.
 `terminal/transfer.new()` always constructs a view placement manager. A
 supplied `pixel_pool` shares uploads across managers; a standalone manager owns
 a private pool. Within `terminal/`, the dependency direction is `transfer ->
-pixel_pool -> upload -> init / protocol`. `upload` handles pixel transmission,
+pixel_pool -> upload -> stream -> init / protocol`. `upload` handles pixel transmission,
 fallback, versioning and LRU storage; it never creates or hides placements.
 `pixel_pool` owns reference counts, independent placement ids and bounded
 placement retry. It consults the uploader's `cached()` method rather than its
 entry table. Clearing a shared transfer releases only its leases; clearing a
 standalone transfer also frees its private pool. Clearing the pool frees all
 owned terminal pixels.
+
+`stream` shares a graphics-send queue for every user of the same terminal
+dependency, including separate pools. It encodes direct data in bounded batches
+and defers other plugin graphics commands until the final chunk. Cancellation
+aborts partial pixels before releasing the queue. Terminal reply handlers start
+before the first chunk; their timeout is armed after the final chunk. Reply waits
+do not hold the send queue after transmission. Queued requests can be cancelled
+before acquiring a response handler or timer.
 
 ## Render Sessions
 

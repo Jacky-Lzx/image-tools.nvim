@@ -134,6 +134,11 @@ TRANSPORT                                                  *image-tools-transpor
 SSH_CONNECTION or SSH_TTY is nonempty. A file failure/timeout falls back to direct
 data. "file" forces files and reports failures; "direct" forces inline data.
 terminal_timeout (default 1500 ms) bounds each upload/placement response wait.
+Direct encoding/sending yields after at most 96 KiB of raw bytes. Plugin graphics
+commands cannot interleave between image chunks. Cancellation aborts the partial
+upload before the queue resumes. Response timeouts start on sending, after the
+last chunk for direct uploads; time waiting in this send queue is excluded.
+PNG source bytes are retained during transfer without full-image Base64 copies.
 Shared memory is not implemented; real SSH/other terminals remain unvalidated.
 
 Terminal cache keys include path, inode, size and nanosecond mtime/ctime.
@@ -254,7 +259,9 @@ LaTeX (tex/latex/plaintex) and Markdown support $...$, $$...$$, \(...\), \[...\]
 and math/displaymath/equation/align/alignat/gather/multline/flalign/eqnarray
 environments, including valid starred variants. Complete expressions may span
 lines. LaTeX comments, \verb and verbatim/listing/comment environments are skipped;
-Markdown code blocks, backtick spans and HTML comments are skipped. Single
+Markdown code blocks, matched backtick spans, HTML comments and <code>/<pre>
+contents are skipped. Backtick spans can cross lines within a paragraph and
+max_scan_lines; unmatched runs remain literal text. Single
 Markdown dollars require non-whitespace inside each delimiter; the closing dollar
 cannot precede a digit. Unclosed or oversized expressions are ignored.
 

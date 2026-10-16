@@ -10,8 +10,9 @@
 --   within line/byte scan budgets.
 --
 -- Ownership:
---   Own bounded per-buffer neighborhood caches, released on detach. Preserve
---   byte columns and row coordinates; filename contents must stay on one line.
+--   Own bounded per-buffer row, command-index and anchored-decode caches,
+--   released on detach. Preserve byte columns and row coordinates; filename
+--   contents must stay on one line.
 
 local M = {}
 local defaults = require("image_tools.defaults")
@@ -170,13 +171,15 @@ end
 ---@param text string Source segment.
 ---@param first? integer One-based first represented row; defaults to one.
 ---@param opts? table Optional reference budgets.
+---@param anchored? boolean Stop after the first command when decoding an indexed location.
 ---@return ImageToolsReference[] references
 ---@return string? error Limit/split-filename diagnostic; valid later references may still be returned.
-function M.parse(text, first, opts)
+---@return integer? consumed Exclusive end byte of the last complete command, including rejected arguments.
+function M.parse(text, first, opts, anchored)
   first = first or 1
   text = sanitize(text)
   local max_lines, max_bytes = M.limits(opts)
-  local results, pos, error_message = {}, 1, nil
+  local results, pos, error_message, consumed = {}, 1, nil, nil
   while pos <= #text do
     local start = text:find(INCLUDEGRAPHICS_COMMAND, pos, true)
     if not start then
@@ -213,10 +216,14 @@ function M.parse(text, first, opts)
           end
         end
         pos = finish + 1
+        consumed = pos
       end
     end
+    if anchored then
+      break
+    end
   end
-  return results, error_message
+  return results, error_message, consumed
 end
 
 -- Check inclusive row coverage and byte-column bounds on the first/last rows.
@@ -243,6 +250,8 @@ end
 ---@param col integer Zero-based command byte column.
 ---@param opts table Reference budgets and optional scan ceiling.
 ---@return ImageToolsReference[] references At most one anchored complete reference.
+---@return string? error Reference budget/filename diagnostic.
+---@return {end_row: integer, end_col: integer}? extent End of a complete command, including rejected arguments.
 function M.at(buf, row, col, opts)
   local max_lines, max_bytes = M.limits(opts)
   local start_byte = vim.api.nvim_buf_get_offset(buf, row) + col
@@ -260,28 +269,84 @@ function M.at(buf, row, col, opts)
   local length = vim.api.nvim_buf_get_offset(buf, last + 1) - vim.api.nvim_buf_get_offset(buf, last) - 1
   local finish = math.min(length, start_byte + max_bytes - vim.api.nvim_buf_get_offset(buf, last))
   local text = table.concat(vim.api.nvim_buf_get_text(buf, row, col, last, finish, {}), "\n")
-  local references = M.parse(text, row + 1, opts)
+  local references, err, consumed = M.parse(text, row + 1, opts, true)
+  local extent
+  if consumed then
+    local end_row, end_col = position(text, consumed, row + 1)
+    extent = { end_row = end_row, end_col = end_col + (end_row == row + 1 and col or 0) }
+  end
   for _, reference in ipairs(references) do
     if reference.start_row == row + 1 and reference.start_col == 0 then
       reference.start_col = col
       if reference.end_row == row + 1 then
         reference.end_col = reference.end_col + col
       end
-      return { reference }
+      return { reference }, err, extent
     end
   end
-  return {}
+  return {}, err, extent
 end
 
--- Look only within a bounded neighborhood for a possible command. Context
--- (comments/environments/graphicspath) is supplied by the existing checkpoint lexer.
--- Search a byte/line-bounded neighborhood for complete commands covering the requested row.
+local COMMAND_BLOCK_LINES = 32
+local MAX_NEIGHBORHOODS = 128
+local MAX_COMMANDS = 256
+local neighborhoods, attached = {}, {}
+
+local function remember(cache, order, key, value, limit)
+  cache[key] = value
+  order[#order + 1] = key
+  if #order > limit then
+    cache[table.remove(order, 1)] = nil
+  end
+end
+
+-- Index command positions in reusable blocks. A block containing long lines
+-- falls back to the already byte-bounded query slice, never copying it whole.
+local function commands(buf, first, row, opts, entry)
+  local _, max_bytes = M.limits(opts)
+  local result = {}
+  for start = math.floor(first / COMMAND_BLOCK_LINES) * COMMAND_BLOCK_LINES, row - 1, COMMAND_BLOCK_LINES do
+    local last = math.min(vim.api.nvim_buf_line_count(buf), opts.max_scan_lines, start + COMMAND_BLOCK_LINES)
+    local key = start .. ":" .. opts.max_scan_lines
+    local block = entry.blocks[key]
+    if not block then
+      local bounded = vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, start) <= max_bytes
+      local lower, upper = bounded and start or math.max(start, first), bounded and last or math.min(last, row)
+      block = { commands = {}, through = math.min(opts.max_scan_lines, start + COMMAND_BLOCK_LINES) }
+      for i, original in ipairs(vim.api.nvim_buf_get_lines(buf, lower, upper, false)) do
+        local line, pos = clean(original), 1
+        while pos <= #line do
+          local found = line:find(INCLUDEGRAPHICS_COMMAND, pos, true)
+          if not found then
+            break
+          end
+          pos = found + #INCLUDEGRAPHICS_COMMAND
+          if not escaped(line, found) and not line:sub(pos, pos):match("%a") then
+            block.commands[#block.commands + 1] = { row = lower + i, col = found - 1 }
+          end
+        end
+      end
+      if bounded then
+        remember(entry.blocks, entry.block_order, key, block, MAX_NEIGHBORHOODS)
+      end
+    end
+    for _, command in ipairs(block.commands) do
+      if command.row > first and command.row <= row then
+        result[#result + 1] = command
+      end
+    end
+  end
+  return result
+end
+
+-- Adjacent queries share the position index and anchored command decodes.
+-- Context (environments/graphicspath), paths and filesystem checks stay live.
 ---@param buf integer Buffer id.
 ---@param row integer One-based target row.
 ---@param opts ImageToolsOptions Includes max_scan_lines and reference budgets.
 ---@return ImageToolsReference[] references
 ---@return string? error Budget/filename diagnostic when no usable covering range exists.
-local function nearby(buf, row, opts)
+local function nearby(buf, row, opts, entry)
   local max_lines, max_bytes = M.limits(opts)
   local first = math.max(0, row - max_lines)
   -- Bound bytes before fetching text; very long lines are never copied whole.
@@ -292,28 +357,35 @@ local function nearby(buf, row, opts)
   if first == row then
     return {}, "LaTeX image reference exceeds configured limits", row
   end
-  local before = vim.api.nvim_buf_get_lines(buf, first, row, false)
-  local text = table.concat(before, "\n")
-  if not text:find("\\includegraphics", 1, true) then
-    return {}, nil, row
+  local references, err, consumed = {}, nil, nil
+  for _, command in ipairs(commands(buf, first, row, opts, entry)) do
+    if
+      not consumed
+      or command.row > consumed.end_row
+      or command.row == consumed.end_row and command.col >= consumed.end_col
+    then
+      local key = table.concat({ command.row, command.col, max_lines, max_bytes, opts.max_scan_lines }, ":")
+      local decoded = entry.commands[key]
+      if not decoded then
+        local refs, message, extent = M.at(buf, command.row - 1, command.col, opts)
+        decoded = {
+          references = refs,
+          error = message,
+          extent = extent,
+          through = math.min(opts.max_scan_lines, command.row + max_lines - 1),
+        }
+        remember(entry.commands, entry.command_order, key, decoded, MAX_COMMANDS)
+      end
+      consumed, err = decoded.extent, decoded.error or err
+      for _, ref in ipairs(decoded.references) do
+        if M.contains(ref, row) then
+          references[#references + 1] = ref
+        end
+      end
+    end
   end
-  local last = math.min(vim.api.nvim_buf_line_count(buf), opts.max_scan_lines, row + max_lines - 1)
-  while last > row and vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, row) > max_bytes do
-    last = last - 1
-  end
-  if last > row then
-    text = text .. "\n" .. table.concat(vim.api.nvim_buf_get_lines(buf, row, last, false), "\n")
-  end
-  local all, err = M.parse(text, first + 1, opts)
-  return vim.tbl_filter(function(reference)
-    return M.contains(reference, row)
-  end, all),
-    err,
-    math.min(opts.max_scan_lines, row + max_lines - 1)
+  return references, err, math.min(opts.max_scan_lines, row + max_lines - 1)
 end
-
-local neighborhoods, attached = {}, {}
-local MAX_NEIGHBORHOODS = 128
 
 -- Cache syntax only. An edit invalidates overlapping lookahead and shifted
 -- suffix rows; returned copies keep adapter context out of cached candidates.
@@ -322,7 +394,7 @@ function M.nearby(buf, row, opts)
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = neighborhoods[buf]
   if not entry or entry.tick ~= tick then
-    entry = { tick = tick, queries = {}, order = {} }
+    entry = { tick = tick, queries = {}, order = {}, blocks = {}, block_order = {}, commands = {}, command_order = {} }
     neighborhoods[buf] = entry
   end
   if not attached[buf] then
@@ -334,15 +406,17 @@ function M.nearby(buf, row, opts)
           return
         end
         cached.tick = changedtick
-        local order = {}
-        for _, key in ipairs(cached.order) do
-          if cached.queries[key].through <= first then
-            order[#order + 1] = key
-          else
-            cached.queries[key] = nil
+        for _, pair in ipairs({ { "queries", "order" }, { "blocks", "block_order" }, { "commands", "command_order" } }) do
+          local cache, order = cached[pair[1]], {}
+          for _, key in ipairs(cached[pair[2]]) do
+            if cache[key].through <= first then
+              order[#order + 1] = key
+            else
+              cache[key] = nil
+            end
           end
+          cached[pair[2]] = order
         end
-        cached.order = order
       end,
       on_reload = function()
         neighborhoods[buf] = nil
@@ -356,13 +430,9 @@ function M.nearby(buf, row, opts)
   local key = table.concat({ row, max_lines, max_bytes, opts.max_scan_lines }, ":")
   local result = entry.queries[key]
   if not result then
-    local references, err, through = nearby(buf, row, opts)
+    local references, err, through = nearby(buf, row, opts, entry)
     result = { references = references, error = err, through = through }
-    entry.queries[key] = result
-    entry.order[#entry.order + 1] = key
-    if #entry.order > MAX_NEIGHBORHOODS then
-      entry.queries[table.remove(entry.order, 1)] = nil
-    end
+    remember(entry.queries, entry.order, key, result, MAX_NEIGHBORHOODS)
   end
   return vim.deepcopy(result.references), result.error
 end

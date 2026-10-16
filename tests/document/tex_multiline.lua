@@ -145,5 +145,54 @@ vim.cmd("bunload! " .. cached)
 vim.fn.bufload(cached)
 vim.api.nvim_buf_set_lines(cached, 0, -1, false, { [[\includegraphics{b.png}]] })
 check(R.nearby(cached, 1, opts)[1].src == "b.png", "Unload releases decoded neighborhoods")
+local adjacent = buffer({
+  [[\includegraphics[]],
+  [[ width=1cm,]],
+  [[ height=2cm]],
+  [[ ]{a.png}]],
+  [[\includegraphics{b.png}]],
+})
+local initial = decodes
+for row = 1, 4 do
+  check(R.nearby(adjacent, row, opts)[1].src == "a.png", "Shared decode covers adjacent row " .. row)
+end
+check(decodes == initial + 1, "Adjacent rows decode a multiline command only once")
+check(
+  R.nearby(adjacent, 5, opts)[1].src == "b.png" and decodes == initial + 2,
+  "Only a new command needs another decode"
+)
+vim.api.nvim_buf_set_lines(adjacent, 3, 4, false, { " ]{b.png}" })
+check(R.nearby(adjacent, 2, opts)[1].src == "b.png", "Editing shared lookahead invalidates every affected row")
+local nested = buffer({ [[\includegraphics[width=\includegraphics{fake.png}]{a.png}]] })
+local refs = R.nearby(nested, 1, opts)
+check(#refs == 1 and refs[1].src == "a.png", "Command index does not expose nested option commands")
+-- Oversized neighboring lines never enter the block index as complete strings.
+local long = buffer({ [[\includegraphics{a.png}]], string.rep("x", 1024 * 1024) })
+local get_lines, fetched = vim.api.nvim_buf_get_lines, 0
+vim.api.nvim_buf_get_lines = function(...)
+  local lines = get_lines(...)
+  for _, line in ipairs(lines) do
+    fetched = fetched + #line
+  end
+  return lines
+end
+check(R.nearby(long, 1, opts)[1].src == "a.png", "Long neighboring line preserves a valid short reference")
+vim.api.nvim_buf_get_lines = get_lines
+check(fetched < opts.latex.max_reference_bytes, "Indexing does not copy an oversized neighboring line")
+local many = {}
+for row = 1, 300 do
+  many[row] = [[\includegraphics{a.png}]]
+end
+local eviction = buffer(many)
+for row = 1, #many do
+  R.nearby(eviction, row, opts)
+end
+check(R.nearby(eviction, 1, opts)[1].src == "a.png", "Evicted anchored decodes rebuild correctly")
+-- A malformed command outside its own line budget must not absorb a later image.
+local incomplete = buffer({ [[\includegraphics{]], "ordinary", "ordinary", [[\includegraphics{b.png}]], "}" })
+check(
+  R.nearby(incomplete, 4, config.resolve({ latex = { max_reference_lines = 3 } }))[1].src == "b.png",
+  "Over-budget earlier commands cannot hide a complete later image"
+)
 R.parse = parse
 print("multiline LaTeX lexer: " .. checks .. " assertions passed")

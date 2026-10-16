@@ -6,7 +6,8 @@
 -- Architecture:
 --   Accept an adapter-provided scanner and initial context. Build 128-line
 --   checkpoints and retain up to 128 query results per buffer/namespace; leave filesystem
---   resolution outside the cache.
+--   resolution outside the cache. Optional lookahead dependencies invalidate
+--   preceding snapshots when a future delimiter changes.
 --
 -- Ownership:
 --   Own per-buffer entries and attachments. Edits invalidate the changed suffix;
@@ -20,6 +21,8 @@
 ---@field states table<integer, table> Scanner states after each checkpoint; index zero is initial context.
 ---@field queries table<integer, any> Adapter-specific queried-row results, keyed by one-based row.
 ---@field order integer[] Query insertion order for bounded eviction.
+---@field lookahead? fun(state: table): integer? Last one-based row inspected beyond a scanner state.
+---@field dependencies table<integer, integer> Query lookahead endpoints; absent for ordinary prefix-only scanners.
 
 ---@class ImageToolsSyntaxCache
 local M = {}
@@ -36,8 +39,9 @@ local MAX_QUERY_RESULTS = 128
 ---@param initial table Prefix state before any lines.
 ---@param scan fun(lines: string[], state: table): any, table Returns target-row result and next prefix state.
 ---@param namespace? string Independent cache/attachment scope for a different scanner subsystem.
+---@param lookahead? fun(state: table): integer? Optional future row dependency for checkpoint/query invalidation.
 ---@return any result Adapter-defined syntax result; paths/filesystem decisions remain live.
-function M.query(buf, row, kind, initial, scan, namespace)
+function M.query(buf, row, kind, initial, scan, namespace, lookahead)
   namespace = namespace or "default"
   namespaces[namespace] = namespaces[namespace] or { entries = {}, attached = {} }
   local entries, attached = namespaces[namespace].entries, namespaces[namespace].attached
@@ -45,7 +49,16 @@ function M.query(buf, row, kind, initial, scan, namespace)
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = entries[buf]
   if not entry or entry.tick ~= tick or entry.kind ~= kind then
-    entry = { tick = tick, kind = kind, through = 0, states = { [0] = initial }, queries = {}, order = {} }
+    entry = {
+      tick = tick,
+      kind = kind,
+      through = 0,
+      states = { [0] = initial },
+      queries = {},
+      order = {},
+      dependencies = {},
+      lookahead = lookahead,
+    }
     entries[buf] = entry
   end
   if not attached[buf] then
@@ -58,6 +71,13 @@ function M.query(buf, row, kind, initial, scan, namespace)
         end
         cached.tick = changedtick
         cached.through = math.min(cached.through, math.floor(first / CHECKPOINT_LINES) * CHECKPOINT_LINES)
+        if cached.lookahead then
+          for checkpoint, state in pairs(cached.states) do
+            if checkpoint > 0 and (cached.lookahead(state) or 0) > first then
+              cached.through = math.min(cached.through, checkpoint - CHECKPOINT_LINES)
+            end
+          end
+        end
         for row in pairs(cached.states) do
           if row > cached.through then
             cached.states[row] = nil
@@ -65,10 +85,11 @@ function M.query(buf, row, kind, initial, scan, namespace)
         end
         local order = {}
         for _, row in ipairs(cached.order) do
-          if row <= first then
+          if row <= first and (cached.dependencies[row] or row) <= first then
             order[#order + 1] = row
           else
             cached.queries[row] = nil
+            cached.dependencies[row] = nil
           end
         end
         cached.order = order
@@ -92,11 +113,14 @@ function M.query(buf, row, kind, initial, scan, namespace)
     entry.through = start + CHECKPOINT_LINES
     entry.states[entry.through] = state
   end
-  local result = scan(vim.api.nvim_buf_get_lines(buf, checkpoint, row, false), vim.deepcopy(entry.states[checkpoint]))
+  local result, state =
+    scan(vim.api.nvim_buf_get_lines(buf, checkpoint, row, false), vim.deepcopy(entry.states[checkpoint]))
   entry.queries[row] = result
+  entry.dependencies[row] = lookahead and lookahead(state) or nil
   entry.order[#entry.order + 1] = row
   if #entry.order > MAX_QUERY_RESULTS then
-    entry.queries[table.remove(entry.order, 1)] = nil
+    local oldest = table.remove(entry.order, 1)
+    entry.queries[oldest], entry.dependencies[oldest] = nil, nil
   end
   return result
 end
