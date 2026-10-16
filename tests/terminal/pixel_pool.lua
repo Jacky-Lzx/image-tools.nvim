@@ -166,4 +166,44 @@ a:clear()
 check(pool:status().placements == 1 and pool:status().images == 1, "Shared transfer clear preserves other owners")
 b:clear()
 pool:clear()
+-- Each consumer measures its own shared-upload wait; cached pixels need no
+-- upload wait, and duplicate placement replies cannot add time or redeliver.
+local hrtime, clock = vim.uv.hrtime, 100 * 1e6
+vim.uv.hrtime = function()
+  return clock
+end
+pool, commands, pending, hold = harness()
+hold(true)
+local first_time, second_time, deliveries = nil, nil, 0
+a, b = pool:manager(), pool:manager()
+release_a = a:acquire(image, 16, 5, function(err, _, timing)
+  assert(not err, err)
+  first_time, deliveries = timing, deliveries + 1
+end)
+clock = 110 * 1e6
+release_b = b:acquire(image, 16, 5, function(err, _, timing)
+  assert(not err, err)
+  second_time, deliveries = timing, deliveries + 1
+end)
+clock = 120 * 1e6
+pending[1](nil)
+clock = 130 * 1e6
+pending[2](nil)
+pending[3](nil)
+check(first_time.upload_ms == 20 and second_time.upload_ms == 10, "Shared consumers count only their own upload wait")
+check(first_time.placement_ms == 10 and second_time.placement_ms == 10, "Placement replies have their own timing")
+pending[2](nil)
+check(deliveries == 2 and first_time.placement_ms == 10, "Duplicate reply cannot redeliver or inflate timing")
+release_a()
+release_b()
+hold(false)
+local warm_time
+release_a = a:acquire(image, 16, 5, function(err, _, timing)
+  assert(not err, err)
+  warm_time = timing
+end)
+check(warm_time.upload_ms == 0, "Warm pixels record zero upload wait")
+release_a()
+pool:clear()
+vim.uv.hrtime = hrtime
 print("shared pixel pool: " .. count .. " assertions passed")

@@ -53,6 +53,10 @@ render resources. info() falls back to that diagnostic when no viewer is active;
 setup replacement drops it. Render sessions expose preparing/placing/ready stages
 and remember the failing stage. A request-owned delayed line-end hint is removed
 on drawing, failure or cancellation, without changing document text.
+`info().timings` returns independent per-view phase measurements. Sessions clip
+shared converter timestamps to their own lifetime and combine transfer wait
+measurements with lookup/automatic-delay metadata. Completion/failure freezes
+the measurements; retained failure metadata includes the same timing snapshot.
 
 New automatic selections retain a request-owned delay timer before media work
 starts. Selection remains live during the wait. Same-source movement updates

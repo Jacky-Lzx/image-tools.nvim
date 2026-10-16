@@ -10,8 +10,8 @@
 --   within line/byte scan budgets.
 --
 -- Ownership:
---   Own no persistent parser state. Preserve byte columns and row coordinates;
---   filename contents must stay on one line.
+--   Own bounded per-buffer neighborhood caches, released on detach. Preserve
+--   byte columns and row coordinates; filename contents must stay on one line.
 
 local M = {}
 local defaults = require("image_tools.defaults")
@@ -281,7 +281,7 @@ end
 ---@param opts ImageToolsOptions Includes max_scan_lines and reference budgets.
 ---@return ImageToolsReference[] references
 ---@return string? error Budget/filename diagnostic when no usable covering range exists.
-function M.nearby(buf, row, opts)
+local function nearby(buf, row, opts)
   local max_lines, max_bytes = M.limits(opts)
   local first = math.max(0, row - max_lines)
   -- Bound bytes before fetching text; very long lines are never copied whole.
@@ -290,12 +290,12 @@ function M.nearby(buf, row, opts)
     first = first + 1
   end
   if first == row then
-    return {}, "LaTeX image reference exceeds configured limits"
+    return {}, "LaTeX image reference exceeds configured limits", row
   end
   local before = vim.api.nvim_buf_get_lines(buf, first, row, false)
   local text = table.concat(before, "\n")
   if not text:find("\\includegraphics", 1, true) then
-    return {}
+    return {}, nil, row
   end
   local last = math.min(vim.api.nvim_buf_line_count(buf), opts.max_scan_lines, row + max_lines - 1)
   while last > row and vim.api.nvim_buf_get_offset(buf, last) - vim.api.nvim_buf_get_offset(buf, row) > max_bytes do
@@ -307,6 +307,63 @@ function M.nearby(buf, row, opts)
   local all, err = M.parse(text, first + 1, opts)
   return vim.tbl_filter(function(reference)
     return M.contains(reference, row)
-  end, all), err
+  end, all),
+    err,
+    math.min(opts.max_scan_lines, row + max_lines - 1)
+end
+
+local neighborhoods, attached = {}, {}
+local MAX_NEIGHBORHOODS = 128
+
+-- Cache syntax only. An edit invalidates overlapping lookahead and shifted
+-- suffix rows; returned copies keep adapter context out of cached candidates.
+function M.nearby(buf, row, opts)
+  buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+  local entry = neighborhoods[buf]
+  if not entry or entry.tick ~= tick then
+    entry = { tick = tick, queries = {}, order = {} }
+    neighborhoods[buf] = entry
+  end
+  if not attached[buf] then
+    attached[buf] = vim.api.nvim_buf_attach(buf, false, {
+      on_lines = function(_, _, changedtick, first)
+        local cached = neighborhoods[buf]
+        if not cached or not changedtick then
+          neighborhoods[buf] = nil
+          return
+        end
+        cached.tick = changedtick
+        local order = {}
+        for _, key in ipairs(cached.order) do
+          if cached.queries[key].through <= first then
+            order[#order + 1] = key
+          else
+            cached.queries[key] = nil
+          end
+        end
+        cached.order = order
+      end,
+      on_reload = function()
+        neighborhoods[buf] = nil
+      end,
+      on_detach = function()
+        neighborhoods[buf], attached[buf] = nil, nil
+      end,
+    })
+  end
+  local max_lines, max_bytes = M.limits(opts)
+  local key = table.concat({ row, max_lines, max_bytes, opts.max_scan_lines }, ":")
+  local result = entry.queries[key]
+  if not result then
+    local references, err, through = nearby(buf, row, opts)
+    result = { references = references, error = err, through = through }
+    entry.queries[key] = result
+    entry.order[#entry.order + 1] = key
+    if #entry.order > MAX_NEIGHBORHOODS then
+      entry.queries[table.remove(entry.order, 1)] = nil
+    end
+  end
+  return vim.deepcopy(result.references), result.error
 end
 return M

@@ -17,10 +17,10 @@ vim.system = function(command, _, callback)
     end,
   }
 end
-local function enqueue(name)
+local function enqueue(name, priority)
   return Q.run({ name }, {}, function()
     received = received + 1
-  end)
+  end, priority)
 end
 local a = enqueue("a")
 enqueue("b")
@@ -73,5 +73,33 @@ jobs[started + 1].finish({ code = 0 })
 jobs[started + 2].finish({ code = 0 })
 vim.wait(10)
 check(Q.status().active == 0 and Q.status().limit == 2, "Reconfigured queue drains without abandoning callbacks")
+Q.configure(1)
+enqueue("occupied")
+local first = #jobs
+enqueue("hash-a", "background")
+enqueue("hash-b", "background")
+for i = 1, 5 do
+  enqueue("preview-" .. i)
+end
+check(Q.status().queued_background == 2 and Q.status().queued_interactive == 5, "Queue reports both waiting classes")
+local expected = { "preview-1", "preview-2", "preview-3", "hash-a", "preview-4", "preview-5", "hash-b" }
+for index, name in ipairs(expected) do
+  jobs[#jobs].finish({ code = 0 })
+  vim.wait(10)
+  check(#jobs == first + index and jobs[#jobs].command == name, "Priority/fairness order: " .. name)
+end
+jobs[#jobs].finish({ code = 0 })
+vim.wait(10)
+enqueue("held")
+local cancelled = enqueue("cancel-background", "background")
+enqueue("live-background", "background")
+cancelled()
+jobs[#jobs].finish({ code = 0 })
+vim.wait(10)
+check(jobs[#jobs].command == "live-background", "Background cancellation removes only its queued job")
+jobs[#jobs].finish({ code = 0 })
+vim.wait(10)
+check(not pcall(enqueue, "invalid", "invalid"), "Unknown priority fails before enqueue")
+Q.configure(2)
 vim.system = original
 print("conversion queue: " .. count .. " assertions passed")

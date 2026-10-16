@@ -82,4 +82,74 @@ check(vim.deep_equal(counts(), { 0, 0, 1, 0, 0 }), "Duplicate completions cannot
 session:close()
 session:close()
 check(vim.deep_equal(counts(), { 1, 1, 1, 0, 0 }), "Visible session retains preparation lease until idempotent close")
+-- Deterministic clock checks distinguish nested stage times, clip shared work
+-- to this subscriber, and keep completed/failing totals fixed after delivery.
+local hrtime, clock = vim.uv.hrtime, 100 * 1e6
+vim.uv.hrtime = function()
+  return clock
+end
+local prepared, transferred
+session = Session.new({
+  prepare = function(_, _, callback)
+    prepared = callback
+    return function() end
+  end,
+}, {
+  acquire = function(_, _, _, _, callback)
+    transferred = callback
+    return function() end
+  end,
+}, { lookup_ms = 2, automatic_delay_ms = 100 })
+local function view()
+  return {
+    current = function()
+      return true
+    end,
+    stale = function() end,
+    error = function() end,
+    size = function()
+      return 10, 10
+    end,
+    draw = function()
+      clock = clock + 2 * 1e6
+    end,
+  }
+end
+session:start("timed.jpg", {}, view())
+clock = 120 * 1e6
+prepared(nil, {}, { queued = 90 * 1e6, started = 110 * 1e6, finished = 120 * 1e6 })
+clock = 150 * 1e6
+transferred(nil, {}, { upload_ms = 20, placement_ms = 10 })
+local times = session:timings()
+check(
+  times.queue_ms == 10 and times.conversion_ms == 10 and times.preparation_ms == 20,
+  "Shared worker times clip to subscriber start"
+)
+check(
+  times.upload_ms == 20 and times.placement_ms == 10 and times.transfer_ms == 30,
+  "Transfer phases remain independently visible"
+)
+check(times.draw_ms == 2 and times.total_ms == 154, "Total includes lookup, automatic delay and pipeline once")
+times.total_ms = 0
+clock = 200 * 1e6
+check(session:timings().total_ms == 154, "Completed timing snapshots are independent and frozen")
+session:close()
+session = Session.new({
+  prepare = function(_, _, callback)
+    prepared = callback
+    return function() end
+  end,
+}, {})
+session:start("failed.jpg", {}, view())
+clock = 210 * 1e6
+prepared("failed", nil, { queued = 190 * 1e6, started = 205 * 1e6, finished = 209 * 1e6 })
+clock = 1000 * 1e6
+times = session:timings()
+check(
+  times.total_ms == 10 and times.queue_ms == 5 and times.conversion_ms == 4 and not times.transfer_ms,
+  "Failures retain elapsed stages without inventing transfer work"
+)
+prepared(nil, {})
+check(session:timings().total_ms == 10, "Late completions cannot rewrite failed timings")
+vim.uv.hrtime = hrtime
 print("render session: " .. count .. " assertions passed")

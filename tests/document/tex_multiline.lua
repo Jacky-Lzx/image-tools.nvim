@@ -103,4 +103,47 @@ check(
 )
 local limits = { latex = { max_reference_bytes = 4 } }
 check(#R.parse([[\includegraphics{a.png}]], 1, limits) == 0, "Decoder applies byte budget to actual command")
+local cached = buffer({ [[\includegraphics[]], [[ ]{a.png}]], "ordinary" })
+local parse, decodes = R.parse, 0
+R.parse = function(...)
+  decodes = decodes + 1
+  return parse(...)
+end
+local candidates = R.nearby(cached, 1, opts)
+candidates[1].src = "caller mutation"
+check(R.nearby(cached, 1, opts)[1].src == "a.png" and decodes == 1, "Warm decoding is cached with independent results")
+vim.api.nvim_buf_set_lines(cached, 1, 2, false, { " ]{b.png}" })
+check(R.nearby(cached, 1, opts)[1].src == "b.png" and decodes == 2, "Forward edits invalidate the preceding query")
+-- Cached lookahead must account for appended text beyond the old end of file.
+vim.api.nvim_buf_set_lines(cached, 0, -1, false, { [[\includegraphics[]] })
+check(#R.nearby(cached, 1, opts) == 0, "Incomplete reference cached")
+vim.api.nvim_buf_set_lines(cached, 1, 1, false, { " ]{a.png}" })
+check(R.nearby(cached, 1, opts)[1].src == "a.png", "Appending completes an earlier cached reference")
+check(#R.nearby(cached, 1, bounded) == 0, "Changed budgets do not reuse permissive decoding")
+-- An edit beyond a query's bounded lookahead preserves its cached decoding.
+local distant = {}
+for i = 1, 200 do
+  distant[i] = "ordinary"
+end
+distant[1] = [[\includegraphics{a.png}]]
+vim.api.nvim_buf_set_lines(cached, 0, -1, false, distant)
+R.nearby(cached, 1, opts)
+local before = decodes
+vim.api.nvim_buf_set_lines(cached, 150, 151, false, { "suffix edit" })
+check(R.nearby(cached, 1, opts)[1].src == "a.png" and decodes == before, "Distant edits preserve cached neighborhoods")
+vim.api.nvim_buf_set_lines(cached, 0, 0, false, { "inserted" })
+check(
+  #R.nearby(cached, 1, opts) == 0 and R.nearby(cached, 2, opts)[1].src == "a.png",
+  "Insertion invalidates shifted rows"
+)
+-- Eviction and unload must allow reconstruction without retaining stale text.
+for row = 2, 140 do
+  R.nearby(cached, row, opts)
+end
+check(R.nearby(cached, 2, opts)[1].src == "a.png", "Evicted neighborhoods reconstruct correctly")
+vim.cmd("bunload! " .. cached)
+vim.fn.bufload(cached)
+vim.api.nvim_buf_set_lines(cached, 0, -1, false, { [[\includegraphics{b.png}]] })
+check(R.nearby(cached, 1, opts)[1].src == "b.png", "Unload releases decoded neighborhoods")
+R.parse = parse
 print("multiline LaTeX lexer: " .. checks .. " assertions passed")

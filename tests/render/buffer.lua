@@ -209,6 +209,13 @@ check(vim.fn.sha256(table.concat(vim.fn.readfile(png, "b"), "\n")) == original_h
 -- Metadata is a read-only snapshot and keymap reconfiguration releases only owned bindings.
 local metadata = assert(image.info())
 check(metadata.path == png and metadata.width and metadata.height and metadata.ready, "Viewer metadata snapshot")
+check(
+  metadata.timings and metadata.timings.queue_ms == 0 and metadata.timings.conversion_ms == 0,
+  "Native PNG viewer needs no process queue/converter"
+)
+local total = metadata.timings.total_ms
+metadata.timings.total_ms = -1
+check(image.info().timings.total_ms == total, "Per-window timing snapshots cannot mutate the renderer")
 local notify, message = vim.notify, nil
 vim.notify = function(text)
   message = text
@@ -219,6 +226,7 @@ check(
   message:find("Prepared raster:", 1, true) and message:find("Terminal cache:", 1, true),
   "ImageInfo presents dimensions and cache counters"
 )
+check(message:find("Total:", 1, true), "ImageInfo presents file-viewer timing diagnostics")
 vim.keymap.set("n", "r", function() end, { buffer = buf, desc = "user reload override" })
 image.setup({
   auto_preview = false,

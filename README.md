@@ -42,7 +42,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
 - `:ImagePreviewToggle` toggles automatic current-line previews.
-- `:ImageInfo` displays current image/PDF metadata and cache counters.
+- `:ImageInfo` displays current image/PDF metadata, cache counters and phase timings.
 - `:ImageCheckAssets` reports missing references and possibly unused assets.
 - `:checkhealth image_tools` checks the terminal and configured conversion tools.
 
@@ -132,6 +132,9 @@ The default `"cursor"` places it near the cursor.
 excluded from automatic file interception by default.
 
 Conversion is asynchronous, bounded by a timeout, and cached by path, inode, size and nanosecond mtime/ctime.
+Conversions and clipboard normalization take priority over queued import hashes,
+with FIFO ordering within each class. While hashes wait, at most three interactive
+jobs start before one hash job. Running processes keep their slots until exit.
 Converted previews fit within 1920x1080 at default zoom; native PNGs retain their dimensions and
 are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
 picker and file-buffer images can upscale to fit their viewport. Originals are never modified.
@@ -143,6 +146,14 @@ Cleanup selects hash-named PNGs directly inside the configured cache directory.
 Subdirectories, other filenames, symbolic links and conversion temporaries
 are excluded. After a restart, file modification times provide the
 initial eviction order until images are accessed again.
+
+`info().timings` and `:ImageInfo` report milliseconds for reference lookup,
+automatic delay, preparation, process queue/conversion, transfer, upload wait,
+placement replies, placeholder drawing and total measured time when available.
+Preparation includes queue/conversion; transfer includes upload/placement, so
+these fields overlap. Pending measurements grow until completion; successful
+and failed measurements then stay fixed. See [performance](doc/performance.md)
+for cache/shared-worker timing semantics and benchmarks.
 
 ## Transmission and terminal cache
 
@@ -443,11 +454,13 @@ missing conversion/metadata tools show a readable error in the file buffer.
 No terminal responses, stale conversions or page changes can reopen a canvas after
 its source window/buffer is closed. Use `:checkhealth image_tools` to check tools.
 
-Converter processes for distinct image files, PDF pages and clipboard format conversion share a FIFO queue,
+Converters for distinct image files/PDF pages, clipboard normalization and
+import hashes share a priority queue,
 with `convert_concurrency = 2` by default. Same-source requests still share one
 conversion. Closing a queued preview removes its job; cancelling a running job
 keeps its slot until the process exits. Cache hits and PNG reads bypass the queue.
-`status().conversion_queue` reports active and queued converters and the current process budget.
+`status().conversion_queue` reports active/queued processes, waiting counts for
+each priority class and the current process budget.
 Reconfiguration updates that budget; running workers retain their slots until exit.
 
 Terminal pixel data is shared by floating previews, picker previews and file

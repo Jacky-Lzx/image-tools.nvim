@@ -42,13 +42,19 @@ assert(vim.wait(500, function()
   return #requests == 1
 end))
 assert(requests[1].path == vim.fs.dirname(vim.api.nvim_buf_get_name(0)) .. "/c.png", "Only the final selection starts")
+assert(
+  api.info().timings.automatic_delay_ms > 0 and api.info().timings.lookup_ms >= 0,
+  "Automatic diagnostics include selection and actual delay"
+)
 move(2, 4)
 settle()
 assert(#requests == 1, "Movement within a selected source retains its preparation")
 requests[1].callback(nil, { width = 10, height = 10, data = "pixels" })
 local window = assert(api.status().window)
+local total = api.info().timings.total_ms
 move(2, 7)
 assert(api.status().window == window and #requests == 1)
+assert(api.info().timings.total_ms == total, "Same-source movement preserves completed timings")
 move(1)
 assert(#requests == 1)
 api.hover({ silent = true })
@@ -56,11 +62,19 @@ assert(
   #requests == 2 and requests[2].path == vim.fs.dirname(vim.api.nvim_buf_get_name(0)) .. "/a.png",
   "Manual hover bypasses the delay"
 )
+assert(
+  api.info().timings.lookup_ms >= 0 and not api.info().timings.automatic_delay_ms,
+  "Manual hover has lookup time without an automatic wait"
+)
 settle()
 assert(#requests == 2, "Manual preview cancels the queued automatic request")
 move(1, 14)
 api.preview("/tmp/explicit.png", { silent = true })
 assert(#requests == 3 and requests[3].path == "/tmp/explicit.png")
+assert(
+  not api.info().timings.lookup_ms and not api.info().timings.automatic_delay_ms,
+  "Explicit files do not inherit document selection timings"
+)
 settle()
 assert(#requests == 3, "Explicit preview also supersedes automatic work")
 move(2)

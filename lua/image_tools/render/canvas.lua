@@ -159,10 +159,12 @@ function M:open(meta, owner_buf, owner_win, callback, viewport)
   ---@param err string Preparation/placement/drawing failure.
   ---@return nil
   local function fail(err)
+    self.last_timings = state.render and state.render:timings()
     self:close()
     callback(err)
   end
 
+  self.last_timings = nil
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(
     meta.path,

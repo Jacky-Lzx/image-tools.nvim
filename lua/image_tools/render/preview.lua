@@ -69,6 +69,7 @@ function M:record_error(path, err, stage, state)
     error_stage = stage,
     width = state and state.image_width,
     height = state and state.image_height,
+    timings = state and state.render and state.render:timings(),
   }
 end
 
@@ -162,7 +163,7 @@ function M:open(path, options)
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   ---@cast state ImageToolsPreviewState
   self.state = state
-  state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
+  state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer, options._timings)
   local delay = self.opts.preview_loading_delay or 300
   if delay > 0 then
     state.loading_timer = vim.defer_fn(function()

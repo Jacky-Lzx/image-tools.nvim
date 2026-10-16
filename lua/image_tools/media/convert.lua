@@ -55,7 +55,7 @@ function M.prepare(path, opts, callback, metadata_only)
   )
   local output_width, output_height = math.floor(limits.MAX_WIDTH * scale), math.floor(limits.MAX_HEIGHT * scale)
   local density = math.max(1, math.floor((opts.pdf_density or defaults.pdf_density) * scale))
-  local cancelled, process, cache_release = false, nil, nil
+  local cancelled, process, cache_release, process_timing = false, nil, nil, nil
   -- Deliver a result if active and release the worker disk lease after the callback.
   ---@param err? string Conversion/read error.
   ---@param image? ImageToolsImage Validated PNG with original source identity.
@@ -68,7 +68,7 @@ function M.prepare(path, opts, callback, metadata_only)
           image.cache_source = path .. "#page=" .. page
         end
       end
-      callback(err, image)
+      callback(err, image, process_timing)
     end
     if cache_release then
       cache_release()
@@ -160,6 +160,7 @@ function M.prepare(path, opts, callback, metadata_only)
         command,
         { text = true, timeout = opts.convert_timeout },
         function(result)
+          process_timing = result.timing
           vim.schedule(function()
             process = nil
             if cancelled or result.code ~= 0 then

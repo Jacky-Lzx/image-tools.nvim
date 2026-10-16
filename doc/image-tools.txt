@@ -92,6 +92,8 @@ status()               Return configured, auto_preview, path, window, transport
                        and terminal_cache statistics, plus buffer state,
                        disk_cache settings/path, conversion_queue, media and
                        treesitter diagnostics when configured.
+                       conversion_queue includes queued_interactive and
+                       queued_background counts.
 insert(paths, opts, cb) Import/reference one path or a batch; returns cancellation.
                        With nil paths, prompt for a file.
 paste(opts, cb)         Paste a macOS clipboard image; returns cancellation.
@@ -105,6 +107,11 @@ reload()               Reload the current image/PDF buffer and metadata.
 See README.md for resource limits, caching and custom path resolution.
 Before setup, status() returns configured=false, auto_preview=false and
 transport="auto". Calling it does not initialize the plugin.
+
+Conversions/clipboard normalization and import hashes share convert_concurrency.
+Waiting interactive work takes priority, with FIFO ordering within each class.
+While hashes wait, at most three interactive jobs start before one hash job.
+Running processes are never preempted; cancelled workers keep their slots until exit.
 
 Automatic preview follows cursor lines. The cursor need not be inside the image
 link. The reference under the cursor takes priority; outside all references,
@@ -279,7 +286,7 @@ interception; :ImageOpen still works. buffer.formats controls automatic extensio
 
 API: open(path), page(n), next_page(delta), reload(), status().buffer.
 
-Converter and import hash processes share a FIFO queue controlled by convert_concurrency
+Converter and import hash processes share a priority queue controlled by convert_concurrency
 (default 2). Queued cancellation does not spawn a process; running cancellation
 holds its slot until exit. PNG reads and cache hits bypass the queue.
 status().conversion_queue reports active and queued processes.
@@ -412,6 +419,14 @@ previous_page=[p. The page actions are PDF-only. Commands remain available.
     request is returned with last_error=true, error and error_stage. Diagnostics
     survive close and retain no image resources; setup resets them. Without a
     viewer or retained failure, info() returns nil and an error.
+    timings contains millisecond measurements for lookup/automatic delay,
+    preparation, queue/conversion, transfer, upload/placement, drawing and total
+    measured time, when available. Preparation includes queue/conversion;
+    transfer includes upload/placement. These fields overlap. Pending outer-stage
+    times grow; ready/failed times freeze. Shared converter times are clipped to
+    this view's lifetime; shared uploads count only this view's wait. Total
+    excludes asynchronous parser wait and file-viewer PDF metadata discovery.
+    These measurements end at protocol replies/drawing, not visible GPU pixels.
 
 auto_preview_delay defaults to 100 milliseconds before preparing a new automatic
 selection. Moving to a different source replaces the waiting request; leaving a

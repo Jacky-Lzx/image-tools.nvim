@@ -204,6 +204,11 @@ function M:reload(buf)
   end
 
   meta.generation, meta.error = meta.generation + 1, nil
+  for _, view in pairs(self.views) do
+    if view.buf == buf then
+      view.canvas.last_timings = nil
+    end
+  end
 
   local stat = vim.uv.fs_stat(meta.path)
   if not stat or stat.type ~= "file" then
@@ -553,6 +558,8 @@ function M:status(buf)
         window = view.canvas.state and view.canvas.state.win,
         page = view.canvas.state and view.canvas.state.page,
         stage = view.canvas.state and view.canvas.state.render and view.canvas.state.render.stage,
+        timings = view.canvas.state and view.canvas.state.render and view.canvas.state.render:timings()
+          or view.canvas.last_timings,
         cache = view.canvas.transfer:status(),
         viewport = vim.deepcopy(view.viewport),
         crop = view.canvas.state and vim.deepcopy(view.canvas.state.crop),

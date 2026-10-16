@@ -23,7 +23,7 @@ local dependency_modules = {
 ---@field id integer Acknowledged Kitty image id.
 ---@field placement_id integer Independent virtual placement for this view.
 ---@field cancel ImageToolsCancel Release this placement lease without disturbing other views.
----@alias ImageToolsPlacementCallback fun(err: string?, placement: ImageToolsPlacement?)
+---@alias ImageToolsPlacementCallback fun(err: string?, placement: ImageToolsPlacement?, timing: table?)
 ---@class ImageToolsTerminalStatus: ImageToolsUploadStatus
 ---@field placements integer Active acknowledged consumer placements.
 ---@class ImageToolsPlacementConsumer
@@ -153,7 +153,9 @@ end
 ---@return ImageToolsCancel cancel Release this view; cancellation suppresses pending delivery.
 ---@param self ImageToolsPlacementManager
 ---@param crop? {x: integer, y: integer, width: integer, height: integer} Source pixel rectangle.
-function Handle:acquire(image, width, height, callback, retried, crop)
+function Handle:acquire(image, width, height, callback, retried, crop, timing)
+  timing = timing or { upload_ms = 0, placement_ms = 0 }
+  local upload_started = vim.uv.hrtime()
   local pool, uploader = self.pool, self.pool.uploader
   local terminal, protocol = pool:dependency("terminal"), pool:dependency("protocol")
   local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
@@ -203,7 +205,7 @@ function Handle:acquire(image, width, height, callback, retried, crop)
   local function fail(err)
     pool.last_error = err
     cancel()
-    callback(err)
+    callback(err, nil, vim.deepcopy(timing))
   end
 
   -- Start placement only for a live consumer and retry missing pixels without replacing another
@@ -211,14 +213,16 @@ function Handle:acquire(image, width, height, callback, retried, crop)
   ---@param err? string Upload readiness failure.
   ---@return nil
   function consumer.ready(err)
-    if not consumer.active then
+    if not consumer.active or consumer.sent then
       return
     end
+    timing.upload_ms = timing.upload_ms + (vim.uv.hrtime() - upload_started) / 1e6
     if err then
       fail(err)
       return
     end
     consumer.sent = true
+    local placement_started = vim.uv.hrtime()
     local done = false
     local cancellation = terminal.request(
       state.pixel.id,
@@ -228,11 +232,15 @@ function Handle:acquire(image, width, height, callback, retried, crop)
       ---@param place_err string?
       ---@return nil
       function(place_err)
+        if done then
+          return
+        end
         done = true
         consumer.request = nil
         if not consumer.active then
           return
         end
+        timing.placement_ms = timing.placement_ms + (vim.uv.hrtime() - placement_started) / 1e6
         if place_err then
           -- Re-upload only when this consumer is the sole owner. An upload
           -- replaces every placement, so it must never disrupt another view.
@@ -244,7 +252,7 @@ function Handle:acquire(image, width, height, callback, retried, crop)
           then
             cancel()
             uploader:discard(state.pixel)
-            replacement = self:acquire(image, width, height, callback, true, crop)
+            replacement = self:acquire(image, width, height, callback, true, crop, timing)
           else
             fail(place_err)
           end
@@ -255,7 +263,7 @@ function Handle:acquire(image, width, height, callback, retried, crop)
         if state.reused or consumer.shared then
           pool.hits = pool.hits + 1
         end
-        callback(nil, { id = state.pixel.id, placement_id = consumer.placement, cancel = cancel })
+        callback(nil, { id = state.pixel.id, placement_id = consumer.placement, cancel = cancel }, vim.deepcopy(timing))
       end,
       consumer.placement
     )

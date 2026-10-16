@@ -114,7 +114,7 @@ function M.digest(path, max_bytes, callback)
             end
           end)
         )
-      end)
+      end, "background")
     end)
   )
   return function()

@@ -18,13 +18,18 @@ local function measure(run, count, before)
   return string.format("p50=%.3f p95=%.3f ms", values[math.ceil(count * 0.5)], values[math.ceil(count * 0.95)])
 end
 for _, size in ipairs({ 1000, 10000 }) do
-  for _, ft in ipairs({ "markdown", "tex", "typst" }) do
-    local image = ft == "markdown" and ("![x](" .. fixture .. ")")
+  for _, kind in ipairs({ "markdown", "markdown-reference", "tex", "typst" }) do
+    local ft = kind == "markdown-reference" and "markdown" or kind
+    local image = kind == "markdown-reference" and "![x][figure]"
+      or ft == "markdown" and ("![x](" .. fixture .. ")")
       or ft == "tex" and ("\\includegraphics{" .. fixture .. "}")
       or ('#image("' .. fixture .. '")')
     local lines = {}
     for row = 1, size do
       lines[row] = row >= size - 100 and image or "ordinary text"
+    end
+    if kind == "markdown-reference" then
+      lines[2] = "[figure]: " .. fixture
     end
     local buf = vim.api.nvim_create_buf(false, true)
     vim.bo[buf].filetype = ft
@@ -50,7 +55,7 @@ for _, size in ipairs({ 1000, 10000 }) do
     local movement = measure(function(i)
       assert(D.at_line(buf, size - 100 + i, opts))
     end, 100)
-    print(string.format("%s %d: cold %s; warm %s; tail edit %s; movement %s", ft, size, cold, warm, edit, movement))
+    print(string.format("%s %d: cold %s; warm %s; tail edit %s; movement %s", kind, size, cold, warm, edit, movement))
     vim.api.nvim_buf_delete(buf, { force = true })
   end
 end

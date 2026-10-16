@@ -102,6 +102,73 @@ assert(vim.wait(3000, function()
   return completed
 end, 1) and message and message:find("changed on disk", 1, true), tostring(message))
 require("image_tools.document").enumerate = enumerate
+-- Directory size must not multiply identity checks for every tracked document.
+for i = 1, 256 do
+  write("entry-" .. i .. ".txt", { "irrelevant" })
+end
+local get_tick, tick_checks = vim.api.nvim_buf_get_changedtick, 0
+local lstat, pending_stats, max_pending_stats = uv.fs_lstat, 0, 0
+uv.fs_lstat = function(path, callback)
+  if not callback then
+    return lstat(path)
+  end
+  pending_stats = pending_stats + 1
+  max_pending_stats = math.max(max_pending_stats, pending_stats)
+  return lstat(path, function(...)
+    pending_stats = pending_stats - 1
+    callback(...)
+  end)
+end
+vim.api.nvim_buf_get_changedtick = function(...)
+  tick_checks = tick_checks + 1
+  return get_tick(...)
+end
+run()
+uv.fs_lstat = lstat
+vim.api.nvim_buf_get_changedtick = get_tick
+assert(tick_checks < 100, "Identity checks must stay independent of directory entry count: " .. tick_checks)
+assert(max_pending_stats > 1 and max_pending_stats <= 32, "Traversal stats must be concurrent and bounded")
+-- Cancelling one inspection cannot detach another inspection's live observer.
+local other_completed, other_error = false, nil
+cancel = assets.check({ scope = "project", project_root = root, max_scan_lines = 10000 }, function()
+  error("Cancelled scan delivered a callback")
+end)
+assets.check({ scope = "project", project_root = root, max_scan_lines = 10000 }, function(err)
+  other_completed, other_error = true, err
+end)
+cancel()
+vim.api.nvim_buf_set_lines(buf, 0, 1, false, { "changed again" })
+assert(vim.wait(2000, function()
+  return other_completed
+end, 1) and other_error, "Concurrent inspections keep independent observers")
+-- Opening an offline document after enumeration must reject the report.
+local opened
+require("image_tools.document").enumerate = function(buffer, opts, callback)
+  return enumerate(buffer, opts, function(err, result)
+    if opts._document_path == root .. "/chapter.tex" then
+      opened = vim.api.nvim_create_buf(true, false)
+      vim.api.nvim_buf_set_name(opened, root .. "/chapter.tex")
+      vim.bo[opened].filetype = "tex"
+      vim.api.nvim_buf_set_lines(opened, 0, -1, false, { "% live contents" })
+    end
+    callback(err, result)
+  end)
+end
+completed, message = false, nil
+assets.check({ scope = "project", project_root = root, max_scan_lines = 10000 }, function(err)
+  message, completed = err, true
+end)
+assert(vim.wait(3000, function()
+  return completed
+end, 1) and message and message:find("opened during", 1, true), tostring(message))
+require("image_tools.document").enumerate = enumerate
+vim.api.nvim_buf_delete(opened, { force = true })
+for _, autocmd in ipairs(vim.api.nvim_get_autocmds({})) do
+  assert(
+    not (autocmd.group_name or ""):match("^image_tools_asset_inspection_"),
+    "Completed scans release event handlers"
+  )
+end
 local held
 require("image_tools.document").enumerate = function(buffer, opts, callback)
   if vim.api.nvim_buf_get_name(buffer) == "" then

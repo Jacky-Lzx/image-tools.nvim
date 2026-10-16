@@ -162,6 +162,10 @@ synchronous close. `render/geometry` supplies aspect-ratio fitting;
 `render/placeholder` draws the Kitty grid and placement highlight. These
 helpers do not depend on a particular controller.
 
+Sessions expose independent timing snapshots, clip shared-process timestamps
+to each subscriber and retain completed/failing values. Pixel-pool callbacks
+report consumer-specific upload/placement waits, including retry attempts.
+
 ## Media Preparation and Process Budget
 
 `media/init` is the unified entry point. `media/png` reads and validates PNG data;
@@ -173,9 +177,11 @@ release unpins delivered files; close performs both. The `media.prepare`
 cancellation function delegates to close. Successful preparation keeps each
 subscriber's disk lease until the view closes.
 
-The FIFO `media/conversion_queue` is process-scoped with one explicit budget configured
-by Runtime start. Preview/clipboard converters and import hash workers share it. Reducing the budget
-does not abandon running workers: queued work waits for sufficient exits.
+The priority-aware `media/conversion_queue` is process-scoped with one explicit
+budget configured by Runtime start. Preview/clipboard converters and import hash workers share it.
+FIFO ordering applies within each class; up to three interactive starts precede
+one waiting background hash. Process timestamps are delivered with exit results.
+Reducing the budget does not abandon running workers: queued work waits for sufficient exits.
 The new concurrency limit applies when queued processes start; each job retains
 the command and options captured when queued. Existing insertion operations retain
 their captured document/options. PNG reads and PDF metadata bypass this queue.
@@ -213,6 +219,8 @@ Its document mode lists possibly unused regular files in one import directory.
 `workflow/asset_project` discovers project documents asynchronously, prefers live
 buffers, and supplies private document path/filetype overrides to unnamed scratch
 buffers for disk text. It combines reference locations before recursively checking
-the union of import directories. Entry/byte/line budgets flag incomplete reports;
-buffer snapshots and disk revision rechecks reject stale results. Neither mode
+the union of import directories. Directory stats run in 32-entry batches;
+shared live-buffer observers and request-owned events invalidate changed scans.
+Entry/byte/line budgets flag incomplete reports; full final buffer snapshots and
+disk revision rechecks reject stale results. Neither mode
 modifies source documents or assets.

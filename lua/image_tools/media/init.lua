@@ -23,7 +23,7 @@
 ---@field data? string Complete PNG bytes; absent for metadata-only preparation.
 ---@field source? string Original convertible source path.
 ---@field cache_source? string Logical source identity; PDF pages include a page suffix.
----@alias ImageToolsImageCallback fun(err: string?, image: ImageToolsImage?)
+---@alias ImageToolsImageCallback fun(err: string?, image: ImageToolsImage?, timing: ImageToolsProcessTiming?)
 
 ---@class ImageToolsMedia
 local M = {}

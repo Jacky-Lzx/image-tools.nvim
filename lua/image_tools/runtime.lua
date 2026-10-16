@@ -433,10 +433,12 @@ function Runtime:hover(opts)
     end,
   })
   local document = self:dependency("document")
+  local lookup_started = vim.uv.hrtime()
   local path, err, status, reference = document.at_cursor(buf, cursor[1], cursor[2], options)
   if status == "miss" then
     path, err, status, reference = document.at_line(buf, cursor[1], options)
   end
+  local timing = { lookup_ms = (vim.uv.hrtime() - lookup_started) / 1e6 }
   request.range = range_of(reference)
   if status == "pending" then
     self:cancel_auto_preview()
@@ -469,6 +471,7 @@ function Runtime:hover(opts)
     self:cancel_auto_preview()
     self.preview:close()
     request.path = path
+    local delayed_at = vim.uv.hrtime()
     self.delayed_reference = request
     self.auto_preview_timer = vim.defer_fn(function()
       if self.delayed_reference ~= request then
@@ -477,12 +480,19 @@ function Runtime:hover(opts)
       self.auto_preview_timer = nil
       self.delayed_reference = nil
       if not self.disposed and self.options.auto_preview and owns_pending(request) then
-        self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
+        timing.automatic_delay_ms = (vim.uv.hrtime() - delayed_at) / 1e6
+        self:open_preview(
+          path,
+          vim.tbl_extend("force", opts, { reference = true, reference_range = request.range, _timings = timing })
+        )
       end
     end, self.options.auto_preview_delay)
     return true
   end
-  return self:open_preview(path, vim.tbl_extend("force", opts, { reference = true, reference_range = request.range }))
+  return self:open_preview(
+    path,
+    vim.tbl_extend("force", opts, { reference = true, reference_range = request.range, _timings = timing })
+  )
 end
 
 -- Drop delayed automatic work without affecting already-started render sessions.
@@ -551,6 +561,9 @@ function Runtime:info()
     zoom = view and view.viewport.zoom,
     crop = view and vim.deepcopy(view.crop),
     ready = not not (buffer and view and view.window or not buffer and state and state.win),
+    timings = buffer and view and view.timings
+      or not buffer and state and state.render and state.render:timings()
+      or nil,
     terminal_cache = self.preview.transfer:status(),
     disk_cache = self.options.cache,
   }

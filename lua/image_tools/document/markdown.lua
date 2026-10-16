@@ -171,37 +171,75 @@ local scan_context = function(lines, state)
 end
 
 local indexes, attached = {}, {}
+local DEFINITION_BLOCK_LINES = 128
 local function label_key(label)
   return vim.fn.tolower((vim.trim(label:gsub("\\([%p ])", "%1")):gsub("%s+", " ")))
 end
 
--- Index bounded, same-line definitions, including forward references. First definition wins.
+-- Keep prefix blocks across edits. Fence state can affect every later definition,
+-- so invalidate the changed block and suffix rather than guessing local context.
 local function definitions(buf, limit)
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local cached = indexes[buf]
-  if cached and cached.tick == tick and cached.limit == limit then
+  if cached and cached.tick == tick and cached.limit == limit and cached.labels then
     return cached.labels
+  end
+  if not cached or cached.limit ~= limit or cached.tick ~= tick then
+    cached = { tick = tick, limit = limit, blocks = {} }
+    indexes[buf] = cached
   end
   if not attached[buf] then
     attached[buf] = vim.api.nvim_buf_attach(buf, false, {
+      on_lines = function(_, _, changedtick, first)
+        local index = indexes[buf]
+        if not index or not changedtick then
+          indexes[buf] = nil
+          return
+        end
+        index.tick, index.labels = changedtick, nil
+        local keep = math.floor(first / DEFINITION_BLOCK_LINES)
+        for i = #index.blocks, keep + 1, -1 do
+          index.blocks[i] = nil
+        end
+      end,
+      on_reload = function()
+        indexes[buf] = nil
+      end,
       on_detach = function()
         indexes[buf], attached[buf] = nil, nil
       end,
     })
   end
   local labels, state = {}, {}
-  for _, line in ipairs(vim.api.nvim_buf_get_lines(buf, 0, math.min(limit, vim.api.nvim_buf_line_count(buf)), false)) do
-    local context
-    context, state = scan_context({ line }, state)
-    if not context.blocked then
-      local label, content = line:match("^ ? ? ?%[([^%]]+)%]:%s*(.+)$")
-      local src = content and destination(content)
-      if src and not labels[label_key(label)] then
-        labels[label_key(label)] = src
+  local count = math.min(limit, vim.api.nvim_buf_line_count(buf))
+  for first = 0, count - 1, DEFINITION_BLOCK_LINES do
+    local block_number = first / DEFINITION_BLOCK_LINES + 1
+    local block = cached.blocks[block_number]
+    if not block then
+      block = { definitions = {} }
+      for _, line in
+        ipairs(vim.api.nvim_buf_get_lines(buf, first, math.min(first + DEFINITION_BLOCK_LINES, count), false))
+      do
+        local context
+        context, state = scan_context({ line }, state)
+        if not context.blocked then
+          local label, content = line:match("^ ? ? ?%[([^%]]+)%]:%s*(.+)$")
+          local src = content and destination(content)
+          if src then
+            block.definitions[#block.definitions + 1] = { label_key(label), src }
+          end
+        end
       end
+      block.state = state
+      cached.blocks[block_number] = block
+    else
+      state = block.state
+    end
+    for _, definition in ipairs(block.definitions) do
+      labels[definition[1]] = labels[definition[1]] or definition[2]
     end
   end
-  indexes[buf] = { tick = tick, limit = limit, labels = labels }
+  cached.labels = labels
   return labels
 end
 

@@ -33,12 +33,13 @@ local function await(test)
   check(vim.wait(12000, test, 1), "Async conversion completion")
 end
 local opts = options("shared")
-local completed, images, errors = 0, {}, {}
+local completed, images, errors, timings = 0, {}, {}, {}
 for i = 1, 3 do
-  I.prepare(source, opts, function(err, image)
+  I.prepare(source, opts, function(err, image, timing)
     completed = completed + 1
     images[i] = image
     errors[i] = err
+    timings[i] = timing
   end)
 end
 await(function()
@@ -51,6 +52,12 @@ check(
 )
 images[1].width = 1
 check(images[2].width > 1, "Consumer metadata tables are independent")
+check(
+  timings[1].queued <= timings[1].started and timings[1].started <= timings[1].finished,
+  "Actual converter reports ordered process timestamps"
+)
+timings[1].queued = 0
+check(timings[2].queued > 0, "Coalesced consumers receive independent timing metadata")
 local before = launches
 opts = options("cancel-one")
 local abandoned, received = false, false

@@ -11,6 +11,46 @@ local M = {}
 local uv = vim.uv
 local version = require("image_tools.media.file_version")
 local extensions = { md = "markdown", markdown = "markdown", tex = "tex", ltx = "tex", typ = "typst" }
+local WALK_BATCH_SIZE = 32
+local observers = {}
+local inspection_serial = 0
+
+-- Share one buffer attachment across inspections. Finished scans remove their
+-- listeners immediately; an idle attachment detaches on the next text change.
+local function observe(buffer, changed)
+  local observer = observers[buffer]
+  if not observer then
+    observer = { listeners = {} }
+    observers[buffer] = observer
+    local function notify()
+      for callback in pairs(observer.listeners) do
+        callback()
+      end
+    end
+    local attached = vim.api.nvim_buf_attach(buffer, false, {
+      on_lines = function()
+        if not next(observer.listeners) then
+          observers[buffer] = nil
+          return true
+        end
+        notify()
+      end,
+      on_reload = notify,
+      on_detach = function()
+        observers[buffer] = nil
+        notify()
+      end,
+    })
+    if not attached then
+      observers[buffer] = nil
+      changed()
+    end
+  end
+  observer.listeners[changed] = true
+  return function()
+    observer.listeners[changed] = nil
+  end
+end
 local function inside(path, root)
   return path == root or path:sub(1, #root + 1) == root .. "/"
 end
@@ -21,6 +61,8 @@ function M.check(opts, callback)
   local settings = vim.tbl_extend("force", require("image_tools.defaults").assets, opts.assets or {})
   local root = opts.project_root or vim.fs.root(document, { ".git" }) or vim.fs.dirname(document)
   local active, scratch, cancel_child = true, nil, nil
+  local invalidated, group
+  local releases = {}
   local snapshots, disk_versions, live, directories = {}, {}, {}, {}
   local report = {
     scope = "project",
@@ -43,12 +85,23 @@ function M.check(opts, callback)
     end
     scratch = nil
   end
+  local function stop_observing()
+    for _, release in ipairs(releases) do
+      release()
+    end
+    releases = {}
+    if group then
+      vim.api.nvim_del_augroup_by_id(group)
+      group = nil
+    end
+  end
   local function done(err)
     if not active then
       return
     end
     active = false
     cleanup()
+    stop_observing()
     callback(err, not err and report or nil)
   end
   local function snapshot(buffer)
@@ -57,11 +110,43 @@ function M.check(opts, callback)
       tick = vim.api.nvim_buf_get_changedtick(buffer),
       ft = vim.bo[buffer].filetype,
     }
+    releases[#releases + 1] = observe(buffer, function()
+      invalidated = "Document changed or unloaded during project inspection"
+    end)
   end
   snapshot(buf)
-  local function current()
+  inspection_serial = inspection_serial + 1
+  group = vim.api.nvim_create_augroup("image_tools_asset_inspection_" .. inspection_serial, {})
+  vim.api.nvim_create_autocmd({ "BufFilePost", "BufUnload", "BufDelete", "FileType" }, {
+    group = group,
+    callback = function(event)
+      if snapshots[event.buf] then
+        invalidated = "Document changed or unloaded during project inspection"
+      end
+    end,
+  })
+  vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile", "BufFilePost", "BufEnter" }, {
+    group = group,
+    callback = function(event)
+      local name = vim.api.nvim_buf_get_name(event.buf)
+      local path = uv.fs_realpath(name) or name
+      if disk_versions[path] and not snapshots[event.buf] and vim.api.nvim_buf_is_loaded(event.buf) then
+        invalidated = "Document opened during project inspection: " .. path
+      end
+    end,
+  })
+  -- Fast continuations inspect one invalidation flag. Complete identity/version
+  -- checks at start/publication also cover changes without a corresponding event.
+  local function current(complete)
     if not active then
       return false
+    end
+    if invalidated then
+      done(invalidated)
+      return false
+    end
+    if not complete then
+      return true
     end
     for buffer, saved in pairs(snapshots) do
       if
@@ -134,34 +219,53 @@ function M.check(opts, callback)
             if not current() then
               return
             end
-            local name = uv.fs_scandir_next(scan)
-            if not name then
-              next_directory()
-              return
-            end
-            entries = entries + 1
-            if entries > settings.max_entries then
-              warning("Traversal stopped at assets.max_entries: " .. directory)
-              completed()
-              return
-            end
-            local path = directory .. "/" .. name
-            uv.fs_lstat(
-              path,
-              vim.schedule_wrap(function(stat_err, stat)
-                if not current() then
-                  return
+            local batch, pending, ended, truncated = {}, 0, false, false
+            local function publish()
+              if not current() then
+                return
+              end
+              for _, item in ipairs(batch) do
+                if item.err then
+                  warning("Cannot inspect file: " .. item.path)
+                elseif item.stat.type == "directory" and not excluded[item.name] then
+                  waiting[#waiting + 1] = item.path
+                elseif item.stat.type == "file" then
+                  visit(item.path, item.stat)
                 end
-                if stat_err then
-                  warning("Cannot inspect file: " .. path)
-                elseif stat.type == "directory" and not excluded[name] then
-                  waiting[#waiting + 1] = path
-                elseif stat.type == "file" then
-                  visit(path, stat)
-                end
+              end
+              if truncated then
+                warning("Traversal stopped at assets.max_entries: " .. directory)
+                completed()
+              elseif ended then
+                next_directory()
+              else
                 vim.schedule(step)
+              end
+            end
+            for _ = 1, WALK_BATCH_SIZE do
+              local name = uv.fs_scandir_next(scan)
+              if not name then
+                ended = true
+                break
+              end
+              entries = entries + 1
+              if entries > settings.max_entries then
+                truncated = true
+                break
+              end
+              local item = { name = name, path = directory .. "/" .. name }
+              batch[#batch + 1], pending = item, pending + 1
+              uv.fs_lstat(item.path, function(err, stat)
+                item.err, item.stat = err, stat
+                pending = pending - 1
+                if pending == 0 then
+                  vim.schedule(publish)
+                end
               end)
-            )
+            end
+            if pending == 0 then
+              publish()
+            end
           end
           step()
         end)
@@ -170,6 +274,9 @@ function M.check(opts, callback)
     next_directory()
   end
   local function finish()
+    if not current(true) then
+      return
+    end
     local paths = vim.tbl_keys(disk_versions)
     local index = 1
     local verify
@@ -179,8 +286,10 @@ function M.check(opts, callback)
       end
       local path = paths[index]
       if not path then
-        table.sort(report.unreferenced)
-        done()
+        if current(true) then
+          table.sort(report.unreferenced)
+          done()
+        end
         return
       end
       index = index + 1
@@ -310,7 +419,7 @@ function M.check(opts, callback)
     end)
   end
   vim.schedule(function()
-    if not current() then
+    if not current(true) then
       return
     end
     if (document == "" and not opts.project_root) or not root then
@@ -366,6 +475,7 @@ function M.check(opts, callback)
   return function()
     active = false
     cleanup()
+    stop_observing()
   end
 end
 return M

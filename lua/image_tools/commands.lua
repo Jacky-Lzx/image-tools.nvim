@@ -88,6 +88,25 @@ function M.register(runtime)
     lines[#lines + 1] =
       string.format("Terminal cache: %d image(s), %d hit(s), %d upload(s)", cache.images, cache.hits, cache.uploads)
     lines[#lines + 1] = "Disk cache: " .. info.disk_cache
+    if info.timings then
+      for _, field in ipairs({
+        { "lookup_ms", "Reference lookup" },
+        { "automatic_delay_ms", "Automatic delay" },
+        { "preparation_ms", "Preparation (includes queue/conversion)" },
+        { "queue_ms", "Queue wait" },
+        { "conversion_ms", "Conversion process" },
+        { "transfer_ms", "Transfer (includes upload/placement)" },
+        { "upload_ms", "Upload wait" },
+        { "placement_ms", "Placement replies" },
+        { "draw_ms", "Placeholder drawing" },
+        { "total_ms", "Total" },
+      }) do
+        local value = info.timings[field[1]]
+        if value then
+          lines[#lines + 1] = string.format("%s: %.2f ms", field[2], value)
+        end
+      end
+    end
     vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "image-tools" })
   end, { desc = "Show current image/PDF metadata and cache statistics", force = true })
 

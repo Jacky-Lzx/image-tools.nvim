@@ -61,10 +61,10 @@ local function single(path, opts, callback)
     if not active then
       return
     end
-    cancel_work = worker(path, opts, function(err, image)
+    cancel_work = worker(path, opts, function(err, image, timing)
       if active then
         active = false
-        callback(err, image)
+        callback(err, image, timing)
         if released then
           release_file()
         end
@@ -161,7 +161,7 @@ function M.request(path, opts, callback)
   local subscriber = { active = true }
   job.subscribers[subscriber] = callback
   if fresh then
-    job.cancel = worker(path, opts, function(err, image)
+    job.cancel = worker(path, opts, function(err, image, timing)
       if job.done then
         return
       end
@@ -182,7 +182,7 @@ function M.request(path, opts, callback)
         vim.schedule(function()
           if consumer.active then
             consumer.active = false
-            receive(err, image and vim.deepcopy(image) or nil)
+            receive(err, image and vim.deepcopy(image) or nil, timing and vim.deepcopy(timing) or nil)
           end
         end)
       end
