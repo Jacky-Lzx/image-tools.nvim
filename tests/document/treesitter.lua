@@ -86,7 +86,10 @@ for ft, lang in pairs({ tex = "latex", typst = "typst" }) do
     local syntax = TS.query(buf, 1, lang)
     check(syntax and syntax.candidates[1].src == "a.png", "Real " .. lang .. " backend is active")
     local query = C.query
-    C.query = function()
+    C.query = function(...)
+      if select(6, ...) == "math" then
+        return query(...)
+      end
       error("Available Tree-sitter must not use the fallback scanner")
     end
     check(D.at_line(buf, 1, opts) == tmp .. "/a.png", "Default route uses real " .. lang)

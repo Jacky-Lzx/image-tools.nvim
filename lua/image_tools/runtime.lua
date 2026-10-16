@@ -29,6 +29,7 @@ local dependency_modules = {
 ---@field reference? boolean Internal flag for document-reference authority.
 ---@field reference_range? ImageToolsRange Internal selected reference coverage.
 ---@field automatic? boolean Internal automatic request; manual calls bypass the delay.
+---@field _formula? string Internal standalone TeX source for a selected formula.
 ---@class ImageToolsReferenceRequest
 ---@field buf integer Captured buffer id.
 ---@field win integer Captured window id.
@@ -231,7 +232,9 @@ function Runtime:open_preview(path, opts)
   if type(path) ~= "string" or path == "" then
     return false, "An image path is required"
   end
-  path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
+  if not (opts and opts._formula) then
+    path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
+  end
   local stat = vim.uv.fs_stat(path)
   local version = stat and require("image_tools.media.file_version").key(path, stat)
   local ok, err = self.preview:open(path, opts)
@@ -387,6 +390,7 @@ function Runtime:reload()
       silent = state.automatic,
       reference = state.reference,
       reference_range = state.reference_range,
+      _formula = state.formula,
     })
   end
   return false, "No image/PDF viewer or floating preview to reload"
@@ -483,7 +487,12 @@ function Runtime:hover(opts)
         timing.automatic_delay_ms = (vim.uv.hrtime() - delayed_at) / 1e6
         self:open_preview(
           path,
-          vim.tbl_extend("force", opts, { reference = true, reference_range = request.range, _timings = timing })
+          vim.tbl_extend("force", opts, {
+            reference = true,
+            reference_range = request.range,
+            _timings = timing,
+            _formula = reference and reference.formula,
+          })
         )
       end
     end, self.options.auto_preview_delay)
@@ -491,7 +500,12 @@ function Runtime:hover(opts)
   end
   return self:open_preview(
     path,
-    vim.tbl_extend("force", opts, { reference = true, reference_range = request.range, _timings = timing })
+    vim.tbl_extend("force", opts, {
+      reference = true,
+      reference_range = request.range,
+      _timings = timing,
+      _formula = reference and reference.formula,
+    })
   )
 end
 
@@ -529,11 +543,11 @@ function Runtime:info()
   local view = buffer and buffer.views[vim.api.nvim_get_current_win()]
   local path = buffer and buffer.path or state and on_current_line(state) and state.path
   if not path then
-    if self.preview.last_error then
-      local failure = self.preview.last_error
+    local failure = self.preview.last_error
+    if failure then
       local failed_stat = vim.uv.fs_stat(failure.path)
-      return vim.tbl_extend("force", self.preview.last_error, {
-        format = require("image_tools.media.formats").extension(failure.path),
+      return vim.tbl_extend("force", failure, {
+        format = failure.format or require("image_tools.media.formats").extension(failure.path),
         bytes = failed_stat and failed_stat.size,
         stage = "failed",
         ready = false,
@@ -548,7 +562,7 @@ function Runtime:info()
   local stat = vim.uv.fs_stat(path)
   return {
     path = path,
-    format = require("image_tools.media.formats").extension(path),
+    format = not buffer and state and state.formula and "math" or require("image_tools.media.formats").extension(path),
     bytes = stat and stat.size,
     width = buffer and dimensions.width or state and state.image_width,
     height = buffer and dimensions.height or state and state.image_height,
@@ -584,6 +598,8 @@ function Runtime:status()
       rsvg = self.options.rsvg,
       pdfinfo = self.options.pdfinfo,
       pngpaste = self.options.insert.pngpaste or "pngpaste",
+      math_latex = self.options.math.latex,
+      math_dvipng = self.options.math.dvipng,
     },
     cell_size = vim.deepcopy(self.options.cell_size),
     disk_cache = vim.tbl_extend("force", self.options.disk_cache, { path = self.options.cache }),

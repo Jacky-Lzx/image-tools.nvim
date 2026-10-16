@@ -34,7 +34,8 @@ actual run completes after pushing.
 ## Reproduce the integration fixtures locally
 
 Install the Neovim/Tree-sitter versions in `tests/ci/versions.sh`, a C/C++ compiler,
-Node.js, Python 3, ImageMagick with Ghostscript, Poppler, librsvg, pdflatex and
+Node.js, Python 3, ImageMagick with Ghostscript, Poppler, librsvg, latex, dvipng,
+amsmath/amssymb, pdflatex and
 Typst. If you need a local CLI without installing it globally:
 
 ```sh
@@ -88,3 +89,25 @@ nvim -u NONE -i NONE --noplugin \
 Report the checks actually performed and any failures. Protocol-test success
 alone does not satisfy this manual acceptance, and this guide does not mark a
 terminal/platform as validated without an observed run.
+
+## Formula coverage
+
+`tests/document/math.lua` checks delimiters/environments, byte ranges, excluded
+contexts, edits, budgets and mixed image/formula selection. The core formula
+lifecycle suite checks pending/visible previews, edits, cross-row movement,
+manual reload, automatic delay and stale-result rejection. `tests/media/math.lua`
+checks keys, dependency errors, shared workers, leases and cancellation; when
+latex/dvipng are installed it also compiles real inline/display/aligned formulas
+and verifies transparency. TUI formula scenarios exercise actual TeX output
+through file and direct Kitty transports, including shared Markdown/LaTeX pixels.
+Resolution checks compare real 180/360-DPI outputs, confirm higher pixel counts
+and stable logical display dimensions, and verify that the float uses the logical
+size while diagnostics and upload retain the full raster dimensions.
+
+For visible acceptance, open `examples/math.md` and `examples/math.tex` in Kitty.
+Check readable fractions, roots, matrices and aligned rows on a transparent
+background. Move inside and outside a multiline formula, edit its body, remove
+a delimiter, change the colorscheme and run `:ImageReload` / `:ImageInfo`. Verify
+that stale pixels and loading hints disappear, cached formulas return correctly,
+and code/comment examples do not preview. Real compilation and simulated Kitty
+traffic do not establish the visible-pixel result; record that check separately.

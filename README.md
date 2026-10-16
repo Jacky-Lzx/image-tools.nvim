@@ -17,6 +17,8 @@ Preview windows use Unicode placeholders so Neovim controls clipping and overlap
   - SVG uses `rsvg-convert` when available; otherwise it requires ImageMagick MSVG.
   - GIF previews show the first frame.
   - PNG preview does not require an external converter.
+- Formula previews require `latex`, `dvipng` and the `amsmath`/`amssymb` packages
+  (TeX Live/MacTeX). Formulas do not need ImageMagick or Ghostscript.
 
 ## Local installation
 
@@ -36,8 +38,8 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 
 - `:ImagePreview /absolute/or/relative/image.png` opens a file.
   Spaces are accepted literally; do not surround the path with shell quotes.
-- `:ImagePreview` previews the Markdown/LaTeX/Typst image reference under the cursor,
-  falling back to the first image on the current line when outside all references.
+- `:ImagePreview` previews the image reference or Markdown/LaTeX formula under the
+  cursor, falling back to the first image/formula covering the current line.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
@@ -47,7 +49,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:checkhealth image_tools` checks the terminal and configured conversion tools.
 
 Health tool detection checks configured `magick`, `pdfinfo`, `rsvg` and
-`insert.pngpaste` executables, using their standard names when unset. Ghostscript
+`insert.pngpaste`, `math.latex` and `math.dvipng` executables, using their standard names when unset. Ghostscript
 remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
@@ -77,7 +79,7 @@ this delay. Set `auto_preview_delay = 0` for immediate automatic preparation.
 
 Leaving the selected reference's row range closes the previous preview and
 previews the new row if it contains an image. Markdown and Typst references cover
-one row; LaTeX references can cover several. Replacing or removing the reference
+one row for images; LaTeX image references and Markdown/LaTeX formulas can cover several. Replacing or removing the reference
 updates or closes the preview. Window/buffer switching, resizing, scrolling,
 colorscheme changes, suspend and exit clean the previous preview; automatic
 preview refreshes the current line after layout changes. Stale asynchronous
@@ -95,6 +97,16 @@ require("image_tools").setup({
   preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
+  math = {
+    enabled = true,
+    latex = "latex",
+    dvipng = "dvipng",
+    density = 360, -- raster DPI; higher values improve detail at the same display size
+    foreground = "auto", -- Normal foreground, or "#RRGGBB"
+    preamble = "\\usepackage{amsmath,amssymb}",
+    max_lines = 64,
+    max_bytes = 16 * 1024,
+  },
   buffer = { enabled = true }, -- automatic binary image/PDF file buffers
   pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
   pdf_density = 144,
@@ -280,6 +292,8 @@ are required for the suite. Optional coverage is enabled as follows:
 - `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables picker integration checks.
 - `pdflatex` / `typst`: enable real compilation in the corresponding document tests.
   `pdfimages`, when available, additionally checks embedded image dimensions.
+- `latex` / `dvipng`: enable real formula compilation and file/direct TUI formula
+  scenarios. Parser, mocked worker and lifecycle tests run without these tools.
 - `python3`: enables the PTY/TUI protocol tests (uses Unix PTY APIs).
 
 Document path assertions prove reference recognition and resolution; lifecycle
@@ -386,7 +400,62 @@ context and omitted extensions (PDF/PNG/JPG/JPEG) are resolved. Resolution uses
 directory. No VimTeX dependency is added.
 Tree-sitter determines command locations and excluded contexts; literal argument
 decoding remains shared with the Lua scanner for starred and `\detokenize` forms
-that LaTeX grammars do not consistently represent. Formula preview is not included.
+that LaTeX grammars do not consistently represent. Formula lookup uses a separate
+bounded Lua scanner, independently of `treesitter`.
+
+## Formulas in LaTeX and Markdown
+
+Move onto a formula or run `:ImagePreview` / `hover()` to show a floating formula
+preview. Both document types support `$...$`, `$$...$$`, `\(...\)` and `\[...\]`,
+including multiline expressions. Supported environments are `math`, `displaymath`,
+`equation`, `align`, `alignat`, `gather`, `multline`, `flalign` and `eqnarray`, with
+starred variants where LaTeX provides them. Nested `aligned`, `cases`, matrices
+and other math content inside these delimiters are passed through to LaTeX.
+
+LaTeX comments, `\verb` and verbatim/listing/comment environments are skipped.
+Markdown fenced/indented code, backtick code spans and HTML comments are skipped.
+Single Markdown dollars require non-whitespace just after the opening delimiter
+and just before the closing delimiter; a closing dollar cannot precede a digit.
+Unclosed expressions and formulas exceeding `math.max_lines` (64),
+`math.max_bytes` (16 KiB) or `max_scan_lines` are ignored. Formula selection,
+automatic delay, cross-row movement, editing and cancellation follow the same
+rules as image references. `:ImageInfo` reports `format = "math"` and rendering
+errors. `:ImageReload` reloads a selected formula.
+
+The renderer compiles a standalone `article` snippet with `math.preamble`, then
+uses `dvipng` to crop a transparent PNG. It does not compile the document or inherit
+its preamble, macros, packages, bibliography or equation counters. Add required
+packages/macros explicitly, retaining the default packages when needed:
+
+```lua
+require("image_tools").setup({
+  math = {
+    preamble = [[
+\usepackage{amsmath,amssymb}
+\newcommand{\vect}[1]{\mathbf{#1}}
+]],
+  },
+})
+```
+
+Compilation runs asynchronously with shell escape disabled and restrictive TeX
+file-access settings in a private temporary directory. Both processes share
+`convert_concurrency`; each uses `convert_timeout`. Missing tools and invalid
+formulas are available through `:ImageInfo` or a manual `:ImagePreview`.
+PNG size/dimension limits still apply. Output is cached by formula, preamble,
+renderer executables, density and resolved foreground. `foreground = "auto"`
+uses `Normal`'s foreground with a light/dark fallback; colorscheme changes select
+new pixels. `:ImageCacheClear` also removes unused formula PNGs. Set
+`math.enabled = false` to disable recognition. Asset checks enumerate image files
+only. Formulas use floating previews; document text is preserved.
+
+`math.density` defaults to 360 DPI. Formulas use a fixed 180-DPI baseline for
+display sizing, so higher density adds raster detail without enlarging the
+preview. Set `math = { density = 540 }` or `720` for additional sampling; larger
+rasters use more conversion/transfer memory and remain subject to PNG limits.
+Changing density selects a new cache entry automatically.
+
+Try [examples/math.md](examples/math.md) and [examples/math.tex](examples/math.tex).
 
 Insertion emits `\includegraphics[width=\linewidth]{\detokenize{path}}`; load
 `graphicx` in your document. PNG/JPEG/PDF imports preserve original formats.

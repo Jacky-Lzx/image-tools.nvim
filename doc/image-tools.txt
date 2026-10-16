@@ -7,6 +7,8 @@ PNG needs no converter. Other raster formats and PDF require ImageMagick;
 PDF conversion also needs Ghostscript. SVG uses rsvg-convert if available,
 otherwise ImageMagick's MSVG renderer. PDF file buffers additionally need
 Poppler's pdfinfo for page counts; floating/picker previews use the first page.
+Formulas need latex, dvipng and amsmath/amssymb (TeX Live/MacTeX); they do not
+require ImageMagick or Ghostscript.
 Multiplexers (TMUX/ZELLIJ) are rejected. Other terminals, SSH and GUI frontends
 have not been validated. force=true bypasses only terminal-name detection, not
 the Neovim version, attached UI, termguicolors or multiplexer checks.
@@ -18,6 +20,9 @@ SETUP                                                      *image-tools-setup*
     convert_concurrency = 2, -- simultaneous conversion/hash processes
     treesitter = true, -- LaTeX/Typst parsers, with automatic Lua scanner fallback
     latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
+    math = { enabled = true, latex = "latex", dvipng = "dvipng", density = 360,
+      foreground = "auto", preamble = "\\usepackage{amsmath,amssymb}",
+      max_lines = 64, max_bytes = 16 * 1024 },
     buffer = { enabled = true }, -- intercept binary image/PDF files
     pdfinfo = "pdfinfo",
     pdf_density = 144,
@@ -51,8 +56,8 @@ above the command line and status line. "cursor" places it near the cursor.
 
 COMMANDS                                                   *:ImagePreview*
 
-:ImagePreview [path]    Preview a file, or the image reference under the cursor.
-                       Outside references, preview the first image on the line.
+:ImagePreview [path]    Preview a file, image reference or Markdown/LaTeX formula.
+                       Outside references, preview the first covering item.
                        File paths are literal: spaces work without quotes.
                        Explicit relative paths use cwd; Markdown paths use
                        the document directory or configured root.
@@ -81,8 +86,8 @@ API                                                        *image-tools-api*
 
 setup(opts)            Configure the plugin; repeated setup replaces handlers.
 preview(path, opts)    Preview a file. opts.silent suppresses notifications.
-hover(opts)            Preview the image reference under the cursor, falling back
-                       to the first image on the current line.
+hover(opts)            Preview the image/formula under the cursor, falling back
+                       to the first item covering the current line.
 close()                Close preview; safe to call repeatedly.
 clear_cache()          Close preview and release all owned terminal images.
 clear_disk_cache(cb)   Clear unused disk conversions asynchronously; cb receives
@@ -119,7 +124,8 @@ the first image on the row is used. Errors in a selected destination do not
 fall back to another image. Moving to another image changes the preview;
 movement within the same reference, Insert mode and edits that preserve its
 source keep the window and pending conversion. Markdown/Typst references cover
-one row; LaTeX references may cover several. Leaving that row range closes the
+one row for images; LaTeX image references and Markdown/LaTeX formulas may
+cover several. Leaving that row range closes the
 preview and entering another image row starts a new one.
 
 TRANSPORT                                                  *image-tools-transport*
@@ -148,8 +154,8 @@ Complete same-line Markdown inline images, angle-bracket destinations, quoted
 titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
 excluded. LaTeX, Typst, independent insertion, macOS clipboard paste, Snacks
 picker integration and read-only image/PDF file buffers are supported below.
-Remote URLs, multiline Markdown
-calls, formula previews and inline rendering inside document text are unsupported.
+Remote URLs, multiline Markdown image calls and inline rendering inside document
+text are unsupported. Formula floating previews are described below.
 Insertion has no dependency on image-insert.nvim.
 
 DISK CACHE                                                *image-tools-disk-cache*
@@ -223,7 +229,7 @@ prefixes.
 Path resolution stays live. status().treesitter and :checkhealth image_tools
 report backend/fallback reasons, parse/index timing, hits and indexed rows.
 Parse timing includes time yielded to the event loop.
-Markdown uses its existing scanner. Formula preview is not included.
+Markdown uses its existing scanner. Formulas use a separate bounded Lua scanner.
 
 tex/latex/plaintex: literal \includegraphics[options]{path}, starred form,
 \detokenize paths, single-line literal \graphicspath declarations, and omitted
@@ -241,6 +247,43 @@ Insertion requires graphicx and emits width=\linewidth with a detokenize path.
 Imports accept PNG/JPEG/PDF and sanitize TeX-special filename characters. Unsafe
 reference/directory paths fail and roll back. PDF preview uses the first page;
 file buffers support paging. ImageMagick must have Ghostscript support.
+
+FORMULAS                                                  *image-tools-math*
+
+LaTeX (tex/latex/plaintex) and Markdown support $...$, $$...$$, \(...\), \[...\]
+and math/displaymath/equation/align/alignat/gather/multline/flalign/eqnarray
+environments, including valid starred variants. Complete expressions may span
+lines. LaTeX comments, \verb and verbatim/listing/comment environments are skipped;
+Markdown code blocks, backtick spans and HTML comments are skipped. Single
+Markdown dollars require non-whitespace inside each delimiter; the closing dollar
+cannot precede a digit. Unclosed or oversized expressions are ignored.
+
+Automatic preview and :ImagePreview use the same floating window, selection,
+delay, range and cancellation rules as images. :ImageInfo reports format="math"
+and errors; :ImageReload reloads the selected formula. Source text is preserved.
+math.enabled=false disables recognition. Asset checks list image files only.
+
+latex compiles a standalone article snippet with math.preamble, then dvipng
+creates a tightly cropped transparent PNG. The default preamble loads amsmath
+and amssymb. Document preambles, macros and equation counters are not inherited;
+configure additional packages/macros explicitly in math.preamble. No project
+compilation is performed. Shell escape is disabled, TeX file access is restricted,
+and temporary workspaces are private and cleaned on completion/cancellation.
+
+math.latex/math.dvipng select executables. math.density defaults to 360 DPI.
+Display sizing uses a fixed 180-DPI baseline: higher density improves detail at
+the same preview size. Values such as 540 or 720 increase sampling and resource
+usage. Density changes automatically select a fresh cache entry.
+math.foreground is "auto" (Normal foreground, with light/dark fallback) or
+"#RRGGBB". math.max_lines=64 / max_bytes=16384 bound each formula; lookahead also
+respects max_scan_lines. Compilers share convert_concurrency; convert_timeout
+bounds each process. Existing PNG size/dimension limits apply. Source, preamble,
+tools, DPI and resolved color determine disk keys. Identical formulas reuse
+conversion and terminal pixels. :ImageCacheClear removes unused formula PNGs.
+Missing tools and invalid TeX appear in :ImageInfo or manual :ImagePreview;
+:checkhealth image_tools checks both configured executables.
+
+See examples/math.md and examples/math.tex for interactive examples.
 
 TYPST                                                     *image-tools-typst*
 

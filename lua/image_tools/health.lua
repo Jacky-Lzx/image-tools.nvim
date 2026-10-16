@@ -133,6 +133,17 @@ function M.check()
     vim.health.warn("PDF metadata executable missing: " .. tools.pdfinfo .. " (brew install poppler)")
   end
 
+  for _, name in ipairs({ "latex", "dvipng" }) do
+    local tool = tools["math_" .. name] or defaults.math[name]
+    if vim.fn.executable(tool) == 1 then
+      vim.health.ok("Formula renderer found: " .. tool .. " (math." .. name .. ")")
+    else
+      vim.health.info(
+        "Formula renderer missing: " .. tool .. "; install TeX Live with latex, amsmath, amssymb and dvipng"
+      )
+    end
+  end
+
   local cell = require("image_tools.terminal").cell_size(vim.deepcopy(state.cell_size or defaults.cell_size))
   vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
 

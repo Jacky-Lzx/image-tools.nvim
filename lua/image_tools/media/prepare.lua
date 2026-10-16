@@ -4,7 +4,7 @@
 --   Coordinate media preparation and coalesce matching conversion requests.
 --
 -- Architecture:
---   Dispatch native PNG reads or media/convert workers behind the media entry point.
+--   Dispatch native PNG reads, media/convert or media/math workers behind the media entry point.
 --   Share a convertible-source worker while delivering independent metadata and
 --   cancel/release/close handles to subscribers.
 --
@@ -33,6 +33,9 @@ local pending = {}
 ---@param callback ImageToolsImageCallback Completion consumer.
 ---@return ImageToolsCancel cancel
 local function worker(path, opts, callback)
+  if opts._formula then
+    return require("image_tools.media.math").prepare(path, opts, callback, opts.transport ~= nil)
+  end
   if path:lower():sub(-#".png") == ".png" then
     return require("image_tools.media.png").read(path, opts, callback, opts.transport ~= nil)
   end
@@ -124,15 +127,14 @@ function M.request(path, opts, callback)
   extension = extension and extension:lower()
   local stat = convertible[extension] and uv.fs_stat(path)
   if
-    not stat
-    or stat.type ~= "file"
+    not opts._formula and (not stat or stat.type ~= "file")
     or extension == "pdf"
       and (opts.page ~= nil and (type(opts.page) ~= "number" or opts.page < 1 or opts.page % 1 ~= 0))
   then
     return single(path, opts, callback)
   end
   local key = table.concat({
-    version.key(path, stat),
+    opts._formula and require("image_tools.media.math").key(opts) or version.key(path, assert(stat)),
     opts.cache or "",
     opts.magick or "",
     opts.rsvg or "rsvg-convert",

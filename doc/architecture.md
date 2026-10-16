@@ -30,7 +30,8 @@ lua/image_tools/
     tex/reference.lua      bounded multiline decoding and reference ranges
     typst.lua              Typst syntax and insertion rules
     paths.lua              path resolution, project roots and validation
-    syntax_cache.lua       buffer results and prefix checkpoints
+    syntax_cache.lua       independent buffer/context namespaces and prefix checkpoints
+    math.lua               bounded formula ranges and standalone TeX source
     treesitter.lua         async syntax indexing and diagnostics
   media/
     init.lua               unified image helper API
@@ -38,6 +39,7 @@ lua/image_tools/
     file_version.lua       source revision keys
     png.lua                PNG reads and validation
     convert.lua            converter commands and output publication
+    math.lua               latex/dvipng workers and transparent formula PNGs
     prepare.lua            shared preparation workers and file leases
     pdf.lua                PDF metadata
     disk_cache.lua         converted-file storage and eviction
@@ -224,3 +226,26 @@ shared live-buffer observers and request-owned events invalidate changed scans.
 Entry/byte/line budgets flag incomplete reports; full final buffer snapshots and
 disk revision rechecks reject stale results. Neither mode
 modifies source documents or assets.
+
+## Formula previews
+
+`document/math` uses its own `syntax_cache` namespace alongside image syntax.
+It checks a bounded local neighborhood before building prefix context, preserves
+byte columns and inclusive row ranges, and only looks ahead within formula/scan
+budgets. `document/init` combines formula/image selection in source order while
+asset enumeration continues to call image adapters directly. Formula references
+carry standalone TeX and an `image-tools-math:` content identity; no temporary
+files are created during lookup.
+
+Runtime and the floating preview pass the selected source as `_formula` through
+the existing render session. `media/prepare` coalesces formulas and owns subscriber
+leases, dispatching workers to `media/math`. That worker runs latex then dvipng
+through the shared queue, validates a temporary PNG, and atomically publishes it
+into the same managed disk cache. It owns private workspace cleanup and a worker
+lease; each delivered subscriber retains its own output lease. Formula compilation
+does not read a document preamble or run a project build. Cached color is resolved
+from Normal or an explicit RGB value and participates in the content key.
+Formula images retain full raster dimensions for validation, diagnostics and
+upload, plus a logical `display_size` at a fixed 180-DPI baseline. The floating
+preview fits that logical size, so the default 360-DPI raster supplies additional
+detail without scaling up the formula window. Cache reads restore the same metadata.

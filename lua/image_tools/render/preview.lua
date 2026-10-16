@@ -31,6 +31,7 @@ local dependency_modules = {
 ---@field automatic boolean Whether notification-silent mode was requested.
 ---@field reference boolean Whether cursor column/reference selection participates in authority.
 ---@field reference_range? ImageToolsRange Multiline selected-reference coverage.
+---@field formula? string Standalone TeX retained for preparation and reload.
 ---@field render? ImageToolsRenderSession Owned prepare/placement lifecycle.
 ---@class ImageToolsPreview
 ---@field opts ImageToolsOptions Runtime configuration.
@@ -67,6 +68,7 @@ function M:record_error(path, err, stage, state)
     path = path,
     error = tostring(err),
     error_stage = stage,
+    format = state and state.formula and "math" or nil,
     width = state and state.image_width,
     height = state and state.image_height,
     timings = state and state.render and state.render:timings(),
@@ -159,6 +161,7 @@ function M:open(path, options)
     automatic = options.silent or false,
     reference = options.reference or false,
     reference_range = options.reference_range,
+    formula = options._formula,
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   ---@cast state ImageToolsPreviewState
@@ -170,13 +173,14 @@ function M:open(path, options)
       state.loading_timer = nil
       if self.state == state and vim.api.nvim_buf_is_valid(state.owner_buf) then
         state.loading_mark = vim.api.nvim_buf_set_extmark(state.owner_buf, loading_ns, state.cursor[1] - 1, 0, {
-          virt_text = { { "Loading image…", "Comment" } },
+          virt_text = { { state.formula and "Rendering formula…" or "Loading image…", "Comment" } },
           virt_text_pos = "eol",
         })
       end
     end, delay)
   end
-  state.render:start(path, self.opts, {
+  local preparation = state.formula and vim.tbl_extend("force", self.opts, { _formula = state.formula }) or self.opts
+  state.render:start(path, preparation, {
     -- Validate generation, owner, text version and current selected cursor/range authority.
     ---@return boolean current
     current = function()
@@ -214,7 +218,7 @@ function M:open(path, options)
     size = function(image)
       state.image_width, state.image_height = image.width, image.height
       return require("image_tools.render.geometry").fit(
-        image,
+        image.display_size or image,
         terminal.cell_size(self.opts.cell_size),
         math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - SCREEN_MARGIN_CELLS)),
         math.max(
@@ -244,7 +248,7 @@ function M:open(path, options)
         border = self.opts.border,
         focusable = false,
         zindex = PREVIEW_ZINDEX,
-        title = " " .. vim.fs.basename(path) .. " ",
+        title = state.formula and " Formula " or " " .. vim.fs.basename(path) .. " ",
         title_pos = "center",
       }
       if self.opts.position == "bottom_right" then

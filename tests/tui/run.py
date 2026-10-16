@@ -51,7 +51,7 @@ def test_rgb_colors():
     print("image-tools TUI: RGB SGR matching regressions passed")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixtures/fixture.png").read_bytes()
@@ -77,6 +77,8 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
         command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / ("tests/tui/picker.lua" if picker else "tests/tui/preview.lua"))]
         if cursor:
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/cursor.lua")]
+        if math:
+            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/math.lua")]
         if latex:
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/latex.lua")]
         if buffer:
@@ -104,7 +106,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     else:
                         path = Path(base64.b64decode(payload).decode())
                         data = path.read_bytes()
-                        if buffer or latex:
+                        if buffer or latex or math:
                             assert data[:8] == b"\x89PNG\r\n\x1a\n", "buffer upload is not a PNG"
                         else:
                             assert data == fixture, "file transport did not reference the PNG fixture"
@@ -131,7 +133,11 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             nonlocal pending
             fields, chunks = pending
             data = b"".join(chunks)
-            assert base64.b64decode(data) == fixture, "direct transport changed PNG bytes"
+            decoded = base64.b64decode(data)
+            if math:
+                assert decoded[:8] == b"\x89PNG\r\n\x1a\n", "formula upload is not a PNG"
+            else:
+                assert decoded == fixture, "direct transport changed PNG bytes"
             uploads.append((fields, data))
             resident.add(fields[b"i"])
             reply(fields[b"i"], b"OK", fields.get(b"q"))
@@ -174,7 +180,9 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     + "\ncommands: " + repr([f for f, _ in commands])
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
-            if cursor:
+            if math:
+                assert result["math"] and result["lifecycle"] and result["shared"], result
+            elif cursor:
                 assert result["cursor"] and result["lifecycle"], result
             elif latex:
                 assert result["latex"] and result["range_preserved"] and result["range_lifecycle"], result
@@ -194,7 +202,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
             assert len(uploads) == (3 if buffer else 2 if cursor or reject_file or evict else 1), uploads
             assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result
-            if picker or buffer or latex:
+            if picker or buffer or latex or math:
                 assert result["cache"]["hits"] >= 1, result
             else:
                 assert result["cache"]["hits"] == (1 if evict else 2), result
@@ -217,7 +225,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -241,3 +249,9 @@ run_case("auto", buffer=True)
 run_case("auto", latex=True)
 
 run_case("auto", cursor=True)
+
+if shutil.which("latex") and shutil.which("dvipng"):
+    run_case("auto", math=True)
+    run_case("direct", math=True)
+else:
+    print("image-tools TUI: formula cases skipped (latex/dvipng unavailable)")

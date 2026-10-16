@@ -5,7 +5,7 @@
 --
 -- Architecture:
 --   Accept an adapter-provided scanner and initial context. Build 128-line
---   checkpoints and retain up to 128 query results per buffer; leave filesystem
+--   checkpoints and retain up to 128 query results per buffer/namespace; leave filesystem
 --   resolution outside the cache.
 --
 -- Ownership:
@@ -23,7 +23,7 @@
 
 ---@class ImageToolsSyntaxCache
 local M = {}
-local entries, attached = {}, {}
+local namespaces = {}
 local CHECKPOINT_LINES = 128
 local MAX_QUERY_RESULTS = 128
 
@@ -35,8 +35,12 @@ local MAX_QUERY_RESULTS = 128
 ---@param kind string Scanner/adapter identity.
 ---@param initial table Prefix state before any lines.
 ---@param scan fun(lines: string[], state: table): any, table Returns target-row result and next prefix state.
+---@param namespace? string Independent cache/attachment scope for a different scanner subsystem.
 ---@return any result Adapter-defined syntax result; paths/filesystem decisions remain live.
-function M.query(buf, row, kind, initial, scan)
+function M.query(buf, row, kind, initial, scan, namespace)
+  namespace = namespace or "default"
+  namespaces[namespace] = namespaces[namespace] or { entries = {}, attached = {} }
+  local entries, attached = namespaces[namespace].entries, namespaces[namespace].attached
   buf = buf == 0 and vim.api.nvim_get_current_buf() or buf
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local entry = entries[buf]

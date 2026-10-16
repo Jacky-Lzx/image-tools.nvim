@@ -25,6 +25,9 @@
 ---@field start_row? integer One-based row; omitted by legacy same-line parse helpers.
 ---@field end_row? integer Inclusive covered row; omitted by same-line parse helpers.
 ---@field directories? string[] LaTeX graphicspath context captured by a backend.
+---@field kind? "math" Formula references carry TeX instead of a local asset.
+---@field formula? string Complete standalone math expression with delimiters.
+---@field path? string Logical content identity for formula references.
 ---@class ImageToolsDocumentAdapter
 ---@field find fun(buf: integer, row: integer, col: integer?, opts: table): string?, string?, string?, ImageToolsReference?
 ---@field references fun(buf: integer, row: integer, opts: table): table[] Resolved literal references opening on this row.
@@ -79,7 +82,26 @@ local function find(buf, row, col, opts)
   if row > opts.max_scan_lines then
     return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
   end
-  return format.find(buf, row, col, opts)
+  local path, err, status, reference = format.find(buf, row, col, opts)
+  if status == "pending" or col ~= nil and reference then
+    return path, err, status, reference
+  end
+  local math = require("image_tools.document.math")
+  local formula = math.find(buf, row, col, opts)
+  if
+    formula
+    and (
+      not reference
+      or formula.start_row < reference.start_row
+      or formula.start_row == reference.start_row and formula.start_col < reference.start_col
+    )
+  then
+    return formula.path, nil, nil, formula
+  end
+  if not path and not reference and col ~= nil and math.find(buf, row, nil, opts) then
+    return nil, "No image or formula under the cursor", "miss"
+  end
+  return path, err, status, reference
 end
 
 -- Select a reference whose byte-column range covers the cursor, retaining selected-path errors.

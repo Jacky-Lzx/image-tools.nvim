@@ -122,13 +122,12 @@ vim.fn.executable = function(path)
   probed[path] = true
   return path:match("^/custom tools/") and 1 or executable(path)
 end
-api.setup(
-  vim.tbl_extend(
-    "force",
-    custom,
-    { auto_preview = false, cache = folder, insert = { pngpaste = "/custom tools/pngpaste" } }
-  )
-)
+api.setup(vim.tbl_extend("force", custom, {
+  auto_preview = false,
+  cache = folder,
+  insert = { pngpaste = "/custom tools/pngpaste" },
+  math = { latex = "/custom tools/latex", dvipng = "/custom tools/dvipng" },
+}))
 text = report()
 check(
   probed[custom.magick] and probed[custom.rsvg] and probed[custom.pdfinfo],
@@ -141,6 +140,11 @@ check(
 if vim.fn.has("mac") == 1 then
   check(probed["/custom tools/pngpaste"], "Configured clipboard tool is probed")
 end
+check(probed["/custom tools/latex"] and probed["/custom tools/dvipng"], "Configured formula tools are probed")
+check(
+  text:find("/custom tools/latex", 1, true) and text:find("/custom tools/dvipng", 1, true),
+  "Formula tool paths appear in health"
+)
 vim.fn.executable = executable
 for name, callback in pairs(original) do
   vim.health[name] = callback

@@ -18,6 +18,8 @@
 ---@field preview_loading_delay integer Milliseconds before a loading hint; zero disables it.
 ---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
 ---@field latex {max_reference_lines: integer, max_reference_bytes: integer} Budgets for one LaTeX reference.
+---@field math table Formula enablement, latex/dvipng executables, DPI, color, preamble and scan budgets.
+---@field _formula? string Internal selected formula source, including delimiters.
 ---@field buffer {enabled: boolean, formats: string[], keymaps: table<string, string|boolean>|boolean} Automatic file-buffer interception settings.
 ---@field pdfinfo string PDF metadata executable.
 ---@field pdf_density integer Rasterization DPI, included in PDF conversion keys.
@@ -60,6 +62,25 @@ function M.resolve(opts)
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   assert(type(options.treesitter) == "boolean", "treesitter must be boolean")
+  assert(type(options.math.enabled) == "boolean", "math.enabled must be boolean")
+  for _, name in ipairs({ "latex", "dvipng" }) do
+    assert(
+      type(options.math[name]) == "string" and options.math[name] ~= "",
+      "math." .. name .. " must be an executable name or path"
+    )
+  end
+  for _, name in ipairs({ "density", "max_lines", "max_bytes" }) do
+    assert(
+      type(options.math[name]) == "number" and options.math[name] >= 1 and options.math[name] % 1 == 0,
+      "math." .. name .. " must be a positive integer"
+    )
+  end
+  assert(type(options.math.preamble) == "string", "math.preamble must be a string")
+  assert(
+    options.math.foreground == "auto"
+      or type(options.math.foreground) == "string" and options.math.foreground:match("^#%x%x%x%x%x%x$"),
+    "math.foreground must be auto or #RRGGBB"
+  )
   for _, name in ipairs({ "auto_preview_delay", "preview_loading_delay" }) do
     assert(
       type(options[name]) == "number" and options[name] >= 0 and options[name] % 1 == 0,

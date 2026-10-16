@@ -63,3 +63,11 @@ starts. Selection remains live during the wait. Same-source movement updates
 authority without restarting the timer; a different source replaces it. Closing,
 clearing or replacing the Runtime cancels it. Manual hover/preview bypasses the
 delay and invalidates queued automatic work.
+
+Formula selections carry a content identity plus standalone TeX, following the
+same automatic delay, owner/version/range checks and session cancellation as
+images. The identity bypasses filesystem path normalization and is reported as
+`format = "math"` by `info()`. Reload retains the captured TeX. Formula edits
+change the identity and replace pending/visible work; surrounding edits retain
+unchanged pixels. The media service owns compilation, coalescing and output
+leases; document lookup never spawns processes or writes files.

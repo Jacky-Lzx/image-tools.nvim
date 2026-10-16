@@ -17,6 +17,16 @@ return {
   preview_loading_delay = 300, -- milliseconds; zero disables the loading hint
   treesitter = true,
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
+  math = {
+    enabled = true,
+    latex = "latex",
+    dvipng = "dvipng",
+    density = 360, -- raster detail; formula display size stays at the 180-DPI baseline
+    foreground = "auto", -- Normal foreground, or #RRGGBB
+    preamble = "\\usepackage{amsmath,amssymb}",
+    max_lines = 64,
+    max_bytes = 16 * 1024,
+  },
   buffer = {
     enabled = true,
     keymaps = {

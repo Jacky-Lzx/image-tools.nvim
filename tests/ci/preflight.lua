@@ -11,7 +11,17 @@ for _, language in ipairs({ "latex", "typst" }) do
 end
 require("snacks").setup({ image = { enabled = false }, picker = { enabled = true } })
 assert(require("snacks.picker"), "Cannot load Snacks picker")
-for _, executable in ipairs({ "magick", "gs", "pdfinfo", "rsvg-convert", "python3", "typst", "pdflatex" }) do
+for _, executable in ipairs({
+  "magick",
+  "gs",
+  "pdfinfo",
+  "rsvg-convert",
+  "python3",
+  "typst",
+  "pdflatex",
+  "latex",
+  "dvipng",
+}) do
   assert(vim.fn.executable(executable) == 1, "Missing integration executable: " .. executable)
 end
 print("CI integration preflight: parsers, Snacks and compiler/converter tools available")

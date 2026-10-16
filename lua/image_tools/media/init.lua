@@ -23,6 +23,7 @@
 ---@field data? string Complete PNG bytes; absent for metadata-only preparation.
 ---@field source? string Original convertible source path.
 ---@field cache_source? string Logical source identity; PDF pages include a page suffix.
+---@field display_size? ImageToolsImageSize Logical preview size when the raster is supersampled.
 ---@alias ImageToolsImageCallback fun(err: string?, image: ImageToolsImage?, timing: ImageToolsProcessTiming?)
 
 ---@class ImageToolsMedia
@@ -64,7 +65,7 @@ end
 
 -- Prepare native/converted pixels and expose one cleanup function for both cancellation and lease
 -- release.
----@param path string Native image or convertible source.
+---@param path string Native image, convertible source or internal formula identity (opts._formula).
 ---@param opts table Preparation, converter, cache and validation settings.
 ---@param callback ImageToolsImageCallback Receives prepared PNG metadata on success.
 ---@return ImageToolsCancel close Cancels pending delivery and releases the delivered file lease.

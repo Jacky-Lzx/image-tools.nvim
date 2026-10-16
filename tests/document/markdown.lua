@@ -39,7 +39,7 @@ end
 vim.api.nvim_buf_set_lines(buf, 1000, 1001, false, { "tail edit" })
 assert(D.at_line(buf, 1, opts) == "/private/tmp/first.png")
 vim.api.nvim_buf_get_lines = get_lines
-assert(fetched <= 129, "Tail edits must retain earlier definition blocks")
+assert(fetched <= 130, "Tail edits retain earlier definition blocks plus the local formula check")
 -- Removing the winning definition reveals a later duplicate; inserted/deleted
 -- rows and changed fence context must invalidate all affected suffix blocks.
 vim.api.nvim_buf_set_lines(buf, 1, 2, false, {})

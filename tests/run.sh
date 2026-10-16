@@ -77,6 +77,7 @@ run_test core/preview_diagnostics.lua
 run_test core/auto_preview_delay.lua
 run_test core/cursor_lifecycle.lua
 run_test core/tex_range_lifecycle.lua # asserts that a preview stays open within a multiline reference and closes on exit
+run_test core/math_lifecycle.lua
 run_test core/health.lua
 
 # 2. Image preparation and rendering resources: disk cache, conversion, queues,
@@ -85,6 +86,7 @@ run_test core/health.lua
 run_test media/disk_cache.lua
 run_test media/conversion.lua
 run_test media/prepare.lua
+run_test media/math.lua # formula workers; optional real latex/dvipng compilation
 run_test media/conversion_queue.lua
 run_test terminal/transfer.lua
 run_test terminal/pixel_pool.lua
@@ -105,6 +107,7 @@ run_test workflow/picker.lua
 # queries/fallback. treesitter.lua always runs and reports skipped real-language
 # checks when the corresponding parsers are unavailable.
 run_test document/markdown.lua
+run_test document/math.lua
 run_test document/formats.lua
 run_test document/syntax_cache.lua
 run_test document/treesitter.lua
