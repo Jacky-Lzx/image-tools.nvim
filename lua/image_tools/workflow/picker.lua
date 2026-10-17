@@ -339,6 +339,9 @@ function M.pick(insertion, opts, previewer, callback)
     return nil
   end
   local formats = format.image_formats()
+  if insertion.process and insertion.mode ~= "reference" then
+    formats = require("image_tools.media.formats").extensions()
+  end
   local confirmed = false
   local config = vim.tbl_deep_extend("force", {
     ft = formats,

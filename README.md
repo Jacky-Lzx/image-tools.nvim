@@ -297,8 +297,8 @@ as one text edit; filename collisions use numeric suffixes and never overwrite.
 Cancellation or insertion failure rolls back newly imported files. Text undo retains
 assets for reuse. Unloading/deleting or renaming the source buffer, changing its
 filetype, or disabling `modifiable` causes rollback. Setting `readonly` alone
-does not prevent insertion. File imports preserve original formats and bytes;
-clipboard paste can separately request format conversion.
+does not prevent insertion. File imports preserve original formats and bytes by
+default; processing presets can convert external copied imports.
 
 After a successful insert, paste or picker confirmation, the cursor moves to the
 first inserted image and enters Insert mode. In Markdown it starts inside the
@@ -498,7 +498,7 @@ PNG; streamed bytes are bounded by `max_bytes`. `:checkhealth image_tools` and
 Backend protocol tests run with fixtures; native GUI clipboard validation remains
 platform-specific. See [backend commands and native validation](doc/clipboard-backends.md).
 
-### Clipboard processing presets
+### Image processing presets
 
 Pass `process = "select"` to paste to choose from PNG, AVIF, JPEG and a WebP
 1600px preset. The menu filters formats using the captured document type. A single
@@ -518,6 +518,32 @@ Presets accept `name`, `format`, `quality`, `resize` (ImageMagick geometry), and
 used. The custom command owns processing/encoding; select a matching `format`.
 Converters share the existing queue, timeout, cancellation and import rollback.
 Preset values override per-call format/quality. `process = false` bypasses a menu.
+
+The same presets apply to external file imports and picker confirmations:
+
+```lua
+require("image_tools").insert({ "/downloads/plot.webp", "/downloads/chart.avif" }, {
+  process = { format = "png", resize = "1600x1600>" },
+})
+require("image_tools").pick({ insert = { process = "select" } })
+```
+
+Set `insert.process` for a shared file/clipboard default. File batches choose one
+preset, process each external source, then import everything with a single text
+edit. PNG is the default output when a file preset omits `format`; clipboard
+defaults remain document-specific. Source filenames keep their stem with the
+output extension; naming callbacks receive the original `source`/`source_name`
+and the output `extension`. Formats offered in menus match the target document.
+Processing-enabled pickers also accept convertible input formats, so a LaTeX
+document can select WebP/AVIF and import PNG/JPEG.
+
+Reference mode and assets already inside the destination directory skip processing
+and retain their filenames/bytes. Such existing assets must already be supported
+by the document. Originals are never modified. Converters operate on private
+copies; built-in commands select the first page/frame. Output encoding, byte size
+and dimensions are checked with ImageMagick before publication. Queue budgets,
+timeouts, cancellation, deduplication and import rollback still apply. A failed
+batch leaves no inserted text or partial imported resources.
 
 ## Snacks picker integration
 

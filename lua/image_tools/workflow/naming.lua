@@ -23,6 +23,9 @@ function M.resolve(opts, context)
       name = os.date(opts.file_name or "%Y-%m-%d_%H-%M-%S", context.timestamp)
     else
       name = context.source_name
+      if context.extension and name:match("%.([^./]+)$") ~= context.extension then
+        name = vim.fn.fnamemodify(name, ":r") .. "." .. context.extension
+      end
     end
   end
   assert(

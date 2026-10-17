@@ -34,7 +34,7 @@
 ---@field file_name? string|function os.date format or naming function; file imports keep their names by default.
 ---@field alt? string Markdown/Typst image description.
 ---@field template? string|function|table|false Markup override, optionally indexed by filetype; false uses the adapter default.
----@field process? table|"select"|false Clipboard processing preset or selectable list; select uses built-ins.
+---@field process? table|"select"|false Copied-file/clipboard processing preset or selectable list; select uses built-ins.
 ---@field resize? string Internal selected ImageMagick geometry.
 ---@field command? string[] Internal selected custom converter argv with $INPUT/$OUTPUT.
 ---@field prompt_for_file_name? boolean Prompt for each imported basename.
@@ -222,6 +222,9 @@ end
 ---@return ImageToolsCancel cancel Idempotent transaction cancellation; successful text undo keeps assets.
 function M.files(paths, opts, callback)
   opts = opts or {}
+  if opts.process and opts.mode ~= "reference" then
+    return require("image_tools.workflow.file_process").files(paths, opts, callback)
+  end
   callback = callback
     or function(err)
       if err and err ~= "Cancelled" then
@@ -473,8 +476,8 @@ function M.files(paths, opts, callback)
     local named, name = pcall(require("image_tools.workflow.naming").resolve, opts, {
       document = context.document,
       filetype = context.filetype,
-      source = source,
-      source_name = vim.fs.basename(source),
+      source = opts._sources and opts._sources[index] or source,
+      source_name = vim.fs.basename(opts._sources and opts._sources[index] or source),
       extension = source:match("%.([^./]+)$"),
       kind = "file",
       timestamp = context.timestamp,

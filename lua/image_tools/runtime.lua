@@ -286,12 +286,14 @@ end
 ---@return ImageToolsCancel cancel
 function Runtime:insert(paths, opts, callback)
   local insertion = self:dependency("insert")
-  opts = vim.tbl_extend(
-    "force",
-    self.options.insert,
-    { max_bytes = self.options.max_bytes, reference_root = self.options.root },
-    opts or {}
-  )
+  opts = vim.tbl_extend("force", self.options.insert, {
+    max_bytes = self.options.max_bytes,
+    max_dimension = self.options.max_dimension,
+    max_pixels = self.options.max_pixels,
+    magick = self.options.magick,
+    convert_timeout = self.options.convert_timeout,
+    reference_root = self.options.root,
+  }, opts or {})
   if paths then
     return insertion.files(type(paths) == "string" and { paths } or paths, opts, callback)
   end
@@ -361,12 +363,14 @@ end
 ---@return table? picker Nil when picker construction fails.
 function Runtime:pick(opts, callback)
   opts = opts or {}
-  local insertion = vim.tbl_extend(
-    "force",
-    self.options.insert,
-    { max_bytes = self.options.max_bytes, reference_root = self.options.root },
-    opts.insert or {}
-  )
+  local insertion = vim.tbl_extend("force", self.options.insert, {
+    max_bytes = self.options.max_bytes,
+    max_dimension = self.options.max_dimension,
+    max_pixels = self.options.max_pixels,
+    magick = self.options.magick,
+    convert_timeout = self.options.convert_timeout,
+    reference_root = self.options.root,
+  }, opts.insert or {})
   return self:dependency("picker").pick(insertion, opts.picker, function(ctx)
     if not self.disposed then
       return self:snacks_preview(ctx)

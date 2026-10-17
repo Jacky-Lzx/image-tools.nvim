@@ -56,7 +56,7 @@ function M.validate(process)
   end
 end
 
-function M.select(process, filetype, default_format, callback)
+function M.select(process, filetype, default_format, callback, prompt)
   M.validate(process)
   local choices = process == "select" and vim.deepcopy(presets) or vim.deepcopy(process)
   local list = vim.islist(choices) and choices or { choices }
@@ -69,7 +69,7 @@ function M.select(process, filetype, default_format, callback)
     callback(list[1])
   else
     vim.ui.select(list, {
-      prompt = "Clipboard image processing:",
+      prompt = prompt or "Clipboard image processing:",
       format_item = function(preset)
         return preset.name or ((preset.format or default_format) .. (preset.resize and " " .. preset.resize or ""))
       end,

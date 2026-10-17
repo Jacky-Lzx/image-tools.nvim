@@ -161,3 +161,11 @@ traffic do not establish the visible-pixel result; record that check separately.
 inline/reference/wikilinks, multiline LaTeX, Typst and HTML. It exercises live
 unsaved buffers, CRLF disk documents, stale snapshots, incomplete scans, exclusive
 destinations, injected mid-commit filesystem failure/rollback, and review cancellation.
+
+## File processing
+
+`tests/workflow/file_process.lua` uses real image conversions to verify dimensions,
+encoding, source preservation, original naming context, document-compatible output,
+existing-asset/reference reuse, menu cancellation, context capture, batch failure,
+limits and converter timeout/cancellation. With Snacks configured, picker tests
+select a WebP for a LaTeX document and verify the converted PNG and input filter.

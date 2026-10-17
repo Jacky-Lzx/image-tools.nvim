@@ -153,6 +153,7 @@ local function paste_selected(opts, callback, dependencies)
     local insertion = vim.tbl_extend("force", opts, {
       mode = "copy", -- Clipboard temporary resources must never be referenced.
       filename = filename,
+      process = false, -- Clipboard bytes have already passed the processing stage.
     })
     state.cancel_import = I.files({ path }, insertion, finish)
   end

@@ -174,6 +174,43 @@ check(
   "Picker references the existing asset"
 )
 check(#vim.fn.readdir(tmp .. "/Figures") == 1, "Picker creates no duplicate asset")
+-- Processing widens the input filter while publishing a compiler-compatible output.
+vim.fn.mkdir(tmp .. "/downloads", "p")
+check(vim.system({ "magick", source, tmp .. "/downloads/input.webp" }):wait().code == 0, "Prepare WebP input")
+local tex = vim.api.nvim_create_buf(true, false)
+vim.api.nvim_set_current_buf(tex)
+vim.api.nvim_buf_set_name(tex, tmp .. "/paper.tex")
+vim.bo[tex].filetype = "tex"
+done, err, paths = false, nil, nil
+picker = image.pick(
+  { insert = { process = { format = "png", resize = "40x40>" } }, picker = { cwd = tmp .. "/downloads" } },
+  function(e, p)
+    done, err, paths = true, e, p
+  end
+)
+check(
+  vim.tbl_contains(picker.opts.ft, "webp"),
+  "Processing accepts source formats outside the document's native formats"
+)
+check(
+  vim.wait(3000, function()
+    return not picker:is_active() and picker:current() ~= nil
+  end),
+  "Picker discovers the convertible input"
+)
+picker.opts.actions.confirm(picker)
+check(
+  vim.wait(5000, function()
+    return done
+  end),
+  "Picker processing completed"
+)
+check(not err and paths and vim.fs.basename(paths[1]) == "input.png", tostring(err))
+check(
+  vim.system({ "magick", "identify", "-format", "%m %wx%h", paths[1] }, { text = true }):wait().stdout == "PNG 40x25",
+  "Picker applies real processing"
+)
+vim.api.nvim_set_current_buf(buf)
 -- A slow conversion cancelled by moving to a different selection cannot draw late.
 package.loaded["image_tools.media"] = {
   supported = original.supported,
