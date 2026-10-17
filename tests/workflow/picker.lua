@@ -143,6 +143,37 @@ check(
 check(renderer.transfer:status().placements == 0, "Close releases picker placement in shared pool")
 check(not renderer.group, "Close removes lifecycle group")
 check(vim.api.nvim_buf_is_valid(buf), "Source buffer retained")
+-- Selecting an imported asset again must reference it without another copy.
+local imported = paths[1]
+done, err, paths = false, nil, nil
+picker = image.pick({ picker = { cwd = tmp .. "/Figures", ft = { "png" } } }, function(e, p)
+  done, err, paths = true, e, p
+end)
+check(
+  vim.wait(3000, function()
+    local item = picker:current()
+    local path = item and Snacks.picker.util.path(item)
+    local state = picker._image_tools_preview and picker._image_tools_preview.state
+    return not picker:is_active()
+      and path
+      and vim.uv.fs_realpath(path) == vim.uv.fs_realpath(imported)
+      and state
+      and state.id
+  end),
+  "Picker finds the already imported asset"
+)
+picker.opts.actions.confirm(picker)
+check(
+  vim.wait(3000, function()
+    return done
+  end),
+  "Existing asset confirmation finishes"
+)
+check(
+  not err and #paths == 1 and vim.uv.fs_realpath(paths[1]) == vim.uv.fs_realpath(imported),
+  "Picker references the existing asset"
+)
+check(#vim.fn.readdir(tmp .. "/Figures") == 1, "Picker creates no duplicate asset")
 -- A slow conversion cancelled by moving to a different selection cannot draw late.
 package.loaded["image_tools.media"] = {
   supported = original.supported,

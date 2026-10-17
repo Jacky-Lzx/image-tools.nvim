@@ -26,7 +26,7 @@
 ---@field directory? string|fun(document: string): string Import directory, relative to insertion root unless absolute.
 ---@field root? string|fun(document: string): string Asset copy base; separate from reference_root.
 ---@field reference_root? string|fun(document: string): string? Internal markup/project base supplied by Runtime root.
----@field mode? "copy"|"reference" File import policy; clipboard always forces copy.
+---@field mode? "copy"|"reference" File import policy; copy reuses sources already inside the import directory.
 ---@field deduplicate? boolean Reuse identical files of the same extension in the destination directory.
 ---@field filename? string Imported basename override; source extension is retained.
 ---@field alt? string Markdown/Typst image description.
@@ -317,7 +317,13 @@ function M.files(paths, opts, callback)
       fail("Image exceeds max_bytes: " .. source)
       return
     end
-    if opts.mode == "reference" then
+    -- Resolve aliases before checking containment; a sibling with the same prefix
+    -- is still an external import. Existing assets never become transaction-owned.
+    local source_path, directory_path = uv.fs_realpath(source), uv.fs_realpath(directory)
+    local already_imported = source_path
+      and directory_path
+      and vim.startswith(source_path, directory_path:gsub("/+$", "") .. "/")
+    if opts.mode == "reference" or already_imported then
       state.outputs[#state.outputs + 1] = source
       next_file()
       return

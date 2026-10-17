@@ -49,6 +49,76 @@ check(
   "Batch undo preserves previous edits"
 )
 check(vim.uv.fs_stat(outputs[1]) ~= nil, "Undo retains resource")
+-- Files already in the asset directory are references even in copy mode,
+-- without deduplication or a filename prompt/override.
+local asset = outputs[1]
+local before = vim.fn.readdir(tmp .. "/Figures")
+buf = buffer("existing-asset")
+local original_input = vim.ui.input
+vim.ui.input = function()
+  error("Existing assets must not prompt for a new filename")
+end
+err, outputs = run({ asset, asset }, {
+  mode = "copy",
+  deduplicate = false,
+  filename = "unwanted-copy",
+  prompt_for_file_name = true,
+})
+vim.ui.input = original_input
+check(not err and outputs[1] == asset and outputs[2] == asset, "Existing asset is reused for each selection")
+check(vim.deep_equal(vim.fn.readdir(tmp .. "/Figures"), before), "Existing assets create no copies or temporaries")
+check(require("image_tools.document").at_line(buf, 2, options) == asset, "Reused asset reference resolves")
+vim.cmd("undo")
+check(vim.uv.fs_stat(asset) ~= nil, "Undo preserves reused asset")
+
+local project = tmp .. "/project"
+local directory = project .. "/Images"
+vim.fn.mkdir(directory .. "/nested", "p")
+local nested = directory .. "/nested/fixture.png"
+assert(vim.uv.fs_copyfile(fixture, nested))
+buf = buffer("nested-asset")
+err, outputs = run({ I.relative(nested, vim.fn.getcwd()) }, {
+  root = function()
+    return project
+  end,
+  directory = function()
+    return "Images/"
+  end,
+})
+check(
+  not err and vim.uv.fs_realpath(outputs[1]) == vim.uv.fs_realpath(nested),
+  "Relative source in a configured asset subdirectory is reused"
+)
+check(require("image_tools.document").at_line(buf, 2, options) == outputs[1], "Nested asset reference resolves")
+check(not vim.uv.fs_stat(directory .. "/fixture.png"), "Nested asset is not copied into the directory root")
+
+local alias = project .. "/Images-alias"
+assert(vim.uv.fs_symlink(directory, alias))
+buffer("aliased-directory")
+err, outputs = run({ nested }, { directory = alias })
+check(
+  not err and vim.uv.fs_realpath(outputs[1]) == vim.uv.fs_realpath(nested),
+  "Symlinked asset directory recognizes the existing source"
+)
+buffer("aliased-source")
+err, outputs = run({ alias .. "/nested/fixture.png" }, { directory = directory })
+check(not err and vim.uv.fs_realpath(outputs[1]) == vim.uv.fs_realpath(nested), "Aliased source is also reused")
+
+vim.fn.mkdir(project .. "/Images-extra", "p")
+local external = project .. "/Images-extra/fixture.png"
+assert(vim.uv.fs_copyfile(fixture, external))
+buffer("directory-prefix")
+err, outputs = run({ external }, { directory = directory })
+check(
+  not err and vim.uv.fs_realpath(outputs[1]) == vim.uv.fs_realpath(directory .. "/fixture.png"),
+  "Similar directory prefix remains an external import"
+)
+buffer("existing-rollback")
+err = run({ nested, external, tmp .. "/missing.png" }, { directory = directory })
+check(err and vim.uv.fs_stat(nested), "Failed batch preserves reused source")
+check(not vim.uv.fs_stat(directory .. "/fixture-1.png"), "Failed batch removes its new copy")
+check(vim.uv.fs_stat(external) ~= nil, "Failed batch preserves external source")
+
 for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before", "insert_line_after" }) do
   buf = buffer(strategy, "你尾")
   err = run({ fixture }, { mode = "reference", insert_strategy = strategy })

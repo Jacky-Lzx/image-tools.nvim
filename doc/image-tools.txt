@@ -179,7 +179,10 @@ INSERTION                                                 *image-tools-insert*
 :ImageInsert [path]                                          *:ImageInsert*
 Copies a file into insert.directory (default Figures beside the saved document)
 and adds a relative reference. :ImageInsert! references it without
-copying. insert(path_or_paths, opts, callback) returns a cancel function. opts:
+copying. Files already inside the configured image directory or its subdirectories
+are referenced directly, including picker selections in copy mode. They keep their
+filenames and skip filename prompts, regardless of the deduplicate setting.
+insert(path_or_paths, opts, callback) returns a cancel function. opts:
 directory, root, mode (copy/reference), filename, alt, prompt_for_file_name and
 insert_strategy (insert_before/insert_after/insert_line_before/insert_line_after).
 The source buffer and extmark insertion position survive asynchronous prompts.

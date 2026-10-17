@@ -219,6 +219,10 @@ File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies
 image into `Figures/` beside the saved document, then inserts a relative Markdown
 link. With no path it prompts for a file. `:ImageInsert! [path]` references the
 source without copying. `insert(path_or_paths, opts, callback)` also accepts a batch.
+Files already inside the configured image directory or its subdirectories are
+referenced directly, including picker selections in copy mode. They keep their
+existing filenames and skip the filename prompt; no copy or deduplication option
+is needed.
 
 `insert = { directory = "Figures", mode = "copy", insert_strategy = "insert_line_after",
 prompt_for_file_name = false }` configures insertion. `directory` and `root` may
