@@ -128,6 +128,7 @@ function M.resolve(opts)
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
   assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
+  require("image_tools.workflow.template").validate(options.insert.template)
   for _, name in ipairs({ "max_entries", "max_document_bytes" }) do
     assert(
       type(options.assets[name]) == "number" and options.assets[name] >= 1 and options.assets[name] % 1 == 0,

@@ -197,6 +197,16 @@ inside LaTeX's caption, or after the reference in Typst. If another window or
 document is current when asynchronous insertion finishes, its focus, cursor and
 mode are preserved.
 
+Custom templates:
+insert.template (or per-call template) accepts a string, function or filetype
+table; missing entries use built-ins, and tex entries cover latex/plaintex.
+template=false selects the built-in. String placeholders: $FILE_PATH, $FILE_NAME,
+$FILE_NAME_NO_EXT, $LABEL, $ALT, $CURSOR. At most one $CURSOR is allowed; absent
+means edit after the template. Multiline Lua padding is trimmed. Functions get
+file_path, file_name, file_name_no_ext, label, alt, filetype, document and cursor;
+return a string with ctx.cursor at the editing target. Values are literal/raw;
+escape paths/alt for your target syntax. Errors roll back imported files.
+
 :ImagePaste                                                  *:ImagePaste*
 Reads the macOS clipboard with pngpaste (brew install pngpaste).
 paste(opts, callback) accepts the insertion options plus format (png/jpg/webp/avif)

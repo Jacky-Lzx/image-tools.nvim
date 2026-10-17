@@ -251,6 +251,36 @@ immediately after the first image reference.
 If you switch windows or documents before an asynchronous import finishes, it
 keeps your current focus, cursor and mode.
 
+### Custom insertion templates
+
+Set `insert.template` globally or pass `template` to `insert`, `paste`, or
+`pick({ insert = ... })`. It accepts a string, a function, or a filetype table.
+Missing entries use the built-in template; `tex` entries also cover `latex` and
+`plaintex`. Set a per-call `template = false` to use the built-in template.
+
+```lua
+require("image_tools").setup({ insert = { template = {
+  tex = [[
+    \begin{figure}[H]
+      \centering
+      \includegraphics[width=0.6\linewidth]{$FILE_PATH}
+      \caption{$CURSOR}
+      \label{custom:$LABEL}
+    \end{figure}
+  ]],
+} } })
+```
+
+String placeholders are `$FILE_PATH`, `$FILE_NAME`, `$FILE_NAME_NO_EXT`, `$LABEL`,
+`$ALT`, and `$CURSOR`. A single cursor placeholder is allowed; without one, editing
+starts after the template. Lua long-string padding is removed. Replacement values
+are literal, so `%` and placeholder-like filenames are preserved. Functions receive
+`file_path`, `file_name`, `file_name_no_ext`, `label`, `alt`, `filetype`, `document`,
+and `cursor`; return a string using `ctx.cursor` at the editing target. Paths and
+alt text in custom templates are raw values: escape them for the syntax you emit.
+Built-in source-format/path validation and transactional rollback still apply.
+Reference previews follow the syntax recognized by the document adapter.
+
 ## Development
 
 For hands-on testing, open the [manual test gallery](examples/README.md). It

@@ -16,6 +16,7 @@ for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before
 end
 cases[#cases + 1] = { alt = "原有]描述", start_insert = true }
 cases[#cases + 1] = { paste = true }
+cases[#cases + 1] = { template = "Image: $FILE_PATH\nCaption: $CURSOR\nEnd" }
 for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst" }) do
   for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before", "insert_line_after" }) do
     cases[#cases + 1] = { filetype = filetype, strategy = strategy }
@@ -57,7 +58,7 @@ next_case = guarded(function()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "你尾" })
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   local strategy = case.strategy or "insert_line_after"
-  local opts = { mode = "reference", insert_strategy = strategy, alt = case.alt }
+  local opts = { mode = "reference", insert_strategy = strategy, alt = case.alt, template = case.template }
   local extension = ft == "markdown" and "avif" or "png"
   local paste_path = "paste-" .. index .. "/image." .. extension
   local snippet = I.markup(case.paste and paste_path or I.relative(fixture, tmp), case.alt, ft)
@@ -67,6 +68,9 @@ next_case = guarded(function()
   local tex = ft == "tex" or ft == "latex" or ft == "plaintex"
   if tex then
     row, col = row + 3, #"  \\caption{"
+  end
+  if case.template then
+    row, col = row + 1, #"Caption: "
   end
   local other_win
   local function execute()

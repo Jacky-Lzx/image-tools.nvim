@@ -30,6 +30,7 @@
 ---@field deduplicate? boolean Reuse identical files of the same extension in the destination directory.
 ---@field filename? string Imported basename override; source extension is retained.
 ---@field alt? string Markdown/Typst image description.
+---@field template? string|function|table|false Markup override, optionally indexed by filetype; false uses the adapter default.
 ---@field prompt_for_file_name? boolean Prompt for each imported basename.
 ---@field insert_strategy? string Text placement strategy; default insert_line_after.
 ---@field context? ImageToolsInsertContext Captured transaction context reused by prompt/clipboard/picker.
@@ -56,6 +57,21 @@ local COPYFILE_EXCL = 1 -- libuv: refuse to overwrite an existing temporary file
 local ns = vim.api.nvim_create_namespace("image_tools.insert")
 local sequence = 0
 local strategies = { "insert_after", "insert_before", "insert_line_after", "insert_line_before" }
+
+local function markup(format, path, alt, filetype, opts, document)
+  local text, offset = format.markup(path, alt)
+  local name = vim.fs.basename(path)
+  local stem = vim.fn.fnamemodify(name, ":r")
+  return require("image_tools.workflow.template").render(opts and opts.template, {
+    file_path = path,
+    file_name = name,
+    file_name_no_ext = stem,
+    label = stem:lower():gsub("%s+", "-"),
+    alt = alt or "",
+    filetype = filetype,
+    document = document,
+  }, text, offset)
+end
 
 -- Normalize a resource path relative to the current working directory.
 ---@param path string Resource/import path.
@@ -124,6 +140,7 @@ M.relative = require("image_tools.document.paths").relative
 
 -- Ask the document adapter whether a filename is allowed for insertion.
 ---@param filetype string Target document filetype.
+---@param opts? ImageToolsInsertOptions Optional template override.
 ---@param path string Source filename.
 ---@return boolean supported
 function M.supported(filetype, path)
@@ -137,9 +154,9 @@ end
 ---@param filetype string Target document filetype.
 ---@return string markup Unsupported formats/unsafe paths raise an error.
 ---@return integer? edit_offset Zero-based byte offset for editing, including newlines; defaults to the end.
-function M.markup(path, alt, filetype)
+function M.markup(path, alt, filetype, opts)
   local format = assert(require("image_tools.document").adapter(filetype), "Unsupported image insertion filetype")
-  return format.markup(path, alt)
+  return markup(format, path, alt, filetype, opts)
 end
 
 -- One text edit gives a batch one undo entry. Never redirect an asynchronous
@@ -296,7 +313,8 @@ function M.files(paths, opts, callback)
           if format.validate_reference then
             format.validate_reference(path, context.document, { root = opts.reference_root }, context.buf)
           end
-          local snippet, offset = format.markup(M.relative(path, base), opts.alt)
+          local snippet, offset =
+            markup(format, M.relative(path, base), opts.alt, context.filetype, opts, context.document)
           if #snippets == 0 then
             edit_offset = offset or #snippet
           end
