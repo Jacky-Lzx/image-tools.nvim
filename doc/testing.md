@@ -34,6 +34,11 @@ Media tools and compilers come from Homebrew on the hosted macOS runner, whose
 image and package revisions can change. CI saves their actual versions and the
 suite output as job artifacts; this is a pinned plugin/parser/toolchain baseline,
 not a hermetic operating-system image. Native clipboard tests remain manual.
+The BasicTeX installation updates `tlmgr` itself before installing TeX packages;
+CTAN can require a newer package manager than the one bundled with the installer.
+Mocked formula-worker tests provide their own executable discovery and process
+results, so the basic suite does not require `latex` or `dvipng`. Real formula
+compilation remains optional locally and required by integration preflight.
 Hosted CI uses a simulated Kitty responder; it cannot establish visible rendering
 in a real Kitty window. A newly added workflow is unverified on GitHub until an
 actual run completes after pushing.

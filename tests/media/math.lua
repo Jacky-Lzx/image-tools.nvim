@@ -47,6 +47,13 @@ check(error_message:find("requires /missing-image-tools-latex", 1, true), "Missi
 close()
 -- Deterministic worker tests use real PNG validation with controlled process exits.
 local real_run, runs, jobs, workspaces = queue.run, 0, {}, {}
+local real_executable = vim.fn.executable
+vim.fn.executable = function(name)
+  if name == opts.math.latex or name == opts.math.dvipng then
+    return 1
+  end
+  return real_executable(name)
+end
 queue.run = function(command, options, callback)
   runs = runs + 1
   workspaces[#workspaces + 1] = options.cwd
@@ -119,6 +126,7 @@ check(jobs[3].cancelled and not vim.uv.fs_stat(workspaces[3]), "Last cancellatio
 jobs[3].callback({ code = 1, stderr = "cancelled", timing = { queued = stamp, started = stamp, finished = stamp } })
 check(not cancelled_delivery and prepare.status().pending_jobs == 0, "Late process exit cannot deliver")
 queue.run = real_run
+vim.fn.executable = real_executable
 -- Exercise the actual installed TeX toolchain when available.
 if vim.fn.executable(opts.math.latex) == 1 and vim.fn.executable(opts.math.dvipng) == 1 then
   local samples = {}
