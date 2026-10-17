@@ -49,8 +49,12 @@ SETUP                                                      *image-tools-setup*
 <
 Merely requiring the module does not register handlers or mappings.
 Disable Snacks.image to avoid competing image handlers and mappings.
-Load with lazy=false to register file-buffer handlers before startup files are
-read. The default cache is stdpath("cache") .. "/image-tools".
+For lazy.nvim, use the README spec with ft, cmd and BufReadCmd patterns. This
+also handles startup image/PDF files; include custom adapter filetypes and
+buffer.formats in those triggers. lazy=false is still supported. Setup keeps
+file interception ready but defers floating-preview and terminal-pixel services
+until the first view. Supplied insertion options are validated during setup.
+The default cache is stdpath("cache") .. "/image-tools".
 position = "bottom_right" anchors the float to the editor's bottom-right corner,
 above the command line and status line. "cursor" places it near the cursor.
 

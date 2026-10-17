@@ -86,6 +86,7 @@ local dependencies = {
 }
 local a = Runtime.new(config.resolve({ root = "/private/tmp/first", auto_preview_delay = 0 }), dependencies)
 local b = Runtime.new(config.resolve({ root = "/private/tmp/second", auto_preview_delay = 0 }), dependencies)
+eq(#previews, 0, "Constructing runtimes defers floating controllers")
 eq(vim.fn.exists("#image_tools"), 0, "Constructing runtimes installs no handlers")
 eq(vim.fn.exists(":ImagePreview"), 0, "Constructing runtimes installs no commands")
 eq({ buffers[1].setups, buffers[2].setups }, { 0, 0 }, "Buffer setup waits for start")
@@ -160,14 +161,14 @@ eq({ current_preview.destroys, current_buffer.destroys }, { 0, 0 }, "Invalid set
 eq(#vim.api.nvim_get_autocmds({ group = "image_tools" }), current_handlers, "Invalid setup retains handlers")
 api.preview("/private/tmp/still-active.png")
 eq(current_preview.path, "/private/tmp/still-active.png", "Old API stays usable after invalid setup")
-package.loaded["image_tools.render.preview"] = {
+package.loaded["image_tools.render.buffer"] = {
   new = function()
     error("constructor failed")
   end,
 }
 eq(pcall(api.setup, {}), false, "Constructor failure is propagated")
 eq({ current_preview.destroys, current_buffer.destroys }, { 0, 0 }, "Constructor failure retains old instance")
-package.loaded["image_tools.render.preview"] = dependencies.preview
+package.loaded["image_tools.render.buffer"] = dependencies.buffer
 api.setup({ auto_preview = false })
 eq({ current_preview.destroys, current_buffer.destroys }, { 1, 1 }, "Valid setup replaces resources exactly once")
 eq(api.status().transport, "auto", "Replacement uses new normalized config")

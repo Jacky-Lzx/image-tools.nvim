@@ -100,6 +100,8 @@ without a compatibility alias. Injected media overrides still use the logical
 tests/
   run.sh                     explicit suite list, isolation and status logs
   core/
+    startup.lua              deferred services, file-first rendering and shared pixels
+    lazy.lua                 optional real lazy.nvim loading of the README spec
     regression.lua           combined API/protocol/preview regressions
     runtime.lua              setup, dependency injection and teardown
     health.lua               diagnostics and cache inspection

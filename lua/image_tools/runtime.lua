@@ -55,7 +55,7 @@ local dependency_modules = {
 ---@field options ImageToolsOptions Resolved configuration owned by this instance.
 ---@field dependencies table<string, table> Logical overrides plus the instance's shared pixel_pool.
 ---@field disposed boolean Guard that disables callbacks before teardown.
----@field preview ImageToolsPreview Floating-preview controller.
+---@field preview? ImageToolsPreview Created on the first accepted floating preview.
 ---@field buffers ImageToolsBuffers File-buffer controller.
 ---@field renderers table<table, boolean> Weak-key set of tracked picker renderers.
 ---@field group? integer Runtime autocmd group installed at start.
@@ -66,7 +66,7 @@ local dependency_modules = {
 local Runtime = {}
 Runtime.__index = Runtime
 
--- Compose services and a shared pixel pool without installing editor handlers.
+-- Keep file interception ready, deferring floating previews and pixels until needed.
 ---@param options ImageToolsOptions Resolved independent options.
 ---@param dependencies? table<string, table> Logical service overrides for controlled construction.
 ---@return ImageToolsRuntime runtime
@@ -77,10 +77,38 @@ function Runtime.new(options, dependencies)
     disposed = false,
     renderers = setmetatable({}, { __mode = "k" }),
   }, Runtime)
-  self.dependencies.pixel_pool = require("image_tools.terminal.pixel_pool").new(options, self.dependencies)
-  self.preview = self:dependency("preview").new(options, self.dependencies)
+  -- All render controllers share this table. Resolve the pool only when a view
+  -- first asks for it, and cache it so later views retain shared ownership.
+  setmetatable(self.dependencies, {
+    __index = function(deps, name)
+      if name == "pixel_pool" then
+        local pool = require("image_tools.terminal.pixel_pool").new(options, deps)
+        rawset(deps, name, pool)
+        return pool
+      end
+    end,
+  })
   self.buffers = self:dependency("buffer").new(options, self.dependencies)
   return self
+end
+
+-- Construct the floating controller only for an actual preview request.
+---@return ImageToolsPreview preview
+function Runtime:ensure_preview()
+  if not self.preview then
+    self.preview = self:dependency("preview").new(self.options, self.dependencies)
+  end
+  return self.preview
+end
+
+-- Inspect existing pixels without constructing an unused pool or preview.
+---@return ImageToolsTerminalStatus? status Absent until a render service exists.
+function Runtime:terminal_status()
+  local pool = rawget(self.dependencies, "pixel_pool")
+  if pool then
+    return pool:status()
+  end
+  return self.preview and self.preview.transfer:status() or nil
 end
 
 -- Resolve an injected logical dependency first, then load the default subsystem module.
@@ -212,7 +240,10 @@ function Runtime:clear_cache()
   if self.preview then
     self.preview:destroy()
   end
-  self.dependencies.pixel_pool:clear()
+  local pool = rawget(self.dependencies, "pixel_pool")
+  if pool then
+    pool:clear()
+  end
 end
 
 -- Schedule an independent unused-disk-file cleanup.
@@ -237,8 +268,8 @@ function Runtime:open_preview(path, opts)
   end
   local stat = vim.uv.fs_stat(path)
   local version = stat and require("image_tools.media.file_version").key(path, stat)
-  local ok, err = self.preview:open(path, opts)
-  if self.preview.state then
+  local ok, err = self:ensure_preview():open(path, opts)
+  if self.preview and self.preview.state then
     self.preview.state.source_version = version
   end
   return ok, err
@@ -384,7 +415,7 @@ function Runtime:reload()
   if self.buffers:status() then
     return self.buffers:reload(vim.api.nvim_get_current_buf())
   end
-  local state = self.preview.state
+  local state = self.preview and self.preview.state
   if state and on_current_line(state) then
     return self:open_preview(state.path, {
       silent = state.automatic,
@@ -398,7 +429,7 @@ end
 
 -- Recheck external changes on idle/focus events, outside the cursor-movement hot path.
 function Runtime:refresh_source()
-  local state = self.preview.state
+  local state = self.preview and self.preview.state
   if not state or not on_current_line(state) then
     return
   end
@@ -447,7 +478,9 @@ function Runtime:hover(opts)
   if status == "pending" then
     self:cancel_auto_preview()
     self.pending_reference = request
-    self.preview:close()
+    if self.preview then
+      self.preview:close()
+    end
     return false, err
   end
   if not path then
@@ -457,7 +490,7 @@ function Runtime:hover(opts)
     end
     return false, err
   end
-  if on_current_line(self.preview.state) and self.preview.state.path == path then
+  if self.preview and on_current_line(self.preview.state) and self.preview.state.path == path then
     -- A text edit elsewhere on the same line must not invalidate a pending
     -- conversion when the resolved image source is unchanged.
     self.preview.state.changedtick = vim.api.nvim_buf_get_changedtick(0)
@@ -473,7 +506,9 @@ function Runtime:hover(opts)
       return true
     end
     self:cancel_auto_preview()
-    self.preview:close()
+    if self.preview then
+      self.preview:close()
+    end
     request.path = path
     local delayed_at = vim.uv.hrtime()
     self.delayed_reference = request
@@ -539,11 +574,11 @@ end
 -- Describe the active viewer without starting media work or populating caches.
 function Runtime:info()
   local buffer = self.buffers:status()
-  local state = self.preview.state
+  local state = self.preview and self.preview.state
   local view = buffer and buffer.views[vim.api.nvim_get_current_win()]
   local path = buffer and buffer.path or state and on_current_line(state) and state.path
   if not path then
-    local failure = self.preview.last_error
+    local failure = self.preview and self.preview.last_error
     if failure then
       local failed_stat = vim.uv.fs_stat(failure.path)
       return vim.tbl_extend("force", failure, {
@@ -552,7 +587,7 @@ function Runtime:info()
         stage = "failed",
         ready = false,
         last_error = true,
-        terminal_cache = self.preview.transfer:status(),
+        terminal_cache = self:terminal_status(),
         disk_cache = self.options.cache,
       })
     end
@@ -578,7 +613,7 @@ function Runtime:info()
     timings = buffer and view and view.timings
       or not buffer and state and state.render and state.render:timings()
       or nil,
-    terminal_cache = self.preview.transfer:status(),
+    terminal_cache = self:terminal_status(),
     disk_cache = self.options.cache,
   }
 end
@@ -613,7 +648,7 @@ function Runtime:status()
       require("image_tools.document.treesitter").status(),
       { enabled = self.options.treesitter }
     ),
-    terminal_cache = self.preview and self.preview.transfer:status() or nil,
+    terminal_cache = self:terminal_status(),
   }
 end
 
@@ -630,7 +665,7 @@ function Runtime:refresh()
     end
     self:close()
   end
-  local state = self.preview.state
+  local state = self.preview and self.preview.state
   if state and not on_current_line(state) then
     self:close()
     state = nil
@@ -649,8 +684,11 @@ function Runtime:refresh()
     end
     self:close()
   end
-  if self.options.auto_preview and self:dependency("document").supported(vim.bo.filetype) then
-    self:hover({ silent = true, automatic = true })
+  if self.options.auto_preview then
+    local document = self.dependencies.document or require("image_tools.document.formats")
+    if document.supported(vim.bo.filetype) then
+      self:hover({ silent = true, automatic = true })
+    end
   end
 end
 
@@ -722,7 +760,7 @@ function Runtime:start()
 
   self:autocmd({ "WinResized", "WinScrolled" }, {
     callback = function()
-      if self.preview.state then
+      if self.preview and self.preview.state then
         for _, win in ipairs(vim.v.event.windows or {}) do
           if win == self.preview.state.owner_win then
             self:close()
@@ -737,7 +775,8 @@ function Runtime:start()
   self:autocmd("WinClosed", {
     callback = function(event)
       if
-        self.preview.state
+        self.preview
+        and self.preview.state
         and (tonumber(event.match) == self.preview.state.win or tonumber(event.match) == self.preview.state.owner_win)
       then
         self:close()
@@ -747,7 +786,11 @@ function Runtime:start()
 
   self:autocmd({ "BufDelete", "BufWipeout" }, {
     callback = function(event)
-      if self.preview.state and (event.buf == self.preview.state.owner_buf or event.buf == self.preview.state.buf) then
+      if
+        self.preview
+        and self.preview.state
+        and (event.buf == self.preview.state.owner_buf or event.buf == self.preview.state.buf)
+      then
         self:close()
       end
     end,

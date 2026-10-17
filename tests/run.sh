@@ -70,6 +70,12 @@ run_test() {
 }
 
 # 1. Core API, preview lifecycle and diagnostics.
+run_test core/startup.lua # setup and cleanup retain deferred services
+if [ -n "${IMAGE_TOOLS_LAZY_ROOT:-}" ]; then
+  run_test core/lazy.lua
+else
+  log skip 'lazy.nvim loading: set IMAGE_TOOLS_LAZY_ROOT to a lazy.nvim checkout'
+fi
 run_test core/regression.lua # general regressions
 run_test core/runtime.lua
 run_test core/line_lifecycle.lua # reference entry/exit, edits and async cancellation

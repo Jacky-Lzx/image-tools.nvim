@@ -23,14 +23,42 @@ Preview windows use Unicode placeholders so Neovim controls clipping and overlap
 ## Local installation
 
 ```lua
-{
+local patterns = {}
+for _, ext in ipairs({ "png", "jpg", "jpeg", "webp", "avif", "heic", "gif", "bmp", "tif", "tiff", "pdf" }) do
+  patterns[#patterns + 1] = "*." .. ext:gsub("%a", function(c)
+    return "[" .. c .. c:upper() .. "]"
+  end)
+end
+
+return {
   dir = vim.fn.expand("~/Documents/Github/nvim_plugins/image-tools.nvim"),
   name = "image-tools.nvim",
-  lazy = false, -- install file buffer handlers before startup files are read
+  lazy = true,
+  ft = { "markdown", "tex", "latex", "plaintex", "typst", "html" },
+  event = { { event = "BufReadCmd", pattern = patterns } },
+  cmd = {
+    "ImagePreview", "ImagePreviewClose", "ImagePreviewToggle", "ImagePreviewClearCache",
+    "ImageCacheClear", "ImageInfo", "ImageCheckAssets", "ImageInsert", "ImagePaste", "ImagePick",
+    "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan",
+  },
   opts = { auto_preview = true, max_width = 60, max_height = 30 },
   config = function(_, opts) require("image_tools").setup(opts) end,
 }
 ```
+
+This is a lazy.nvim spec file. Empty sessions and unrelated filetypes leave the
+plugin unloaded. Document filetypes enable automatic previews; commands and Lua
+`require("image_tools")` calls load it on demand. The `BufReadCmd` trigger handles
+image/PDF files, including startup arguments and uppercase extensions, before
+Neovim reads their binary content. Keep its patterns in sync with custom
+`buffer.formats`; add custom adapter filetypes to `ft`. Key mappings may also use
+lazy.nvim's `keys` field with callbacks that require the API when invoked.
+
+`lazy = false` remains supported. Setup installs commands and file interception,
+while floating-preview and terminal-pixel services wait until the first view.
+Default insertion helpers and document adapters also load only when needed;
+custom insertion options are still validated during setup. The first view pays
+the deferred module-loading cost. See [startup measurements](doc/performance.md).
 
 Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.image` mappings.
 
@@ -389,6 +417,7 @@ are required for the suite. Optional coverage is enabled as follows:
 - `IMAGE_TOOLS_PARSER_ROOT`: runtime directory containing both `parser/latex.*`
   and `parser/typst.*`; enables real-parser suites and additional lifecycle cases.
 - `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables picker integration checks.
+- `IMAGE_TOOLS_LAZY_ROOT`: lazy.nvim checkout; tests the installation spec's loading triggers.
 - `pdflatex` / `typst`: enable real compilation in the corresponding document tests.
   `pdfimages`, when available, additionally checks embedded image dimensions.
 - `latex` / `dvipng`: enable real formula compilation and file/direct TUI formula

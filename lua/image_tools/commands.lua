@@ -84,7 +84,7 @@ function M.register(runtime)
     if info.zoom then
       lines[#lines + 1] = "Zoom: " .. tostring(info.zoom)
     end
-    local cache = info.terminal_cache
+    local cache = info.terminal_cache or { images = 0, hits = 0, uploads = 0 }
     lines[#lines + 1] =
       string.format("Terminal cache: %d image(s), %d hit(s), %d upload(s)", cache.images, cache.hits, cache.uploads)
     lines[#lines + 1] = "Disk cache: " .. info.disk_cache

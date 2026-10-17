@@ -128,9 +128,15 @@ function M.resolve(opts)
   end
   assert(options.cell_size.width > 0 and options.cell_size.height > 0, "cell_size must be positive")
   assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
-  require("image_tools.workflow.template").validate(options.insert.template)
-  require("image_tools.workflow.process").validate(options.insert.process)
-  require("image_tools.workflow.naming").validate(options.insert.file_name)
+  if options.insert.template ~= nil then
+    require("image_tools.workflow.template").validate(options.insert.template)
+  end
+  if options.insert.process ~= nil then
+    require("image_tools.workflow.process").validate(options.insert.process)
+  end
+  if options.insert.file_name ~= nil then
+    require("image_tools.workflow.naming").validate(options.insert.file_name)
+  end
   require("image_tools.workflow.clipboard_backend").validate(options.insert)
   for _, name in ipairs({ "max_entries", "max_document_bytes" }) do
     assert(
@@ -173,7 +179,7 @@ function M.resolve(opts)
     assert(
       type(extension) == "string"
         and extension:match("^%a+$")
-        and require("image_tools.media").supported("file." .. extension),
+        and require("image_tools.media.formats").supported("file." .. extension),
       "Unsupported buffer format"
     )
   end

@@ -9,6 +9,24 @@ replacement starts. Invalid configuration or constructor failure leaves the
 active instance intact. `setup()` destroys the previous instance, starts the
 replacement, and cleans up a failed start so setup can be retried.
 
+Construction creates the file-buffer service so `BufReadCmd` interception is
+ready immediately. The floating controller is created only when a preview is
+requested. A lazy `pixel_pool` dependency creates one shared pool on the first
+file canvas, float or picker view, then caches it for subsequent views. Closing,
+clearing, diagnostics and teardown inspect only existing render resources.
+`status().terminal_cache` is absent until a pool or injected preview transfer
+exists. File-only `info()` reads the pool directly without constructing a float.
+Errors from deferred render constructors occur on first use rather than setup;
+configuration and file-buffer constructor validation still precede replacement.
+Default insertion settings skip unused helper modules; supplied settings retain
+their eager validation. Unsupported filetypes consult only the adapter registry
+instead of loading document lookup/path services during scheduled refreshes.
+
+The README lazy.nvim spec combines `ft`, `cmd` and `BufReadCmd` patterns. The
+binary-file event lets lazy.nvim load setup and replay the read event into the
+new file-buffer handlers, including for startup files. Custom adapter filetypes
+and buffer extensions need matching lazy.nvim triggers.
+
 `runtime.lua` owns the configuration, floating preview, file-buffer service,
 picker renderers, autocmd group, and commands. Its methods use instance fields;
 callbacks capture their runtime instead of consulting mutable module state.

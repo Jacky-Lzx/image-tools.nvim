@@ -1,5 +1,31 @@
 # Preview performance
 
+## Startup and lazy loading
+
+The README lazy.nvim spec leaves the plugin unloaded in empty sessions and
+unrelated filetypes. Filetype, command, Lua API and binary `BufReadCmd` triggers
+activate it when needed. Setup itself keeps file interception ready, deferring
+floating previews, terminal pixels and default insertion helpers. Supplied
+insertion options are validated immediately, so their validation helpers can
+still load during setup. The first view pays its deferred loading cost.
+
+Run `nvim --headless -u NONE -i NONE --noplugin -l tests/bench/startup.lua`
+from the repository. It measures API require, setup, and the first scheduled
+refresh in 30 fresh Neovim processes, with synchronous and post-refresh module
+counts. Set `IMAGE_TOOLS_BENCH_RUNS` to change the sample count, or
+`IMAGE_TOOLS_STARTUP_BASELINE` to a checkout/snapshot directory with `lua/`
+to compare versions. Use the same machine and Neovim build for comparisons.
+
+In one local Neovim 0.12.6 run with default options, median require + setup
+decreased from 3.71 ms to 2.48 ms (about 33%). Synchronous module count decreased
+from 19 to 9, and post-refresh count from 22 to 10. Setup alone decreased from
+3.29 ms to 2.11 ms. These timings exclude Neovim process startup, lazy.nvim's
+own overhead, first media preparation, terminal I/O and visible rendering.
+They measure fresh processes with normal filesystem caches, not cold storage.
+There are no machine-dependent timing thresholds in the tests.
+
+## Reference lookup
+
 Typst checks the current line for a possible image call before inspecting prefix
 context. LaTeX searches a bounded neighborhood for a complete reference covering
 the current row, so commented option rows can trigger a multiline preview.

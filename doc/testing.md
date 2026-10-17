@@ -6,6 +6,17 @@ runner stops on the first failure and preserves its exit status. See README for
 the optional dependency switches and the distinction between recognition,
 window lifecycle, protocol responses and visible pixels.
 
+`tests/core/startup.lua` checks that setup, refresh, diagnostics, cleanup and
+reconfiguration retain deferred modules, and that file canvases and floats
+share the first lazily created pixel pool. Set `IMAGE_TOOLS_LAZY_ROOT` to an
+installed lazy.nvim checkout to run `tests/core/lazy.lua`. It executes the README
+spec in isolated child processes and checks empty/unrelated buffers, document
+filetypes, command/API loading, uppercase image/PDF reads, and actual startup
+file arguments. No plugin installation or user-config writes are needed.
+Startup timings are available through `tests/bench/startup.lua`; see
+[performance](performance.md). A passing loading test does not establish visible
+terminal rendering.
+
 `tests/workflow/insert_mode.lua` runs through Neovim's main event loop so it can
 verify actual Insert mode and queued typing after file insertion and simulated
 clipboard paste. It covers all placement strategies, UTF-8 prefixes, existing
