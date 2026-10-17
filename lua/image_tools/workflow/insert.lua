@@ -136,7 +136,7 @@ end
 ---@param alt? string Image description.
 ---@param filetype string Target document filetype.
 ---@return string markup Unsupported formats/unsafe paths raise an error.
----@return integer? edit_col Zero-based byte offset for editing; defaults to the end of the reference.
+---@return integer? edit_offset Zero-based byte offset for editing, including newlines; defaults to the end.
 function M.markup(path, alt, filetype)
   local format = assert(require("image_tools.document").adapter(filetype), "Unsupported image insertion filetype")
   return format.markup(path, alt)
@@ -147,9 +147,9 @@ end
 -- Validate captured authority and insert the ordered batch in its own undo block as one text edit.
 ---@param context ImageToolsInsertContext Origin identity, mark and strategy.
 ---@param snippets string[] Already validated adapter markup.
----@param edit_col integer Zero-based byte offset within the first snippet.
+---@param edit_offset integer Zero-based byte offset within the first snippet, including newlines.
 ---@return nil
-local function insert(context, snippets, edit_col)
+local function insert(context, snippets, edit_offset)
   assert(valid(context), "Source buffer was closed, renamed, changed filetype or made read-only")
   local pos = vim.api.nvim_buf_get_extmark_by_id(context.buf, ns, context.mark, {})
   assert(#pos == 2, "Insertion position was removed")
@@ -158,19 +158,23 @@ local function insert(context, snippets, edit_col)
   vim.api.nvim_buf_call(context.buf, function()
     vim.cmd("let &g:undolevels = &g:undolevels")
   end)
-  if context.strategy == "insert_line_before" or context.strategy == "insert_line_after" then
+  local linewise = context.strategy == "insert_line_before" or context.strategy == "insert_line_after"
+  local lines = vim.split(table.concat(snippets, linewise and "\n" or " "), "\n", { plain = true })
+  if linewise then
     col = 0
     if context.strategy == "insert_line_after" then
       row = row + 1
     end
-    vim.api.nvim_buf_set_lines(context.buf, row, row, false, snippets)
+    vim.api.nvim_buf_set_lines(context.buf, row, row, false, lines)
   else
-    vim.api.nvim_buf_set_text(context.buf, row, col, row, col, { table.concat(snippets, " ") })
+    vim.api.nvim_buf_set_text(context.buf, row, col, row, col, lines)
   end
   -- An asynchronous import may finish after the user has moved to another
   -- window/document. Keep its text edit, but do not redirect their typing.
   if vim.api.nvim_get_current_win() == context.win and vim.api.nvim_get_current_buf() == context.buf then
-    col = col + edit_col
+    local prefix = vim.split(snippets[1]:sub(1, edit_offset), "\n", { plain = true })
+    row = row + #prefix - 1
+    col = (#prefix == 1 and col or 0) + #prefix[#prefix]
     local line = vim.api.nvim_buf_get_lines(context.buf, row, row + 1, false)[1]
     vim.api.nvim_win_set_cursor(context.win, { row + 1, col })
     vim.cmd(col == #line and "startinsert!" or "startinsert")
@@ -287,18 +291,18 @@ function M.files(paths, opts, callback)
     if index > #paths then
       local snippets = {}
       local success, message = pcall(function()
-        local edit_col
+        local edit_offset
         for _, path in ipairs(state.outputs) do
           if format.validate_reference then
             format.validate_reference(path, context.document, { root = opts.reference_root }, context.buf)
           end
           local snippet, offset = format.markup(M.relative(path, base), opts.alt)
           if #snippets == 0 then
-            edit_col = offset or #snippet
+            edit_offset = offset or #snippet
           end
           snippets[#snippets + 1] = snippet
         end
-        insert(context, snippets, edit_col)
+        insert(context, snippets, edit_offset)
       end)
       finish(not success and tostring(message) or nil)
       return

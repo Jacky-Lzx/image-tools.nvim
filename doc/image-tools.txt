@@ -190,8 +190,9 @@ changing its filetype, or disabling modifiable invalidates a pending import;
 readonly alone does not block insertion. File imports preserve bytes and format.
 Successful insertion, paste and picker confirmation enter Insert mode at the first
 inserted image: inside Markdown's ![|](path) description (before existing alt text),
-or after the reference in LaTeX/Typst. If another window or document is current
-when asynchronous insertion finishes, its focus, cursor and mode are preserved.
+inside LaTeX's caption, or after the reference in Typst. If another window or
+document is current when asynchronous insertion finishes, its focus, cursor and
+mode are preserved.
 
 :ImagePaste                                                  *:ImagePaste*
 Reads the macOS clipboard with pngpaste (brew install pngpaste).
@@ -258,7 +259,18 @@ lookahead also respects max_scan_lines. Both Tree-sitter and Lua fallback suppor
 these ranges. Editing any covered row invalidates the full reference. Unclosed,
 oversized references and filenames split over lines are not guessed.
 Resolution: configured root (string/function), b:vimtex.root, document directory.
-Insertion requires graphicx and emits width=\linewidth with a detokenize path.
+Insertion requires graphicx and uses image-insert.nvim's default figure template:
+>
+  \begin{figure}[ht]
+    \centering
+    \includegraphics[width=0.8\linewidth]{Figures/my-plot.png}
+    \caption{}
+    \label{fig:my-plot}
+  \end{figure}
+<
+The cursor enters the empty caption in Insert mode. Labels use the final filename
+without its extension, lowercased with whitespace replaced by hyphens. This
+template applies to tex/latex/plaintex, file insertion, paste and picker imports.
 Imports accept PNG/JPEG/PDF and sanitize TeX-special filename characters. Unsafe
 reference/directory paths fail and roll back. PDF preview uses the first page;
 file buffers support paging. ImageMagick must have Ghostscript support.

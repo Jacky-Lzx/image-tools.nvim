@@ -25,6 +25,17 @@ local function document(lines)
   return buf
 end
 
+local markup, edit_offset = I.markup("Figures/My Plot.PNG", nil, "tex")
+check(markup == table.concat({
+  "\\begin{figure}[ht]",
+  [[  \centering]],
+  [[  \includegraphics[width=0.8\linewidth]{Figures/My Plot.PNG}]],
+  [[  \caption{}]],
+  [[  \label{fig:my-plot}]],
+  [[\end{figure}]],
+}, "\n"), "Default figure matches image-insert.nvim, including width and filename-derived label")
+check(markup:sub(edit_offset, edit_offset + 1) == "{}", "Editing offset is inside caption braces")
+
 local buf = document({ [[\graphicspath{{plots/}}]], [[prefix \includegraphics*[width=0.8\linewidth]{figure} suffix]] })
 local opts = { max_scan_lines = 100 }
 
@@ -64,7 +75,12 @@ check(
 )
 check(not err, err)
 check(paths[1]:find("space ____.png", 1, true), "Unsafe import characters sanitized")
-check(D.at_line(buf, 4, opts) == paths[1], "Inserted detokenize path round trip")
+check(D.at_line(buf, 6, opts) == paths[1], "Inserted figure path round trip")
+check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 7, #"  \\caption{" }), "Imported figure focuses caption")
+check(
+  vim.api.nvim_buf_get_lines(buf, 7, 8, false)[1] == [[  \label{fig:space-____}]],
+  "Label uses the final sanitized filename"
+)
 check(not pcall(I.markup, "percent%.png", "", "tex"), "Unsafe reference rejected")
 check(not I.supported("tex", "foo.avif"), "Unsupported compiler formats rejected")
 local main = tmp .. "/main.tex"
@@ -116,4 +132,25 @@ check(D.base(vim.api.nvim_buf_get_name(buf), {
     return tmp
   end,
 }, buf) == tmp, "Explicit root function")
+-- Flatten multiline batches into one text edit without losing either reference;
+-- undo removes all figures together and retains the copied resources.
+buf = document({ "before", "after" })
+vim.api.nvim_win_set_cursor(0, { 1, 0 })
+done, err, paths = false, nil, nil
+I.files({ source, tmp .. "/plots/figure.png" }, { directory = "batch" }, function(e, p)
+  done, err, paths = true, e, p
+end)
+check(vim.wait(2000, function()
+  return done
+end) and not err, "Multiline figure batch imports successfully")
+check(vim.api.nvim_buf_line_count(buf) == 14, "Two six-line figures preserve the original lines")
+check(D.at_line(buf, 4, opts) == paths[1], "First figure in batch resolves")
+check(D.at_line(buf, 10, opts) == paths[2], "Second figure in batch resolves")
+check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 5, #"  \\caption{" }), "Batch targets the first caption")
+vim.cmd("undo")
+check(
+  vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), { "before", "after" }),
+  "One undo removes both figures"
+)
+check(vim.uv.fs_stat(paths[1]) and vim.uv.fs_stat(paths[2]), "Undo retains both imported images")
 print("tex: " .. count .. " assertions passed (including real compilation/PDF preview when available)")

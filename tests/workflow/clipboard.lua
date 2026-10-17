@@ -76,13 +76,16 @@ for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst" }) do
   check(not err, err)
   check(vim.fs.basename(paths[1]) == "2026-04-28_16-21-17.png", filetype .. ": timestamped PNG default")
   check(vim.fn.readblob(paths[1]) == vim.fn.readblob(fixture), filetype .. ": original PNG bytes retained")
-  check(
-    require("image_tools.document").at_line(buf, 2, { max_scan_lines = 100, treesitter = false }) == paths[1],
-    filetype .. ": emitted image reference resolves"
-  )
+  check(require("image_tools.document").at_line(buf, filetype == "typst" and 2 or 4, {
+    max_scan_lines = 100,
+    treesitter = false,
+  }) == paths[1], filetype .. ": emitted image reference resolves")
   err = paste({ format = "avif" })
   check(err and err:match("Unsupported clipboard format"), filetype .. ": explicit unsupported format rejected")
-  check(vim.api.nvim_buf_line_count(buf) == 2, filetype .. ": rejected override adds no text")
+  check(
+    vim.api.nvim_buf_line_count(buf) == (filetype == "typst" and 2 or 7),
+    filetype .. ": rejected override adds no text"
+  )
 end
 os.date = date
 buffer("no-converter")

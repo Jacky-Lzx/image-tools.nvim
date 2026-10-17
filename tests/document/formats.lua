@@ -51,10 +51,11 @@ for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst" }) d
   check(vim.wait(3000, function()
     return done
   end) and not failure, filetype .. ": actual import succeeds")
-  check(
-    D.at_line(buf, 2, { root = tmp, max_scan_lines = 100, treesitter = false }) == paths[1],
-    filetype .. ": emitted reference resolves to the imported file from a nested document"
-  )
+  check(D.at_line(buf, (filetype == "markdown" or filetype == "typst") and 2 or 4, {
+    root = tmp,
+    max_scan_lines = 100,
+    treesitter = false,
+  }) == paths[1], filetype .. ": emitted reference resolves to the imported file from a nested document")
   local exported = D.adapter(filetype).image_formats()
   exported[1] = "invalid"
   check(

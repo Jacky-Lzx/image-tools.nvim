@@ -242,7 +242,8 @@ clipboard paste can separately request format conversion.
 After a successful insert, paste or picker confirmation, the cursor moves to the
 first inserted image and enters Insert mode. In Markdown it starts inside the
 description (`![|](path)`, where `|` marks the cursor), before any supplied `alt`
-text. In LaTeX and Typst it starts immediately after the first image reference.
+text. In LaTeX it starts inside the first figure's caption; in Typst it starts
+immediately after the first image reference.
 If you switch windows or documents before an asynchronous import finishes, it
 keeps your current focus, cursor and mode.
 
@@ -478,8 +479,22 @@ Changing density selects a new cache entry automatically.
 
 Try [examples/math.md](examples/math.md) and [examples/math.tex](examples/math.tex).
 
-Insertion emits `\includegraphics[width=\linewidth]{\detokenize{path}}`; load
-`graphicx` in your document. PNG/JPEG/PDF imports preserve original formats.
+Insertion uses the same default figure template as image-insert.nvim; load
+`graphicx` in your document:
+
+```tex
+\begin{figure}[ht]
+  \centering
+  \includegraphics[width=0.8\linewidth]{Figures/my-plot.png}
+  \caption{}
+  \label{fig:my-plot}
+\end{figure}
+```
+
+The cursor enters the empty caption in Insert mode. The label uses the final
+filename without its extension, lowercased with whitespace replaced by hyphens.
+This applies to `tex`, `latex` and `plaintex`, including file insertion, clipboard
+paste and picker confirmation. PNG/JPEG/PDF imports preserve original formats.
 Other formats must be converted before LaTeX insertion. Imported filenames replace
 TeX-special characters with underscores; unsafe directory/reference paths fail with
 an actionable error and rollback. Spaces and underscores remain supported.

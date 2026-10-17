@@ -17,8 +17,9 @@ end
 cases[#cases + 1] = { alt = "原有]描述", start_insert = true }
 cases[#cases + 1] = { paste = true }
 for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst" }) do
-  cases[#cases + 1] = { filetype = filetype }
-  cases[#cases + 1] = { filetype = filetype, strategy = "insert_after" }
+  for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before", "insert_line_after" }) do
+    cases[#cases + 1] = { filetype = filetype, strategy = strategy }
+  end
   cases[#cases + 1] = { filetype = filetype, paste = true }
 end
 cases[#cases + 1] = { switch_window = true }
@@ -63,6 +64,10 @@ next_case = guarded(function()
   local row = strategy == "insert_line_after" and 2 or 1
   local prefix = strategy == "insert_after" and "你" or ""
   local col = #prefix + (ft == "markdown" and 2 or #snippet)
+  local tex = ft == "tex" or ft == "latex" or ft == "plaintex"
+  if tex then
+    row, col = row + 3, #"  \\caption{"
+  end
   local other_win
   local function execute()
     local callback = guarded(function(err)
@@ -88,6 +93,9 @@ next_case = guarded(function()
               .. vim.inspect({ actual = vim.api.nvim_win_get_cursor(0), expected = { row, col } })
           )
           local before = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
+          if tex then
+            check(before == "  \\caption{}", "LaTeX editing target is the empty caption")
+          end
           vim.api.nvim_input("here")
           vim.defer_fn(
             guarded(function()

@@ -9,7 +9,9 @@ window lifecycle, protocol responses and visible pixels.
 `tests/workflow/insert_mode.lua` runs through Neovim's main event loop so it can
 verify actual Insert mode and queued typing after file insertion and simulated
 clipboard paste. It covers all placement strategies, UTF-8 prefixes, existing
-descriptions, LaTeX/Typst reference ends, failures and window focus preservation.
+descriptions, multiline LaTeX captions, Typst reference ends, failures and window
+focus preservation. LaTeX tests check the figure template, filename-derived labels,
+batch undo and real graphicx compilation when available.
 
 `tests/terminal/stream.lua` checks incremental Base64 boundaries, serialized
 concurrent graphics, queued/partial cancellation, write failures, deferred

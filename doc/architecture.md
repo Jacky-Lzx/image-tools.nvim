@@ -208,9 +208,11 @@ insertion. Markdown derives its list from the media preview capabilities, so
 variants such as TIFF cannot disappear from the picker while remaining importable.
 `workflow/insert` owns capture/extmarks, file publication, rollback and the single text
 transaction. It delegates document rules without branching on filetype.
-Adapters may return an editing byte offset alongside markup; otherwise editing
-starts at the end of the reference. After committing text, insertion positions
-the cursor in the first snippet and enters Insert mode only if the originating
+Adapters may return multiline markup and an editing byte offset that includes
+newlines; otherwise editing starts at the end of the reference. Insertion splits
+the batch into lines for one text edit and maps the first snippet's offset to a
+buffer row and byte column (LaTeX targets its caption). After committing text,
+it positions the cursor in the first snippet and enters Insert mode only if the originating
 window and document are still current.
 Its `markup`, `supported` and `relative` functions remain compatibility
 helpers; relative path calculation lives alongside other document path helpers.

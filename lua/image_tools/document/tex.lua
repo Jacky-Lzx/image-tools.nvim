@@ -224,16 +224,22 @@ function M.sanitize_filename(name)
   return name:gsub("[%%#&$^~{}\\%c]", "_")
 end
 
--- Emit graphicx markup with a detokenize path, rejecting unsafe directory/reference characters.
+-- Match image-insert.nvim's default figure template and label naming, with the
+-- editing offset inside the empty caption. Reject unsafe reference characters.
 ---@param path string Relative resource path.
 ---@param alt? string Unused by LaTeX markup.
 ---@return string markup Unsafe paths raise an error for transaction rollback.
+---@return integer edit_offset Zero-based byte offset inside the caption, including preceding newlines.
 function M.markup(path, alt)
   assert(
     not path:find("[%%#&$^~{}\\%c]"),
     "LaTeX image paths cannot contain TeX special characters or control characters; rename the file/directory"
   )
-  return "\\includegraphics[width=\\linewidth]{\\detokenize{" .. path .. "}}"
+  local label = vim.fn.fnamemodify(vim.fs.basename(path), ":r"):lower():gsub("%s+", "-")
+  local prefix = "\\begin{figure}[ht]\n  \\centering\n  \\includegraphics[width=0.8\\linewidth]{"
+    .. path
+    .. "}\n  \\caption{"
+  return prefix .. "}\n  \\label{fig:" .. label .. "}\n\\end{figure}", #prefix
 end
 
 return M
