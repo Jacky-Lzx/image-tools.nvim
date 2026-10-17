@@ -49,7 +49,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:checkhealth image_tools` checks the terminal and configured conversion tools.
 
 Health tool detection checks configured `magick`, `pdfinfo`, `rsvg` and
-`insert.pngpaste`, `math.latex` and `math.dvipng` executables, using their standard names when unset. Ghostscript
+the selected clipboard backend, `math.latex` and `math.dvipng` executables, using their standard names when unset. Ghostscript
 remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
@@ -383,9 +383,11 @@ paths; dependency injection keeps its logical
 keys. See [module architecture](doc/architecture.md) for the file layout and
 ownership boundaries.
 
-## macOS clipboard
+## Clipboard images
 
-Install `pngpaste` (`brew install pngpaste`). `:ImagePaste` or `paste(opts, callback)`
+Automatic readers: macOS uses `pngpaste` (`brew install pngpaste`), falling back to
+`pbctl`; Linux uses `wl-paste` in Wayland sessions or `xclip` in X11 sessions;
+Windows/WSL uses `powershell.exe`. `:ImagePaste` or `paste(opts, callback)`
 reads the system clipboard without modifying it, imports an image, and inserts a
 reference at the original source position. Clipboard paste always copies its
 resource, including when file insertion uses reference mode. Markdown defaults to
@@ -393,13 +395,22 @@ AVIF with ImageMagick (`quality = 75`); LaTeX/Typst default to PNG without conve
 It names the image using the paste's local date/time, such as
 `2026-04-28_16-21-17.avif` or `2026-04-28_16-21-17.png`. Same-second collisions add numeric
 suffixes. Per-call `filename` overrides the name; `prompt_for_file_name = true`
-requests a name. `format = "png"` preserves pngpaste's output without conversion;
+requests a name. `format = "png"` preserves the reader's PNG without conversion;
 `"jpg"` and `"webp"` are also supported. An explicit `format` must be supported by
 the document; LaTeX/Typst do not accept AVIF images.
 Clipboard commands have a 5-second timeout; conversions use `convert_timeout`.
 Empty clipboard, unsupported platform, missing tools and failed conversion report
 errors without inserting text or leaving image resources. The cancel function also
 stops pending reads/processes and removes temporary files.
+
+Set `insert.clipboard_backend` (or per-call `clipboard_backend`) to `auto`,
+`pngpaste`, `pbctl`, `wl-paste`, `xclip`, or `powershell`. Override executable
+paths with `clipboard_tools = { ["wl-paste"] = "/path/to/wl-paste" }`.
+The legacy `pngpaste` override still selects that reader on macOS. Readers request
+PNG; streamed bytes are bounded by `max_bytes`. `:checkhealth image_tools` and
+`status().clipboard` report the selected backend/tool or an availability error.
+Backend protocol tests run with fixtures; native GUI clipboard validation remains
+platform-specific. See [backend commands and native validation](doc/clipboard-backends.md).
 
 ### Clipboard processing presets
 

@@ -1,10 +1,10 @@
 -- Module: image_tools.workflow.clipboard
 --
 -- Purpose:
---   Read a macOS clipboard image, optionally convert its format and import it.
+--   Read a clipboard image, optionally convert its format and import it.
 --
 -- Architecture:
---   Capture insertion context, run pngpaste, validate PNG data and submit
+--   Capture insertion context, run a platform backend, validate PNG data and submit
 --   optional conversion to the shared queue. Delegate final text/file
 --   publication to workflow/insert, always in copy mode.
 --
@@ -16,7 +16,7 @@
 ---@class ImageToolsClipboardState
 ---@field done? boolean Completion/cancellation guard.
 ---@field directory? string Owned temporary directory, removed on finish/cancel.
----@field job? table Pending pngpaste process with kill support.
+---@field cancel_backend? ImageToolsCancel Pending platform clipboard reader.
 ---@field cancel_read? ImageToolsCancel Pending PNG validation read.
 ---@field cancel_conversion? ImageToolsCancel Shared-queue converter operation.
 ---@field cancel_import? ImageToolsCancel Pending file/text publication transaction.
@@ -26,17 +26,14 @@ local M = {}
 local uv = vim.uv
 local defaults = require("image_tools.defaults")
 local process = require("image_tools.workflow.process")
-local SIGTERM = 15
-local DEFAULT_CLIPBOARD_TIMEOUT_MS = 5000
+local backends = require("image_tools.workflow.clipboard_backend")
 local formats = { png = true, jpg = true, webp = true, avif = true }
 
--- pngpaste uses AppKit's pasteboard conversion. It reads the clipboard without
--- altering it and writes PNG data regardless of its original representation.
 -- Capture the document, read/validate the clipboard, optionally convert format and always import a
 -- copied resource.
 ---@param opts? ImageToolsInsertOptions Clipboard and insertion options.
 ---@param callback? ImageToolsInsertCallback Defaults to error notifications.
----@param dependencies? table macos=true enables controlled platform tests.
+---@param dependencies? table Platform/executable overrides for controlled tests.
 ---@return ImageToolsCancel cancel Stops owned read/process/import work and cleans temporary resources.
 local function paste_selected(opts, callback, dependencies)
   opts, dependencies = opts or {}, dependencies or {}
@@ -83,8 +80,8 @@ local function paste_selected(opts, callback, dependencies)
       return
     end
     state.done = true
-    if state.job then
-      state.job:kill(SIGTERM)
+    if state.cancel_backend then
+      state.cancel_backend()
     end
     if state.cancel_conversion then
       state.cancel_conversion()
@@ -95,11 +92,6 @@ local function paste_selected(opts, callback, dependencies)
     cleanup()
     I.release(context)
     callback("Cancelled")
-  end
-
-  if not (dependencies.macos == true or vim.fn.has("mac") == 1) then
-    finish("Clipboard image paste currently supports macOS only")
-    return cancel
   end
 
   -- Keep the compact default only when the document can consume it; TeX and
@@ -127,9 +119,9 @@ local function paste_selected(opts, callback, dependencies)
     return cancel
   end
 
-  local executable = opts.pngpaste or "pngpaste"
-  if vim.fn.executable(executable) ~= 1 then
-    finish("pngpaste is required for clipboard images (brew install pngpaste)")
+  local backend, backend_err = backends.detect(opts, dependencies)
+  if not backend then
+    finish(backend_err)
     return cancel
   end
 
@@ -204,43 +196,38 @@ local function paste_selected(opts, callback, dependencies)
     )
   end
 
-  state.job = vim.system(
-    { executable, png },
-    { timeout = opts.clipboard_timeout or DEFAULT_CLIPBOARD_TIMEOUT_MS },
-    vim.schedule_wrap(function(result)
-      state.job = nil
+  state.cancel_backend = backends.read(backend, png, opts, function(read_err)
+    if state.done then
+      cleanup()
+      return
+    end
+    if read_err then
+      finish(read_err)
+      return
+    end
+    local stat = uv.fs_stat(png)
+    if not stat or stat.size > (opts.max_bytes or defaults.max_bytes) then
+      finish("Clipboard image missing or exceeds max_bytes")
+      return
+    end
+
+    -- Validate PNG before copying it into the user's document resources.
+    state.cancel_read = require("image_tools.media").read(png, {
+      max_bytes = opts.max_bytes or defaults.max_bytes,
+      max_dimension = opts.max_dimension or defaults.max_dimension,
+      max_pixels = opts.max_pixels or defaults.max_pixels,
+    }, function(err)
       if state.done then
         cleanup()
         return
       end
-      if result.code ~= 0 then
-        finish("Cannot read a clipboard image: " .. vim.trim(result.stderr or ""))
+      if err then
+        finish(err)
         return
       end
-      local stat = uv.fs_stat(png)
-      if not stat or stat.size > (opts.max_bytes or defaults.max_bytes) then
-        finish("Clipboard image missing or exceeds max_bytes")
-        return
-      end
-
-      -- Validate PNG before copying it into the user's document resources.
-      state.cancel_read = require("image_tools.media").read(png, {
-        max_bytes = opts.max_bytes or defaults.max_bytes,
-        max_dimension = opts.max_dimension or defaults.max_dimension,
-        max_pixels = opts.max_pixels or defaults.max_pixels,
-      }, function(err)
-        if state.done then
-          cleanup()
-          return
-        end
-        if err then
-          finish(err)
-          return
-        end
-        convert()
-      end, true)
-    end)
-  )
+      convert()
+    end, true)
+  end)
 
   return function()
     if state.cancel_read then

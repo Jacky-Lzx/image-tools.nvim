@@ -180,7 +180,7 @@ function M.register(runtime)
 
   command("ImagePaste", function()
     runtime:paste()
-  end, { desc = "Paste a macOS clipboard image", force = true })
+  end, { desc = "Paste a clipboard image", force = true })
 
   command(
     "ImageInsert",

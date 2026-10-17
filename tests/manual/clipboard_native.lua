@@ -1,4 +1,4 @@
--- Opt-in real macOS test. The caller owns a fixture clipboard and restores it.
+-- Opt-in native test. The caller owns a fixture clipboard and restores it.
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
 local tmp = assert(vim.env.IMAGE_TOOLS_TEST_TMP)
 vim.cmd.enew()
@@ -6,7 +6,11 @@ vim.api.nvim_buf_set_name(0, tmp .. "/native-clipboard.md")
 vim.bo.filetype = "markdown"
 local done, err, paths
 require("image_tools").setup({ auto_preview = false })
-require("image_tools").paste({ format = "png", filename = "native.png" }, function(e, p)
+require("image_tools").paste({
+  format = "png",
+  filename = "native.png",
+  clipboard_backend = vim.env.IMAGE_TOOLS_CLIPBOARD_BACKEND or "auto",
+}, function(e, p)
   done, err, paths = true, e, p
 end)
 assert(
@@ -29,4 +33,4 @@ local compared = vim
   :wait()
 assert(compared.code == 0, "Native image pixels changed: " .. (compared.stderr or ""))
 assert(require("image_tools.document").at_line(0, 2, { max_scan_lines = 100 }) == paths[1], "Native reference failed")
-print("clipboard native: real AppKit/pngpaste/import/reference passed")
+print("clipboard native: prepared clipboard/import/reference passed")

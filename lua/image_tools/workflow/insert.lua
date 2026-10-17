@@ -45,6 +45,8 @@
 ---@field max_dimension? integer Clipboard PNG dimension limit.
 ---@field max_pixels? integer Clipboard PNG pixel-count limit.
 ---@field pngpaste? string Clipboard reader executable override.
+---@field clipboard_backend? string auto, pngpaste, pbctl, wl-paste, xclip or powershell.
+---@field clipboard_tools? table<string, string> Platform reader executable overrides.
 ---@field clipboard_timeout? integer Clipboard read timeout in milliseconds.
 ---@field format? "png"|"jpg"|"webp"|"avif" Clipboard format; default avif where supported, otherwise png.
 ---@field quality? number Clipboard conversion quality; default 75.

@@ -586,7 +586,10 @@ end
 -- Return service/configuration snapshots without starting a parser or performing disk inspection.
 ---@return ImageToolsRuntimeStatus status
 function Runtime:status()
+  local clipboard, clipboard_error = require("image_tools.workflow.clipboard_backend").detect(self.options.insert)
   return {
+    clipboard = clipboard and { backend = clipboard.name, executable = clipboard.executable }
+      or { error = clipboard_error },
     configured = not self.disposed,
     buffer = self.buffers and self.buffers:status() or nil,
     auto_preview = self.options and self.options.auto_preview or false,

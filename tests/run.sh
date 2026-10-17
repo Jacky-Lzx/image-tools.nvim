@@ -108,6 +108,7 @@ run_test workflow/content.lua
 run_test workflow/assets.lua
 run_test workflow/asset_project.lua
 run_test workflow/clipboard.lua
+run_test workflow/clipboard_backend.lua
 run_test workflow/picker.lua
 
 # 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter

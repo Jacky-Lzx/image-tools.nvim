@@ -109,12 +109,15 @@ function M.check()
     )
   end
 
-  if vim.fn.has("mac") == 1 then
-    if vim.fn.executable(tools.pngpaste) == 1 then
-      vim.health.ok("pngpaste found: macOS clipboard paste available (" .. tools.pngpaste .. ")")
-    else
-      vim.health.warn("Clipboard executable missing: " .. tools.pngpaste .. " (brew install pngpaste)")
-    end
+  local clipboard = state.clipboard
+  if not clipboard then
+    local backend, err = require("image_tools.workflow.clipboard_backend").detect({})
+    clipboard = backend and { backend = backend.name, executable = backend.executable } or { error = err }
+  end
+  if clipboard.backend then
+    vim.health.ok("Clipboard backend: " .. clipboard.backend .. " (" .. clipboard.executable .. ")")
+  else
+    vim.health.warn(clipboard.error)
   end
 
   if vim.fn.executable(tools.rsvg) == 1 then
