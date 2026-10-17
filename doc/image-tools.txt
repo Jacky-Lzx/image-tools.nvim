@@ -188,11 +188,21 @@ imported files; text undo retains them for reuse. A batch is inserted as one edi
 The document must be saved and modifiable. Unloading/deleting or renaming it,
 changing its filetype, or disabling modifiable invalidates a pending import;
 readonly alone does not block insertion. File imports preserve bytes and format.
+Successful insertion, paste and picker confirmation enter Insert mode at the first
+inserted image: inside Markdown's ![|](path) description (before existing alt text),
+or after the reference in LaTeX/Typst. If another window or document is current
+when asynchronous insertion finishes, its focus, cursor and mode are preserved.
 
 :ImagePaste                                                  *:ImagePaste*
 Reads the macOS clipboard with pngpaste (brew install pngpaste).
 paste(opts, callback) accepts the insertion options plus format (png/jpg/webp/avif)
-and quality (default 75). PNG is the default; conversions require ImageMagick.
+and quality (default 75). Markdown defaults to AVIF and requires ImageMagick;
+LaTeX/Typst default to PNG without conversion. Filenames use local paste time:
+YYYY-MM-DD_HH-MM-SS plus the output extension (e.g. 2026-04-28_16-21-17.avif/.png).
+Same-second collisions add numeric suffixes; filename and prompt_for_file_name
+override the generated name. format="png" preserves pngpaste's PNG without
+conversion. Explicit format overrides must be supported by the document;
+LaTeX/Typst do not accept AVIF.
 Clipboard resources are always copied. Empty clipboard, missing tools and failed
 conversion cause no insertion; cancellation kills subprocesses and cleans temp files.
 The read timeout defaults to 5000 ms (per-call clipboard_timeout); conversion

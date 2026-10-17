@@ -38,6 +38,7 @@ check(outputs[2]:find("space ] %% 图%-1.png") ~= nil, "Collision gets suffix")
 check(vim.fn.readblob(outputs[1]) == vim.fn.readblob(fixture), "Copy bytes unchanged")
 local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 check(#lines == 3, "Batch order")
+check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 2, 2 }), "Batch focuses the first image description")
 local options = { max_scan_lines = 1000 }
 check(require("image_tools.document").at_line(buf, 2, options) == outputs[1], "Escaped link resolves")
 check(require("image_tools.document").at_line(buf, 3, options) == outputs[2], "Second link resolves")
@@ -62,6 +63,9 @@ for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before
   else
     check(lines[1] == "你尾" and #lines == 2, strategy)
   end
+  local row = strategy == "insert_line_after" and 2 or 1
+  local col = strategy == "insert_after" and #"你" + 2 or 2
+  check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { row, col }), strategy .. ": description byte position")
 end
 -- Deferred filename prompt: edits and window switching cannot redirect import.
 buf = buffer("deferred")
@@ -83,6 +87,8 @@ assert(vim.wait(2000, function()
   return done
 end))
 check(not err, err)
+check(vim.api.nvim_get_current_buf() == other, "Deferred completion preserves the current document")
+check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 1, 0 }), "Deferred completion preserves its cursor")
 check(#vim.api.nvim_buf_get_lines(other, 0, -1, false) == 1, "Current buffer untouched")
 check(vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]:match("deferred.png"), "Extmark follows edited source row")
 -- Cancellation, traversal and a late source failure leave no imported assets/text.

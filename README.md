@@ -239,6 +239,13 @@ filetype, or disabling `modifiable` causes rollback. Setting `readonly` alone
 does not prevent insertion. File imports preserve original formats and bytes;
 clipboard paste can separately request format conversion.
 
+After a successful insert, paste or picker confirmation, the cursor moves to the
+first inserted image and enters Insert mode. In Markdown it starts inside the
+description (`![|](path)`, where `|` marks the cursor), before any supplied `alt`
+text. In LaTeX and Typst it starts immediately after the first image reference.
+If you switch windows or documents before an asynchronous import finishes, it
+keeps your current focus, cursor and mode.
+
 ## Development
 
 For hands-on testing, open the [manual test gallery](examples/README.md). It
@@ -325,9 +332,14 @@ ownership boundaries.
 Install `pngpaste` (`brew install pngpaste`). `:ImagePaste` or `paste(opts, callback)`
 reads the system clipboard without modifying it, imports an image, and inserts a
 reference at the original source position. Clipboard paste always copies its
-resource, including when file insertion uses reference mode. Default PNG preserves
-pngpaste's output. Per-call `format = "jpg"`, `"webp"` or `"avif"` converts with
-ImageMagick (`quality = 75` by default); `prompt_for_file_name = true` requests a name.
+resource, including when file insertion uses reference mode. Markdown defaults to
+AVIF with ImageMagick (`quality = 75`); LaTeX/Typst default to PNG without conversion.
+It names the image using the paste's local date/time, such as
+`2026-04-28_16-21-17.avif` or `2026-04-28_16-21-17.png`. Same-second collisions add numeric
+suffixes. Per-call `filename` overrides the name; `prompt_for_file_name = true`
+requests a name. `format = "png"` preserves pngpaste's output without conversion;
+`"jpg"` and `"webp"` are also supported. An explicit `format` must be supported by
+the document; LaTeX/Typst do not accept AVIF images.
 Clipboard commands have a 5-second timeout; conversions use `convert_timeout`.
 Empty clipboard, unsupported platform, missing tools and failed conversion report
 errors without inserting text or leaving image resources. The cancel function also

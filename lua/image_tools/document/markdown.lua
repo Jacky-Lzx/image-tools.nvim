@@ -312,12 +312,13 @@ M.insertion_base = require("image_tools.document.paths").base
 ---@param path string Relative resource path.
 ---@param alt? string Optional image description.
 ---@return string markup
+---@return integer edit_col Zero-based byte offset at the start of the description.
 function M.markup(path, alt)
   local encoded = path:gsub("[%%<>%s\\%z]", function(c)
     return string.format("%%%02X", c:byte())
   end)
   alt = (alt or ""):gsub("[\r\n]", " "):gsub("([\\%[%]])", "\\%1")
-  return "![" .. alt .. "](<" .. encoded .. ">)"
+  return "![" .. alt .. "](<" .. encoded .. ">)", 2
 end
 
 return M

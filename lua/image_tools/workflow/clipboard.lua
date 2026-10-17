@@ -103,7 +103,9 @@ function M.paste(opts, callback, dependencies)
     return cancel
   end
 
-  local format = opts.format or "png"
+  -- Keep the compact default only when the document can consume it; TeX and
+  -- Typst need a compiler-compatible image without requiring per-call options.
+  local format = opts.format or (I.supported(context.filetype, "clipboard.avif") and "avif" or "png")
   if not formats[format] then
     finish("Clipboard format must be png, jpg, webp or avif")
     return cancel
@@ -113,6 +115,8 @@ function M.paste(opts, callback, dependencies)
     finish("Unsupported clipboard format for " .. context.filetype .. "; use PNG or JPG")
     return cancel
   end
+
+  local filename = opts.filename or os.date("%Y-%m-%d_%H-%M-%S") .. "." .. format
 
   local executable = opts.pngpaste or "pngpaste"
   if vim.fn.executable(executable) ~= 1 then
@@ -147,7 +151,7 @@ function M.paste(opts, callback, dependencies)
     end
     local insertion = vim.tbl_extend("force", opts, {
       mode = "copy", -- Clipboard temporary resources must never be referenced.
-      filename = opts.filename or os.date("image-%Y%m%d-%H%M%S") .. "." .. format,
+      filename = filename,
     })
     state.cancel_import = I.files({ path }, insertion, finish)
   end

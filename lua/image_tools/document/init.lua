@@ -33,7 +33,7 @@
 ---@field references fun(buf: integer, row: integer, opts: table): table[] Resolved literal references opening on this row.
 ---@field image_formats fun(): string[] Insertion/picker extension list.
 ---@field supports_image fun(path: string): boolean Filename-based insertion capability.
----@field markup fun(path: string, alt: string?): string Format-specific reference text.
+---@field markup fun(path: string, alt: string?): string, integer? Reference text and optional editing byte offset.
 ---@field insertion_base fun(document: string, opts: table, buf: integer?): string Link base.
 ---@field sanitize_filename? fun(name: string): string Optional import-name sanitation.
 ---@field validate_reference? fun(path: string, document: string, opts: table, buf: integer?) Optional insertion boundary check.

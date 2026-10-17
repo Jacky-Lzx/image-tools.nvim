@@ -33,8 +33,9 @@ local function paste(opts)
   return err, paths
 end
 local buf = buffer("png")
-local err, paths = paste({ filename = "clip with space.png" })
+local err, paths = paste({ format = "png", filename = "clip with space.png" })
 check(not err, err)
+check(vim.deep_equal(vim.api.nvim_win_get_cursor(0), { 2, 2 }), "Paste focuses the image description")
 check(vim.fn.readblob(paths[1]) == vim.fn.readblob(fixture), "PNG bytes preserved")
 check(
   require("image_tools.document").at_line(buf, 2, { max_scan_lines = 100 }) == paths[1],
@@ -46,6 +47,48 @@ check(not err, err)
 check(paths[1]:sub(-4) == ".jpg", "Converted extension")
 local result = vim.system({ "magick", "identify", "-format", "%m", paths[1] }):wait()
 check(result.code == 0 and result.stdout == "JPEG", "Real conversion encoding")
+-- Freeze the clock to check the public filename shape and same-second collisions.
+local date = os.date
+os.date = function(format, ...)
+  if format == "%Y-%m-%d_%H-%M-%S" then
+    return "2026-04-28_16-21-17"
+  end
+  return date(format, ...)
+end
+buffer("avif")
+err, paths = paste()
+check(not err, err)
+check(vim.fs.basename(paths[1]) == "2026-04-28_16-21-17.avif", "Default timestamp filename")
+local avif = assert(vim.uv.fs_open(paths[1], "r", 0))
+local header = assert(vim.uv.fs_read(avif, 32, 0))
+vim.uv.fs_close(avif)
+check(header:sub(5, 12) == "ftypavif", "Default paste contains real AVIF data")
+result = vim.system({ "magick", "identify", "-format", "%wx%h", paths[1] }):wait()
+check(result.code == 0 and result.stdout == "160x100", "AVIF decodes with the original dimensions")
+buffer("avif-collision")
+err, paths = paste()
+check(not err and vim.fs.basename(paths[1]) == "2026-04-28_16-21-17-1.avif", "Same-second paste avoids overwrite")
+for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst" }) do
+  buf = buffer("default-" .. filetype)
+  vim.bo[buf].filetype = filetype
+  -- Compiler-compatible defaults must not require ImageMagick.
+  err, paths = paste({ magick = tmp .. "/absent-magick", directory = filetype })
+  check(not err, err)
+  check(vim.fs.basename(paths[1]) == "2026-04-28_16-21-17.png", filetype .. ": timestamped PNG default")
+  check(vim.fn.readblob(paths[1]) == vim.fn.readblob(fixture), filetype .. ": original PNG bytes retained")
+  check(
+    require("image_tools.document").at_line(buf, 2, { max_scan_lines = 100, treesitter = false }) == paths[1],
+    filetype .. ": emitted image reference resolves"
+  )
+  err = paste({ format = "avif" })
+  check(err and err:match("Unsupported clipboard format"), filetype .. ": explicit unsupported format rejected")
+  check(vim.api.nvim_buf_line_count(buf) == 2, filetype .. ": rejected override adds no text")
+end
+os.date = date
+buffer("no-converter")
+err = paste({ magick = tmp .. "/absent-magick" })
+check(err and err:match("ImageMagick is required"), "Default AVIF requires a real converter")
+check(#vim.api.nvim_buf_get_lines(0, 0, -1, false) == 1, "Missing converter inserts no text")
 buffer("cancel")
 local done, prompt
 local original = vim.ui.input

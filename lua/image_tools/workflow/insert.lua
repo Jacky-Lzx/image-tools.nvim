@@ -17,6 +17,7 @@
 ---@alias ImageToolsInsertCallback fun(err: string?, paths: string[]?)
 ---@class ImageToolsInsertContext
 ---@field buf integer Originating document buffer; asynchronous work never targets a replacement buffer.
+---@field win integer Originating window; completion only moves the cursor while it is current.
 ---@field document string Captured buffer filename used to detect rename and compute roots.
 ---@field filetype string Captured format used to detect filetype changes.
 ---@field strategy "insert_after"|"insert_before"|"insert_line_after"|"insert_line_before" Text transaction placement policy.
@@ -39,7 +40,7 @@
 ---@field max_pixels? integer Clipboard PNG pixel-count limit.
 ---@field pngpaste? string Clipboard reader executable override.
 ---@field clipboard_timeout? integer Clipboard read timeout in milliseconds.
----@field format? "png"|"jpg"|"webp"|"avif" Clipboard output format.
+---@field format? "png"|"jpg"|"webp"|"avif" Clipboard format; default avif where supported, otherwise png.
 ---@field quality? number Clipboard conversion quality; default 75.
 ---@field magick? string Clipboard converter executable override.
 ---@field convert_timeout? integer Clipboard conversion process timeout.
@@ -90,6 +91,7 @@ function M.capture(opts)
   end
   return {
     buf = buf,
+    win = vim.api.nvim_get_current_win(),
     document = vim.api.nvim_buf_get_name(buf),
     filetype = vim.bo[buf].filetype,
     strategy = strategy,
@@ -134,6 +136,7 @@ end
 ---@param alt? string Image description.
 ---@param filetype string Target document filetype.
 ---@return string markup Unsupported formats/unsafe paths raise an error.
+---@return integer? edit_col Zero-based byte offset for editing; defaults to the end of the reference.
 function M.markup(path, alt, filetype)
   local format = assert(require("image_tools.document").adapter(filetype), "Unsupported image insertion filetype")
   return format.markup(path, alt)
@@ -144,8 +147,9 @@ end
 -- Validate captured authority and insert the ordered batch in its own undo block as one text edit.
 ---@param context ImageToolsInsertContext Origin identity, mark and strategy.
 ---@param snippets string[] Already validated adapter markup.
+---@param edit_col integer Zero-based byte offset within the first snippet.
 ---@return nil
-local function insert(context, snippets)
+local function insert(context, snippets, edit_col)
   assert(valid(context), "Source buffer was closed, renamed, changed filetype or made read-only")
   local pos = vim.api.nvim_buf_get_extmark_by_id(context.buf, ns, context.mark, {})
   assert(#pos == 2, "Insertion position was removed")
@@ -155,12 +159,21 @@ local function insert(context, snippets)
     vim.cmd("let &g:undolevels = &g:undolevels")
   end)
   if context.strategy == "insert_line_before" or context.strategy == "insert_line_after" then
+    col = 0
     if context.strategy == "insert_line_after" then
       row = row + 1
     end
     vim.api.nvim_buf_set_lines(context.buf, row, row, false, snippets)
   else
     vim.api.nvim_buf_set_text(context.buf, row, col, row, col, { table.concat(snippets, " ") })
+  end
+  -- An asynchronous import may finish after the user has moved to another
+  -- window/document. Keep its text edit, but do not redirect their typing.
+  if vim.api.nvim_get_current_win() == context.win and vim.api.nvim_get_current_buf() == context.buf then
+    col = col + edit_col
+    local line = vim.api.nvim_buf_get_lines(context.buf, row, row + 1, false)[1]
+    vim.api.nvim_win_set_cursor(context.win, { row + 1, col })
+    vim.cmd(col == #line and "startinsert!" or "startinsert")
   end
 end
 
@@ -274,13 +287,18 @@ function M.files(paths, opts, callback)
     if index > #paths then
       local snippets = {}
       local success, message = pcall(function()
+        local edit_col
         for _, path in ipairs(state.outputs) do
           if format.validate_reference then
             format.validate_reference(path, context.document, { root = opts.reference_root }, context.buf)
           end
-          snippets[#snippets + 1] = format.markup(M.relative(path, base), opts.alt)
+          local snippet, offset = format.markup(M.relative(path, base), opts.alt)
+          if #snippets == 0 then
+            edit_col = offset or #snippet
+          end
+          snippets[#snippets + 1] = snippet
         end
-        insert(context, snippets)
+        insert(context, snippets, edit_col)
       end)
       finish(not success and tostring(message) or nil)
       return

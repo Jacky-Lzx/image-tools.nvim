@@ -6,6 +6,11 @@ runner stops on the first failure and preserves its exit status. See README for
 the optional dependency switches and the distinction between recognition,
 window lifecycle, protocol responses and visible pixels.
 
+`tests/workflow/insert_mode.lua` runs through Neovim's main event loop so it can
+verify actual Insert mode and queued typing after file insertion and simulated
+clipboard paste. It covers all placement strategies, UTF-8 prefixes, existing
+descriptions, LaTeX/Typst reference ends, failures and window focus preservation.
+
 `tests/terminal/stream.lua` checks incremental Base64 boundaries, serialized
 concurrent graphics, queued/partial cancellation, write failures, deferred
 response timeouts and handler cleanup. `tests/document/tex_multiline.lua` also

@@ -6,7 +6,7 @@ vim.api.nvim_buf_set_name(0, tmp .. "/native-clipboard.md")
 vim.bo.filetype = "markdown"
 local done, err, paths
 require("image_tools").setup({ auto_preview = false })
-require("image_tools").paste({ filename = "native.png" }, function(e, p)
+require("image_tools").paste({ format = "png", filename = "native.png" }, function(e, p)
   done, err, paths = true, e, p
 end)
 assert(
