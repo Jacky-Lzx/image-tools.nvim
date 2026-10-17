@@ -39,6 +39,10 @@ CTAN can require a newer package manager than the one bundled with the installer
 Mocked formula-worker tests provide their own executable discovery and process
 results, so the basic suite does not require `latex` or `dvipng`. Real formula
 compilation remains optional locally and required by integration preflight.
+Tree-sitter failure mocks also supply query compilation, so diagnostic tests
+run without installed LaTeX/Typst grammars. Use a clean `XDG_DATA_HOME` and a PATH
+without TeX to reproduce the basic environment locally; real parser/toolchain
+coverage belongs to the integration configuration.
 Hosted CI uses a simulated Kitty responder; it cannot establish visible rendering
 in a real Kitty window. A newly added workflow is unverified on GitHub until an
 actual run completes after pushing.

@@ -55,9 +55,16 @@ for _, failure in ipairs({ "missing", "nil", "parse", "query" }) do
       end
       return get_parser(...)
     end
-    vim.treesitter.query.parse = failure == "query" and function()
-      error("incompatible grammar")
-    end or parse_query
+    vim.treesitter.query.parse = function(...)
+      if failure == "query" then
+        error("incompatible grammar")
+      elseif failure == "parse" then
+        -- The parser fails before captures are read. Do not compile a real
+        -- grammar just to reach the controlled parse-error path.
+        return {}
+      end
+      return parse_query(...)
+    end
     local test_buf = buffer(ft, { source })
     check(D.at_line(test_buf, 1, opts) == tmp .. "/a.png", failure .. " falls back for " .. ft)
     local state = TS.status(test_buf)
@@ -74,8 +81,8 @@ vim.treesitter.get_parser, vim.treesitter.query.parse = get_parser, parse_query
 
 local real = 0
 for ft, lang in pairs({ tex = "latex", typst = "typst" }) do
-  local available = pcall(vim.treesitter.language.add, lang)
-  if available then
+  local available, loaded = pcall(vim.treesitter.language.add, lang)
+  if available and loaded then
     real = real + 1
     local requests = 0
     vim.treesitter.get_parser = function(...)
