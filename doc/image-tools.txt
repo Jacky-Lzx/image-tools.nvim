@@ -19,6 +19,8 @@ SETUP                                                      *image-tools-setup*
     auto_preview = true,
     convert_concurrency = 2, -- simultaneous conversion/hash processes
     treesitter = true, -- LaTeX/Typst parsers, with automatic Lua scanner fallback
+    inline = { enabled = false, max_width = 60, max_height = 20,
+      max_images = 16, debounce = 50 },
     remote = { enabled = false, curl = "curl", timeout = 10000,
       ttl = 3600, max_redirects = 5 },
     latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
@@ -99,6 +101,7 @@ clear_cache()          Close preview and release all owned terminal images.
 clear_disk_cache(cb)   Clear unused disk conversions asynchronously; cb receives
                        a status table (removed, protected, files, bytes, error).
 toggle()               Toggle automatic preview; returns its new state.
+toggle_inline()        Toggle Markdown virtual-line rendering; return enabled.
 status()               Return configured, auto_preview, path, window, transport
                        and terminal_cache statistics, plus buffer state,
                        disk_cache settings/path, conversion_queue, media and
@@ -168,7 +171,8 @@ titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
 excluded. LaTeX, Typst, independent insertion, clipboard paste, Snacks
 picker integration and read-only image/PDF file buffers are supported below.
 HTTPS images are optional; see |image-tools-https|. Multiline Markdown image
-calls and inline rendering inside document text are unsupported.
+calls are unsupported. Standalone Markdown inline display is optional; see
+|image-tools-inline|.
 Formula floating previews are described below.
 Insertion has no dependency on image-insert.nvim.
 
@@ -423,7 +427,7 @@ Converter and import hash processes share a priority queue controlled by convert
 holds its slot until exit. PNG reads and cache hits bypass the queue.
 status().conversion_queue reports active and queued processes.
 
-Floating, picker and file-buffer previews share terminal pixel data per runtime.
+Inline, floating, picker and file-buffer previews share terminal pixel data per runtime.
 Each view has an independent virtual placement id and size. Closing a view
 releases only its placement; terminal_cache limits apply to the shared pool.
 Cache statistics are runtime-wide; placements counts active acknowledged views.
@@ -648,3 +652,43 @@ HTTPS tests: python3 tests/https/run.py runs real curl against a local temporary
 TLS server, with isolated certificate trust and no external requests. It needs
 Python 3, openssl, curl, Neovim, ImageMagick and local socket permission. The main
 runner includes it when Python is available. Actual Kitty pixels remain manual.
+
+INLINE MARKDOWN                                           *image-tools-inline*
+
+:ImageInlineToggle                                          *:ImageInlineToggle*
+Optional standalone images and display formulas below their Markdown source.
+Set inline.enabled=true or use toggle_inline(). Default: disabled. Images may
+use inline/reference/wikilink syntax, with whitespace only outside the link.
+Block math: $$...$$, \[...\] and supported display environments, including
+multiline sources. Single-dollar math, \(...\), math environments, prose/list/
+blockquote images and multiple images per line retain floating previews.
+Existing code-context exclusions and math.enabled still apply. latex/dvipng
+are required for formulas; remote.enabled is required for HTTPS images.
+
+Window-scoped virtual lines preserve document bytes, line counts, modified state
+and undo history. Source markup remains visible. Each regular split independently
+fits its text width without upscaling. inline.max_width/max_height default to
+60/20 terminal cells; actual bounds also respect window size and Kitty limits.
+Virtual lines are clipped by Neovim, follow source wrapping and gutters, scroll
+with the document and hide in closed folds. Partial images survive scrolling
+past their anchor until all their virtual rows leave the viewport.
+
+Only visible candidates start preparation/downloads, with inline.max_images=16
+per window. Scanners may read prior syntax/definition context. inline.debounce=50
+milliseconds coalesces events; 0 is immediate. Placement sessions share queues,
+conversion/disk leases and terminal pixels with other views. Leaving the visible
+region, changing buffers/tabs, closing windows, disabling, suspending or exiting
+releases pending work and placements. Source changes, edits, geometry and color
+changes refresh images. Stale completions cannot restore an invalidated view.
+
+Automatic floats skip inline-eligible references. Manual :ImagePreview / hover()
+still opens a float. auto_preview / :ImagePreviewToggle affect floats separately.
+:ImageInfo selects an inline item under the source cursor; :ImageReload refreshes
+the current document's inline views when no file viewer/current float is selected.
+status().inline reports enabled/paused, windows, images, ready, pending, failed,
+syncs and last_error. :ImagePreviewClearCache pauses inline display until buffer/
+window entry, resume, reconfiguration or toggling inline mode.
+
+examples/inline.md provides self-contained manual tests using existing assets.
+Rendering uses nvim__ns_set window-scoped namespaces available in Neovim 0.12;
+this Neovim API is experimental and its availability is checked before drawing.

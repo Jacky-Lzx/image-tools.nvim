@@ -249,6 +249,10 @@ function M.register(runtime)
   command("ImagePreviewToggle", function()
     runtime:toggle()
   end, { desc = "Toggle automatic image preview", force = true })
+
+  command("ImageInlineToggle", function()
+    runtime:toggle_inline()
+  end, { desc = "Toggle Markdown inline images and display formulas", force = true })
 end
 
 return M

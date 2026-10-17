@@ -175,6 +175,22 @@ local function buffer(name, ft, lines)
   return buf
 end
 local buf = buffer("note.md", "markdown", { "![keep](<" .. base .. '/wrong-extension.jpg?query=1> "title")' })
+local inline_runtime = Runtime.new(
+  vim.tbl_deep_extend("force", opts, { inline = { enabled = true, debounce = 0 } }),
+  { terminal = terminal }
+)
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "![remote](" .. base .. "/image.png)" })
+inline_runtime:start()
+assert(
+  vim.wait(5000, function()
+    vim.cmd.redraw()
+    return inline_runtime.inline:status().ready == 1
+  end, 5),
+  vim.inspect(inline_runtime.inline:status())
+)
+assert(inline_runtime:info().inline and inline_runtime:info().path == base .. "/image.png")
+inline_runtime:destroy()
+vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "![keep](<" .. base .. '/wrong-extension.jpg?query=1> "title")' })
 local outputs
 outputs, err = await(function(cb)
   return localize.run(vim.tbl_deep_extend("force", opts, { remote = { enabled = false } }), cb)

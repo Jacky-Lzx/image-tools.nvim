@@ -7,6 +7,8 @@ local function check(ok, message)
 end
 local deferred = {
   "render.preview",
+  "render.inline",
+  "document.inline",
   "render.canvas",
   "terminal.pixel_pool",
   "terminal.upload",

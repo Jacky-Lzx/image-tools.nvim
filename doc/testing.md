@@ -185,3 +185,30 @@ refresh, independent cancellation of shared downloads, preview lifecycle and
 Markdown/HTML localization with original bytes, stale edits and cache leases.
 Terminal acknowledgements are simulated; visible Kitty pixels remain a separate
 manual check. Restricted execution environments must permit local socket binding.
+
+## Inline Markdown
+
+`tests/document/inline.lua` checks standalone image/reference/wikilink eligibility,
+display math, prose/inline math/code exclusions, folds, scan budgets and option
+validation. `tests/render/inline.lua` exercises real Neovim virtual lines and PNG
+preparation with controlled formula metadata and terminal acknowledgements. It
+checks unchanged source/tick/modified state, no offscreen preparation, scoped split
+namespaces and shared pixels, closed folds, topfill/partial scrolling, file revision
+refresh, errors without retry loops, stale completion, pause/resume and toggling.
+It also covers independent wrapping/gutters, hidden tabs, color invalidation,
+public commands, suspension and namespace reuse across repeated reconfiguration.
+Headless tab tests keep Neovim's actual screen dimensions: overriding `columns`
+without an attached UI can overrun the tabline grid even with no plugin loaded.
+The HTTPS fixture also exercises inline URLs and verifies release of cache leases.
+
+`tests/tui/inline.lua`, launched by the Python TUI runner, checks actual foreground
+and underline colors for window-scoped virtual lines, file/direct transfers,
+split/fold/partial-scroll behavior, unchanged text and exit cleanup. Additional
+cases compile real block formulas when latex/dvipng are available. These prove
+the Neovim screen/protocol path; Kitty visible-pixel acceptance remains manual.
+
+For manual acceptance open `examples/inline.md` with `inline.enabled=true` in
+Kitty. Check image/formula clarity, transparency, narrower splits, gutters/wrap,
+partial scrolling, folds, floating-menu overlap and toggle cleanup. Editing and
+saving must retain the original Markdown bytes. Record this visible check
+separately from automated headless/TUI results.

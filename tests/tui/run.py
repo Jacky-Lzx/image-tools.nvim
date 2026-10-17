@@ -51,7 +51,7 @@ def test_rgb_colors():
     print("image-tools TUI: RGB SGR matching regressions passed")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixtures/fixture.png").read_bytes()
@@ -71,6 +71,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             IMAGE_TOOLS_TEST_TRANSPORT=mode,
             XDG_CACHE_HOME=str(temporary / "cache"), XDG_STATE_HOME=str(temporary / "state"),
             NVIM_LOG_FILE=str(temporary / "nvim.log"),
+            IMAGE_TOOLS_INLINE_MATH="1" if inline_math else "0",
         )
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
@@ -83,6 +84,8 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/latex.lua")]
         if buffer:
             command = ["nvim", "-u", str(root / "tests/tui/buffer.lua"), "-i", "NONE", "--noplugin", str(temporary / "中文 image (1).png")]
+        if inline:
+            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/inline.lua")]
         process = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave, env=env, start_new_session=True)
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()
@@ -106,7 +109,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     else:
                         path = Path(base64.b64decode(payload).decode())
                         data = path.read_bytes()
-                        if buffer or latex or math:
+                        if buffer or latex or math or inline_math:
                             assert data[:8] == b"\x89PNG\r\n\x1a\n", "buffer upload is not a PNG"
                         else:
                             assert data == fixture, "file transport did not reference the PNG fixture"
@@ -134,7 +137,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             fields, chunks = pending
             data = b"".join(chunks)
             decoded = base64.b64decode(data)
-            if math:
+            if math or inline_math:
                 assert decoded[:8] == b"\x89PNG\r\n\x1a\n", "formula upload is not a PNG"
             else:
                 assert decoded == fixture, "direct transport changed PNG bytes"
@@ -180,7 +183,11 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     + "\ncommands: " + repr([f for f, _ in commands])
                     + "\nresponses: " + (log.read_text() if log.exists() else "none"))
             result = json.loads((temporary / "result.json").read_text())
-            if math:
+            if inline:
+                assert result["inline"] and result["scoped"] and result["lifecycle"] and result["source_preserved"], result
+                for placement in result["shared_placements"]:
+                    assert has_rgb_color(output, 58, placement), f"Inline placement underline color missing: {placement}"
+            elif math:
                 assert result["math"] and result["lifecycle"] and result["shared"], result
             elif cursor:
                 assert result["cursor"] and result["lifecycle"], result
@@ -200,9 +207,9 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             else:
                 assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
-            assert len(uploads) == (3 if buffer else 2 if cursor or reject_file or evict else 1), uploads
+            assert len(uploads) == (3 if buffer else 2 if cursor or reject_file or evict or inline_math else 1), uploads
             assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result
-            if picker or buffer or latex or math:
+            if picker or buffer or latex or math or inline:
                 assert result["cache"]["hits"] >= 1, result
             else:
                 assert result["cache"]["hits"] == (1 if evict else 2), result
@@ -225,7 +232,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -250,8 +257,13 @@ run_case("auto", latex=True)
 
 run_case("auto", cursor=True)
 
+run_case("auto", inline=True)
+run_case("direct", inline=True)
+
 if shutil.which("latex") and shutil.which("dvipng"):
     run_case("auto", math=True)
     run_case("direct", math=True)
+    run_case("auto", inline=True, inline_math=True)
+    run_case("direct", inline=True, inline_math=True)
 else:
     print("image-tools TUI: formula cases skipped (latex/dvipng unavailable)")

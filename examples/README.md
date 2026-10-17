@@ -124,6 +124,14 @@ amsmath/amssymb packages. Move across formula rows, edit the body and leave its
 range to check update/cleanup. The background should be transparent, and code or
 comment examples should not preview. Use `:ImageInfo` for errors and dimensions.
 
+## Inline display
+
+Open [inline.md](inline.md) with `inline = { enabled = true }`, or enable it using
+`:ImageInlineToggle`. This gallery reuses bundled images and covers standalone
+images, reference links/wikilinks, block formulas, split widths, wrapping, folds,
+partial scrolling and excluded code. Source text should remain unchanged. Use
+`:ImageInfo` on a source reference and `status().inline` for state/errors.
+
 ## Regeneration
 
 All examples are original synthetic test patterns, distributed under the

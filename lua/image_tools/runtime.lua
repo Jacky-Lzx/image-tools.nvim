@@ -101,6 +101,25 @@ function Runtime:ensure_preview()
   return self.preview
 end
 
+function Runtime:ensure_inline()
+  if not self.inline then
+    self.inline = require("image_tools.render.inline").new(self.options, self.dependencies)
+  end
+  return self.inline
+end
+
+function Runtime:toggle_inline()
+  self.options.inline.enabled = not self.options.inline.enabled
+  if self.options.inline.enabled then
+    self:close()
+    self:ensure_inline():resume()
+  elseif self.inline then
+    self.inline:pause()
+    self:schedule_refresh()
+  end
+  return self.options.inline.enabled
+end
+
 -- Inspect existing pixels without constructing an unused pool or preview.
 ---@return ImageToolsTerminalStatus? status Absent until a render service exists.
 function Runtime:terminal_status()
@@ -167,6 +186,9 @@ function Runtime:destroy()
   self.commands = nil
 
   self:clear_cache()
+  if self.inline then
+    self.inline:destroy()
+  end
   self.buffers:destroy()
 end
 
@@ -230,6 +252,10 @@ end
 -- terminal pixels.
 ---@return nil
 function Runtime:clear_cache()
+  self.clearing_cache = true
+  if self.inline then
+    self.inline:pause()
+  end
   self:cancel_auto_preview()
   self.reference_request, self.pending_reference = nil, nil
   if self.buffers then
@@ -247,6 +273,7 @@ function Runtime:clear_cache()
   if pool then
     pool:clear()
   end
+  self.clearing_cache = false
 end
 
 -- Schedule an independent unused-disk-file cleanup.
@@ -486,11 +513,18 @@ function Runtime:reload()
       _remote_refresh = state.path:match("^https://") ~= nil,
     })
   end
+  if self.inline and self.options.inline.enabled and self.inline.views[vim.api.nvim_get_current_win()] then
+    self.inline:invalidate(vim.api.nvim_get_current_buf(), true)
+    return true
+  end
   return false, "No image/PDF viewer or floating preview to reload"
 end
 
 -- Recheck external changes on idle/focus events, outside the cursor-movement hot path.
 function Runtime:refresh_source()
+  if self.inline then
+    self.inline:schedule()
+  end
   local state = self.preview and self.preview.state
   if not state or not on_current_line(state) then
     return
@@ -544,6 +578,17 @@ function Runtime:hover(opts)
       self.preview:close()
     end
     return false, err
+  end
+  if
+    opts.automatic
+    and self.options.inline.enabled
+    and vim.bo[buf].buftype == ""
+    and vim.api.nvim_win_get_config(win).relative == ""
+    and require("image_tools.document.inline").eligible(buf, reference)
+  then
+    self:close()
+    self:ensure_inline():schedule()
+    return true
   end
   if not path then
     self:close()
@@ -640,6 +685,12 @@ function Runtime:info()
   local view = buffer and buffer.views[vim.api.nvim_get_current_win()]
   local path = buffer and buffer.path or state and on_current_line(state) and state.path
   if not path then
+    local inline_info = self.inline
+      and self.inline:info(vim.api.nvim_get_current_win(), vim.api.nvim_win_get_cursor(0)[1])
+    if inline_info then
+      inline_info.terminal_cache = self:terminal_status()
+      return inline_info
+    end
     local failure = self.preview and self.preview.last_error
     if failure then
       local failed_stat = vim.uv.fs_stat(failure.path)
@@ -689,6 +740,8 @@ function Runtime:status()
     clipboard = clipboard and { backend = clipboard.name, executable = clipboard.executable }
       or { error = clipboard_error },
     configured = not self.disposed,
+    inline = self.inline and self.inline:status()
+      or { enabled = self.options.inline.enabled, windows = 0, images = 0, ready = 0, pending = 0, failed = 0 },
     remote = vim.tbl_extend(
       "force",
       self.options.remote,
@@ -866,6 +919,59 @@ function Runtime:start()
 
   require("image_tools.commands").register(self)
   self.buffers:setup()
+  self:autocmd({ "BufWinEnter", "BufEnter", "WinEnter", "TabEnter", "VimResume" }, {
+    callback = function()
+      if self.options.inline.enabled and not self.clearing_cache then
+        self:ensure_inline():resume()
+      end
+    end,
+  })
+  self:autocmd(
+    { "TextChanged", "TextChangedI", "TextChangedP", "BufFilePost", "FileType", "BufUnload", "BufDelete", "BufWipeout" },
+    {
+      callback = function(event)
+        if self.inline then
+          self.inline:invalidate(event.buf)
+        end
+      end,
+    }
+  )
+  self:autocmd({ "WinScrolled", "WinResized", "WinClosed", "TabClosed", "CursorMoved", "CursorMovedI" }, {
+    callback = function()
+      if self.inline then
+        self.inline:schedule()
+      end
+    end,
+  })
+  self:autocmd({ "VimResized", "ColorScheme" }, {
+    callback = function()
+      if self.inline then
+        self.inline:invalidate()
+      end
+    end,
+  })
+  self:autocmd("OptionSet", {
+    pattern = {
+      "wrap",
+      "linebreak",
+      "number",
+      "relativenumber",
+      "signcolumn",
+      "foldcolumn",
+      "foldenable",
+      "foldmethod",
+      "foldlevel",
+      "winbar",
+    },
+    callback = function()
+      if self.inline then
+        self.inline:schedule()
+      end
+    end,
+  })
+  if self.options.inline.enabled then
+    self:ensure_inline():resume()
+  end
   self:schedule_refresh()
 end
 

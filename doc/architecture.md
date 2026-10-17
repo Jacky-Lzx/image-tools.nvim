@@ -33,6 +33,7 @@ lua/image_tools/
     paths.lua              path resolution, project roots and validation
     syntax_cache.lua       independent buffer/context namespaces and prefix checkpoints
     math.lua               bounded formula ranges and standalone TeX source
+    inline.lua             standalone Markdown eligibility and visible/folded ranges
     treesitter.lua         async syntax indexing and diagnostics
   media/
     init.lua               unified image helper API
@@ -48,6 +49,7 @@ lua/image_tools/
     conversion_limits.lua  fixed conversion dimensions and resource limits
   render/
     preview.lua            floating preview controller
+    inline.lua             window-scoped virtual-line placements and visible-work lifecycle
     buffer.lua             read-only file-buffer controller
     canvas.lua             window-bound file canvas
     geometry.lua           aspect-ratio fitting
@@ -177,13 +179,26 @@ before acquiring a response handler or timer.
 
 ## Render Sessions
 
-Floating previews, file canvases and Snacks renderers supply their own
+Floating previews, inline virtual lines, file canvases and Snacks renderers supply their own
 authority, viewport, window policy and error presentation. `render/session`
 owns the common prepare/placement sequence and releases both handles on close,
 stale completion, or drawing failure. It also releases handles returned after a
 synchronous close. `render/geometry` supplies aspect-ratio fitting;
 `render/placeholder` draws the Kitty grid and placement highlight. These
 helpers do not depend on a particular controller.
+
+`render/inline` uses one window-scoped namespace per visible Markdown view. The
+namespaces are recycled after views close. A redraw provider only schedules work;
+reference scanning, media sessions and persistent extmark updates run outside
+redraw. Reconciliation skips closed folds, caps candidates per window and drops
+offscreen views. `topfill` retains an anchor immediately above the viewport when
+some of its virtual image rows still show. Each entry owns a normal session and
+independent Kitty placement, while Runtime's lazy pixel pool shares uploads.
+Virtual-line chunks use the same explicit row/column diacritics and foreground/
+underline colors as render buffers. They do not write document bytes. Inline
+view identity includes buffer/name/tick and viewport geometry; asynchronous
+callbacks recheck tab, viewport and fold authority before drawing. Neovim's
+experimental `nvim__ns_set` scopes different split layouts independently.
 
 Sessions expose independent timing snapshots, clip shared-process timestamps
 to each subscriber and retain completed/failing values. Pixel-pool callbacks

@@ -123,6 +123,7 @@ run_test workflow/picker.lua
 # queries/fallback. treesitter.lua always runs and reports skipped real-language
 # checks when the corresponding parsers are unavailable.
 run_test document/markdown.lua
+run_test document/inline.lua
 run_test document/math.lua
 run_test document/formats.lua
 run_test document/html.lua
@@ -152,6 +153,7 @@ run_test document/tex_multiline.lua
 run_test document/typst.lua
 run_test render/buffer.lua
 run_test render/canvas_bounds.lua
+run_test render/inline.lua
 
 # 7. Local HTTPS integration, then real Neovim TUI with simulated Kitty replies.
 # Checks uploads, placeholders, caches and window lifecycle. Visible pixels still

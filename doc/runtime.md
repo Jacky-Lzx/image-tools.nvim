@@ -12,7 +12,7 @@ replacement, and cleans up a failed start so setup can be retried.
 Construction creates the file-buffer service so `BufReadCmd` interception is
 ready immediately. The floating controller is created only when a preview is
 requested. A lazy `pixel_pool` dependency creates one shared pool on the first
-file canvas, float or picker view, then caches it for subsequent views. Closing,
+file canvas, inline placement, float or picker view, then caches it for subsequent views. Closing,
 clearing, diagnostics and teardown inspect only existing render resources.
 `status().terminal_cache` is absent until a pool or injected preview transfer
 exists. File-only `info()` reads the pool directly without constructing a float.
@@ -63,7 +63,7 @@ the byte column is unchanged. Selection changes invalidate the old request;
 delayed callbacks cannot restore a reference after its range is left.
 
 `close()` closes only the floating preview. `clear_cache()` also destroys picker
-renderers, closes file-buffer canvases and clears the shared pixel pool. File
+renderers, pauses inline virtual-line views, closes file-buffer canvases and clears the shared pixel pool. File
 buffers stay attached but paused until buffer/tab entry, resume, explicit opening
 or reload refreshes them. Disk conversions are independent; use
 `clear_disk_cache(callback)` / `:ImageCacheClear` to remove unused disk outputs
@@ -92,3 +92,20 @@ images. The identity bypasses filesystem path normalization and is reported as
 change the identity and replace pending/visible work; surrounding edits retain
 unchanged pixels. The media service owns compilation, coalescing and output
 leases; document lookup never spawns processes or writes files.
+
+Inline Markdown is disabled by default and its controller/recognizer stay deferred.
+Enabling it constructs the redraw scheduler; terminal pixels are still deferred
+until a visible eligible reference needs a placement. `toggle_inline()` controls
+it independently of floating auto_preview. Automatic hover yields to inline
+eligibility, while manual previews keep their ordinary behavior.
+
+The controller tracks current-tab regular windows and source versions. Cursor,
+scroll, layout, option, buffer and redraw events schedule a coalesced sync;
+text/name/filetype/unload and colorscheme changes invalidate affected entries.
+The provider never runs processes or mutates text. Clear/suspend cancels its timer
+and pauses all inline views; buffer/window entry or resume explicitly restarts
+them. Runtime marks itself disposed before destroying sessions, then removes the
+provider. Late callbacks cannot recreate extmarks in closed/hidden windows.
+`info()` may select an inline item at the source cursor when no float/file viewer
+is selected; `reload()` invalidates current-document inline views, including URL
+cache refresh, in that same fallback case.

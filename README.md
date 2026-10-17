@@ -39,6 +39,7 @@ return {
   cmd = {
     "ImagePreview", "ImagePreviewClose", "ImagePreviewToggle", "ImagePreviewClearCache",
     "ImageCacheClear", "ImageInfo", "ImageCheckAssets", "ImageInsert", "ImagePaste", "ImagePick",
+    "ImageInlineToggle",
     "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan", "ImageMove", "ImageLocalize",
   },
   opts = { auto_preview = true, max_width = 60, max_height = 30 },
@@ -72,6 +73,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
 - `:ImagePreviewToggle` toggles automatic current-line previews.
+- `:ImageInlineToggle` toggles Markdown inline images and block formulas.
 - `:ImageInfo` displays current image/PDF metadata, cache counters and phase timings.
 - `:ImageCheckAssets` reports missing references and possibly unused assets.
 - `:checkhealth image_tools` checks the terminal and configured conversion tools.
@@ -85,7 +87,7 @@ Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
 `register_adapter(filetype, definition)`, `unregister_adapter(filetype)`,
 `open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`,
-`move(source, destination, opts, callback)`, `localize(opts, callback)`, `info()`.
+`move(source, destination, opts, callback)`, `localize(opts, callback)`, `toggle_inline()`, `info()`.
 
 ### Move images and update references
 
@@ -156,6 +158,7 @@ require("image_tools").setup({
   auto_preview_delay = 100, -- milliseconds before preparing a new automatic selection; 0 is immediate
   preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
+  inline = { enabled = false, max_width = 60, max_height = 20, max_images = 16, debounce = 50 },
   remote = { enabled = false, curl = "curl", timeout = 10000, ttl = 3600, max_redirects = 5 },
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   math = {
@@ -271,8 +274,9 @@ are avoided.
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
-Multiline Markdown image calls and inline rendering inside document text
-are future work. Reference images (`![alt][id]`, `![id][]`, `![id]`) resolve
+Multiline Markdown image calls are future work. Optional inline display supports
+standalone Markdown images and block formulas as described below.
+Reference images (`![alt][id]`, `![id][]`, `![id]`) resolve
 case-insensitive, whitespace-normalized labels from same-line definitions, including
 forward definitions within `max_scan_lines`. The first definition outside code wins.
 Local image wikilinks (`![[path.png|label]]`) resolve literal document-relative paths;
@@ -392,6 +396,50 @@ and `cursor`; return a string using `ctx.cursor` at the editing target. Paths an
 alt text in custom templates are raw values: escape them for the syntax you emit.
 Built-in source-format/path validation and transactional rollback still apply.
 Reference previews follow the syntax recognized by the document adapter.
+
+## Inline Markdown images and block formulas
+
+Enable `inline = { enabled = true }`, or use `:ImageInlineToggle` /
+`toggle_inline()`. The default is disabled. Independent image/PDF buffers and
+Snacks previews continue to use their own viewers.
+
+Standalone Markdown images display below their source line, including reference
+images and local wikilinks. Only whitespace may surround the reference. Block
+formulas using `$$...$$`, `\[...\]` and supported display environments (such as
+`equation`/`align`) display below their closing line; they may span several source
+rows. Single-dollar math, `\(...\)`, `math` environments, images embedded in prose,
+list/blockquote items and multiple images on one line use the existing floating
+preview. Existing scanner exclusions and `math.enabled` still apply. Formula
+rendering needs latex/dvipng; HTTPS images require `remote.enabled = true`.
+
+Rendering adds window-scoped virtual lines, preserving source text, line counts,
+modified state and undo history. Source markup stays visible and editable. Each
+split fits images independently to its text width; images do not upscale. The
+cell limits `inline.max_width`/`max_height` default to 60/20, also bounded by the
+window and Kitty's coordinate limit. Virtual lines follow wrapping/gutters and
+clip at window edges, scroll with the document, and hide inside closed folds.
+Partially visible image rows remain while scrolling past their source anchor.
+
+Only visible candidates are prepared, with up to `inline.max_images` (16) per
+window. `inline.debounce` (50 ms; 0 is immediate) coalesces editor/redraw changes.
+Recognizers may read earlier syntax context to exclude code and resolve labels;
+offscreen images themselves do not start conversion/downloads. Views share the
+normal process queue, disk leases and terminal pixel cache. Leaving the viewport,
+switching buffers/tabs, closing a split, disabling inline display or suspending
+releases its placements and pending work. Source rewrites, edits, resizing and
+colorscheme changes refresh affected views; stale results cannot restore them.
+
+Automatic floating previews skip inline-eligible references while inline mode is
+enabled. Manual `:ImagePreview` / `hover()` still opens a float. `auto_preview`
+and `:ImagePreviewToggle` control floating previews independently. `:ImageInfo`
+reports an inline item when the cursor is on its source; `:ImageReload` refreshes
+the current document's inline views if no file viewer/current float is selected.
+`status().inline` reports windows, image/ready/pending/failed counts and last error.
+`:ImagePreviewClearCache` pauses inline views; window/buffer entry, resume,
+reconfiguration or toggling inline mode restores them.
+
+Try the bundled [inline gallery](examples/inline.md), including different split
+widths, wrapping, partial scrolling, folds and code examples.
 
 ## HTTPS images and localization
 
@@ -711,7 +759,8 @@ renderer executables, density and resolved foreground. `foreground = "auto"`
 uses `Normal`'s foreground with a light/dark fallback; colorscheme changes select
 new pixels. `:ImageCacheClear` also removes unused formula PNGs. Set
 `math.enabled = false` to disable recognition. Asset checks enumerate image files
-only. Formulas use floating previews; document text is preserved.
+only. Formulas use floating previews, or optional Markdown block-formula inline
+display; document text is preserved.
 
 `math.density` defaults to 360 DPI. Formulas use a fixed 180-DPI baseline for
 display sizing, so higher density adds raster detail without enlarging the
@@ -810,7 +859,7 @@ keeps its slot until the process exits. Cache hits and PNG reads bypass the queu
 each priority class and the current process budget.
 Reconfiguration updates that budget; running workers retain their slots until exit.
 
-Terminal pixel data is shared by floating previews, picker previews and file
+Terminal pixel data is shared by inline views, floating previews, picker previews and file
 buffers within one plugin runtime. Each view has a separate Kitty virtual
 placement id, encoded in the placeholder underline color, so differently sized
 splits reuse one upload. Closing a view releases its placement; other active

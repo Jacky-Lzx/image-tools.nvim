@@ -5,7 +5,7 @@
 --   highlights.
 --
 -- Architecture:
---   Shared by floating previews, file canvases and picker renderers. Use the
+--   Shared by inline views, floating previews, file canvases and picker renderers. Use the
 --   supplied protocol to encode pixels/placement selection, then write lines
 --   and apply namespace-specific extmarks.
 --
@@ -26,6 +26,19 @@
 ---@class ImageToolsPlaceholder
 local M = {}
 local PLACEHOLDER_HIGHLIGHT_PRIORITY = 1000
+
+-- Virtual lines share the same explicit Kitty coordinates and highlight encoding
+-- as render buffers, while leaving document bytes and undo history untouched.
+function M.virtual(state, prefix, entry, width, height, protocol)
+  state.id, state.placement_id, state.width, state.height = entry.id, entry.placement_id, width, height
+  state.highlight = prefix .. entry.id .. "_" .. (entry.placement_id or 0)
+  vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
+  local lines = {}
+  for _, line in ipairs(protocol.grid(width, height)) do
+    lines[#lines + 1] = { { line, state.highlight } }
+  end
+  return lines
+end
 
 -- Record placement identity, populate placeholder rows and highlight their exact byte ranges.
 ---@param state ImageToolsDrawState Caller-owned state with a live buf.

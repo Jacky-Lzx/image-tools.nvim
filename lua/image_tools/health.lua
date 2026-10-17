@@ -110,6 +110,20 @@ function M.check()
   end
 
   local clipboard = state.clipboard
+  if state.inline and state.inline.enabled then
+    vim.health.info(
+      string.format(
+        "Inline Markdown: %d ready, %d pending, %d failed in %d window(s)",
+        state.inline.ready,
+        state.inline.pending,
+        state.inline.failed,
+        state.inline.windows
+      )
+    )
+    if state.inline.last_error then
+      vim.health.warn("Most recent inline error: " .. state.inline.last_error)
+    end
+  end
   local remote = state.remote or defaults.remote
   if remote.enabled then
     if vim.fn.executable(remote.curl) == 1 then
