@@ -10,7 +10,6 @@
 local M = {}
 local uv = vim.uv
 local version = require("image_tools.media.file_version")
-local extensions = { md = "markdown", markdown = "markdown", tex = "tex", ltx = "tex", typ = "typst" }
 local WALK_BATCH_SIZE = 32
 local observers = {}
 local inspection_serial = 0
@@ -56,6 +55,8 @@ local function inside(path, root)
 end
 
 function M.check(opts, callback)
+  local formats = require("image_tools.document.formats")
+  local extensions, registry_generation = formats.document_extensions(), formats.generation()
   local buf = opts.buf and opts.buf ~= 0 and opts.buf or vim.api.nvim_get_current_buf()
   local document = vim.api.nvim_buf_get_name(buf)
   local settings = vim.tbl_extend("force", require("image_tools.defaults").assets, opts.assets or {})
@@ -139,6 +140,10 @@ function M.check(opts, callback)
   -- checks at start/publication also cover changes without a corresponding event.
   local function current(complete)
     if not active then
+      return false
+    end
+    if formats.generation() ~= registry_generation then
+      done("Document adapter registry changed during project inspection")
       return false
     end
     if invalidated then

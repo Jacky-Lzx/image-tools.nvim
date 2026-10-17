@@ -29,6 +29,7 @@ lua/image_tools/
     tex.lua                LaTeX resolution and insertion rules
     tex/reference.lua      bounded multiline decoding and reference ranges
     typst.lua              Typst syntax and insertion rules
+    html.lua               literal HTML images, context exclusions and escaped markup
     paths.lua              path resolution, project roots and validation
     syntax_cache.lua       independent buffer/context namespaces and prefix checkpoints
     math.lua               bounded formula ranges and standalone TeX source
@@ -66,7 +67,11 @@ lua/image_tools/
     assets.lua               read-only document resource inspection
     asset_project.lua        project discovery, scratch documents and reference aggregation
     insert.lua             file import and document text transaction
-    clipboard.lua          macOS clipboard import
+    template.lua           literal template expansion and cursor offsets
+    process.lua            processing presets, filtering and converter argv
+    naming.lua             date/function filename rules
+    clipboard.lua          shared clipboard validation/conversion/import
+    clipboard_backend.lua  platform readers and bounded binary output
     picker.lua             Snacks selection and preview integration
 ```
 
@@ -118,6 +123,10 @@ tests/
     pixel_pool.lua           shared ownership and independent placements
   workflow/
     insert.lua               import, extmarks, batches and rollback
+    template.lua             template expansion, aliases and rollback
+    process.lua              real resize/conversion and processing menus
+    naming.lua               naming contexts, clock capture and collisions
+    clipboard_backend.lua    platform reader protocols, bounds and cancellation
     content.lua              binary hashes, revisions, cache and worker cancellation
     clipboard.lua            simulated clipboard commands
     picker.lua               optional real Snacks integration
@@ -200,8 +209,11 @@ their captured document/options. PNG reads and PDF metadata bypass this queue.
 
 ## Document Format Adapters
 
-`document/formats` centralizes filetype aliases and resolves the Markdown, LaTeX
-and Typst adapters. Each adapter owns reference detection, supported insertion
+`document/formats` centralizes filetype aliases and resolves the Markdown, LaTeX,
+Typst and HTML adapters plus public custom registrations. Definitions are copied;
+built-ins are protected and unregister closures are generation-specific. Captured
+adapter identity prevents replacement/removal from redirecting a pending import.
+Project discovery snapshots registered document extensions. Each adapter owns reference detection, supported insertion
 formats, markup emission and insertion path base; format-specific validation and
 filename sanitation are optional hooks. The picker uses the same format list as
 insertion. Markdown derives its list from the media preview capabilities, so

@@ -77,7 +77,7 @@ local function find(buf, row, col, opts)
   local filetype = vim.bo[buf].filetype
   local format = formats.get(filetype)
   if not format then
-    return nil, "Image references support Markdown, LaTeX and Typst"
+    return nil, "Unsupported document filetype; register a document adapter to add image references"
   end
   if row > opts.max_scan_lines then
     return nil, "Document exceeds max_scan_lines; use :ImagePreview with a file path"
@@ -143,6 +143,9 @@ function M.enumerate(buf, opts, callback)
   local step
   local function done(err)
     active = false
+    if not err and formats.get(opts._document_filetype or ft) ~= adapter then
+      err = "Document adapter changed during reference enumeration"
+    end
     callback(err, not err and report or nil)
   end
   step = function()
@@ -159,6 +162,7 @@ function M.enumerate(buf, opts, callback)
       or vim.api.nvim_buf_get_name(buf) ~= name
       or vim.api.nvim_buf_get_changedtick(buf) ~= tick
       or vim.bo[buf].filetype ~= ft
+      or formats.get(opts._document_filetype or ft) ~= adapter
     then
       done("Document changed or unloaded during reference enumeration")
       return

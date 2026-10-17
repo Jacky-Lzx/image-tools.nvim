@@ -16,6 +16,35 @@
 local M = {}
 local instance
 
+local function refresh_adapter(filetype)
+  if instance and vim.bo.filetype == filetype then
+    instance:close()
+    instance:schedule_refresh()
+  end
+end
+
+-- Registration is independent of setup; returned cleanup is safe after a later
+-- registration replaces this adapter, and built-ins remain protected.
+function M.register_adapter(filetype, definition)
+  local unregister = require("image_tools.document.formats").register(filetype, definition)
+  refresh_adapter(filetype)
+  return function()
+    local removed = unregister()
+    if removed then
+      refresh_adapter(filetype)
+    end
+    return removed
+  end
+end
+
+function M.unregister_adapter(filetype)
+  local removed = require("image_tools.document.formats").unregister(filetype)
+  if removed then
+    refresh_adapter(filetype)
+  end
+  return removed
+end
+
 -- Lazily configure the single active Runtime for operations that require services.
 ---@return ImageToolsRuntime instance
 local function runtime()

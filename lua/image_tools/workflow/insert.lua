@@ -19,6 +19,7 @@
 ---@field buf integer Originating document buffer; asynchronous work never targets a replacement buffer.
 ---@field win integer Originating window; completion only moves the cursor while it is current.
 ---@field timestamp integer Local naming time captured before prompts or asynchronous work.
+---@field adapter? ImageToolsDocumentAdapter Captured adapter identity; replacement invalidates pending work.
 ---@field document string Captured buffer filename used to detect rename and compute roots.
 ---@field filetype string Captured format used to detect filetype changes.
 ---@field strategy "insert_after"|"insert_before"|"insert_line_after"|"insert_line_before" Text transaction placement policy.
@@ -116,6 +117,7 @@ function M.capture(opts)
     buf = buf,
     win = vim.api.nvim_get_current_win(),
     timestamp = os.time(),
+    adapter = require("image_tools.document").adapter(vim.bo[buf].filetype),
     document = vim.api.nvim_buf_get_name(buf),
     filetype = vim.bo[buf].filetype,
     strategy = strategy,
@@ -142,6 +144,7 @@ local function valid(context)
     and vim.bo[context.buf].modifiable
     and vim.api.nvim_buf_get_name(context.buf) == context.document
     and vim.bo[context.buf].filetype == context.filetype
+    and require("image_tools.document").adapter(context.filetype) == context.adapter
 end
 
 M.relative = require("image_tools.document.paths").relative
@@ -175,7 +178,10 @@ end
 ---@param edit_offset integer Zero-based byte offset within the first snippet, including newlines.
 ---@return nil
 local function insert(context, snippets, edit_offset)
-  assert(valid(context), "Source buffer was closed, renamed, changed filetype or made read-only")
+  assert(
+    valid(context),
+    "Source buffer was closed, renamed, changed filetype, made read-only or changed document adapter"
+  )
   local pos = vim.api.nvim_buf_get_extmark_by_id(context.buf, ns, context.mark, {})
   assert(#pos == 2, "Insertion position was removed")
   local row, col = pos[1], pos[2]

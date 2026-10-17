@@ -27,7 +27,7 @@ snacks.picker.files = function(options)
   }
 end
 _G.Snacks, package.loaded.snacks = snacks, snacks
-for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst" }) do
+for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst", "html" }) do
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(buf)
   vim.api.nvim_buf_set_name(buf, tmp .. "/chapter/" .. filetype .. ".txt")
@@ -39,6 +39,11 @@ for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst" }) d
   check(picker ~= nil and vim.tbl_contains(config.ft, "png"), filetype .. ": picker exposes importable PNGs")
   if filetype == "markdown" then
     check(vim.tbl_contains(config.ft, "tiff"), "Markdown picker includes TIFF alongside its TIFF import support")
+  elseif filetype == "html" then
+    check(
+      vim.tbl_contains(config.ft, "avif") and not vim.tbl_contains(config.ft, "pdf"),
+      "HTML picker supports browser images"
+    )
   else
     check(not vim.tbl_contains(config.ft, "avif"), filetype .. ": compiler-incompatible AVIFs stay out of picker")
   end
@@ -51,7 +56,7 @@ for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst" }) d
   check(vim.wait(3000, function()
     return done
   end) and not failure, filetype .. ": actual import succeeds")
-  check(D.at_line(buf, (filetype == "markdown" or filetype == "typst") and 2 or 4, {
+  check(D.at_line(buf, require("image_tools.document.formats").kind(filetype) == "tex" and 4 or 2, {
     root = tmp,
     max_scan_lines = 100,
     treesitter = false,

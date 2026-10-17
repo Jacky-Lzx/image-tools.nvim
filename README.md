@@ -55,6 +55,7 @@ remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
+`register_adapter(filetype, definition)`, `unregister_adapter(filetype)`,
 `open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`, `info()`.
 
 `require("image_tools")` alone registers no handlers.
@@ -250,6 +251,34 @@ text. In LaTeX it starts inside the first figure's caption; in Typst it starts
 immediately after the first image reference.
 If you switch windows or documents before an asynchronous import finishes, it
 keeps your current focus, cursor and mode.
+
+### Document adapters and HTML
+
+Built-in insertion/lookup supports Markdown, LaTeX, Typst and HTML. HTML emits
+`<img src="..." alt="">` and enters the alt text in Insert mode. Paths are URL
+encoded and attribute text is escaped. Preview/asset inspection recognizes
+literal same-line `img src` attributes, excluding comments and script/style/pre/code
+content. Named basic and numeric entities are decoded; dynamic bindings, srcset,
+multiline tags, DOM evaluation and remote images are unsupported.
+
+Register additional filetypes without replacing built-ins:
+
+```lua
+local remove = require("image_tools").register_adapter("org", {
+  image_formats = { "png", "jpg", "jpeg" },
+  markup = "[[file:$FILE_PATH]]$CURSOR",
+})
+-- remove() unregisters this registration; unregister_adapter("org") removes the current one.
+```
+
+Registration works before setup and survives reconfiguration. The definition is
+copied; registering the same custom filetype replaces it. Its formats also drive
+clipboard defaults, processing menus and picker filtering. Add `find` and
+`references` callbacks for previews/asset inspection, and `file_extensions` for
+offline project discovery. Markup-only adapters can insert images; inspection
+reports an unsupported enumeration error instead of classifying all assets as unused.
+Replacing/removing an adapter invalidates pending imports using it. See the
+[adapter API and full callback example](doc/adapters.md).
 
 ### File naming rules
 

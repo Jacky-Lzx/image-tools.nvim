@@ -2,6 +2,10 @@
 -- actually takes effect and queued typing exercises the insertion position.
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
 local I = require("image_tools.workflow.insert")
+require("image_tools").register_adapter("org", {
+  image_formats = { "png", "jpg" },
+  markup = "[[file:$FILE_PATH]]$CURSOR",
+})
 local tmp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/insert-mode"
 vim.fn.mkdir(tmp, "p")
 local fixture = tmp .. "/fixture.png"
@@ -17,7 +21,7 @@ end
 cases[#cases + 1] = { alt = "原有]描述", start_insert = true }
 cases[#cases + 1] = { paste = true }
 cases[#cases + 1] = { template = "Image: $FILE_PATH\nCaption: $CURSOR\nEnd" }
-for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst" }) do
+for _, filetype in ipairs({ "tex", "latex", "plaintex", "typst", "html", "org" }) do
   for _, strategy in ipairs({ "insert_before", "insert_after", "insert_line_before", "insert_line_after" }) do
     cases[#cases + 1] = { filetype = filetype, strategy = strategy }
   end
@@ -59,7 +63,7 @@ next_case = guarded(function()
   vim.api.nvim_win_set_cursor(0, { 1, 0 })
   local strategy = case.strategy or "insert_line_after"
   local opts = { mode = "reference", insert_strategy = strategy, alt = case.alt, template = case.template }
-  local extension = ft == "markdown" and "avif" or "png"
+  local extension = (ft == "markdown" or ft == "html") and "avif" or "png"
   local paste_path = "paste-" .. index .. "/image." .. extension
   local snippet = I.markup(case.paste and paste_path or I.relative(fixture, tmp), case.alt, ft)
   local row = strategy == "insert_line_after" and 2 or 1
@@ -68,6 +72,9 @@ next_case = guarded(function()
   local tex = ft == "tex" or ft == "latex" or ft == "plaintex"
   if tex then
     row, col = row + 3, #"  \\caption{"
+  end
+  if ft == "html" then
+    col = #prefix + #assert(snippet:match('^(.-alt=")'))
   end
   if case.template then
     row, col = row + 1, #"Caption: "

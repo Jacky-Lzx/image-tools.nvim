@@ -13,6 +13,15 @@ descriptions, multiline LaTeX captions, Typst reference ends, failures and windo
 focus preservation. LaTeX tests check the figure template, filename-derived labels,
 batch undo and real graphicx compilation when available.
 
+Template, processing and naming workflow suites cover their public configuration,
+real conversion/resize, captured contexts, menus and rollback. Clipboard backend
+tests exercise executable protocols with real binary fixtures, partial writes,
+limits, timeout and cancellation; see [native coverage boundaries](clipboard-backends.md).
+HTML tests cover escaped markup, entities, byte ranges, context exclusions and
+cache edits. Adapter tests cover registration replacement/cleanup, captured
+authority and offline project discovery. Cursor lifecycle and main-loop insertion
+tests include HTML; the latter also exercises a registered Org adapter.
+
 `tests/terminal/stream.lua` checks incremental Base64 boundaries, serialized
 concurrent graphics, queued/partial cancellation, write failures, deferred
 response timeouts and handler cleanup. `tests/document/tex_multiline.lua` also

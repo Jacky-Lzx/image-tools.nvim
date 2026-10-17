@@ -23,8 +23,11 @@ module paths; injected dependency keys remain unchanged.
 marks the instance disposed before deleting handlers or closing windows, preventing
 old callbacks from acting during cleanup. Cleanup is idempotent.
 
-File insertion and clipboard import retain their independent source contexts and
-returned cancellation handles. Reconfiguration does not change the captured
+File insertion and clipboard import retain their independent source contexts,
+captured document adapter and returned cancellation handles. Public adapter
+replacement/removal invalidates pending imports and refreshes current reference
+previews. Templates, processing presets and naming rules use the operation's
+captured options and document. Reconfiguration does not change the captured
 options of an already-started insertion. The Runtime dependency interface allows
 controller and document services to be replaced in lifecycle tests.
 

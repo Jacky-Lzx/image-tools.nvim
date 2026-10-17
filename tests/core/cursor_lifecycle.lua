@@ -52,6 +52,7 @@ local lines = {
   markdown = "文字 ![first](a.png) and ![second](b.png) suffix",
   tex = "\\includegraphics{a.png} \\includegraphics{b.png} suffix",
   typst = '#image("a.png") #image("b.png") suffix',
+  html = '<img src="a.png" alt="first"> <img src="b.png" alt="second"> suffix',
 }
 local function buffer(filetype, text)
   serial = serial + 1
@@ -78,7 +79,7 @@ local function newest(path)
   return request
 end
 for _, treesitter in ipairs(vim.env.IMAGE_TOOLS_PARSER_ROOT and { false, true } or { false }) do
-  for _, filetype in ipairs({ "markdown", "tex", "typst" }) do
+  for _, filetype in ipairs({ "markdown", "tex", "typst", "html" }) do
     local text = lines[filetype]
     local buf = buffer(filetype, text)
     vim.api.nvim_win_set_cursor(0, { 1, column(text, "b.png") })

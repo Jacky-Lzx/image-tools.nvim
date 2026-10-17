@@ -20,6 +20,7 @@ function M.check(opts, callback)
   local document = opts._document_path or original_name
   local tick = vim.api.nvim_buf_get_changedtick(buf)
   local filetype = vim.bo[buf].filetype
+  local adapter = require("image_tools.document.formats").get(opts._document_filetype or filetype)
   local kind = require("image_tools.document.formats").kind(opts._document_filetype or filetype)
   local active = true
   local report =
@@ -31,6 +32,7 @@ function M.check(opts, callback)
       and vim.bo[buf].filetype == filetype
       and vim.api.nvim_buf_get_name(buf) == original_name
       and vim.api.nvim_buf_get_changedtick(buf) == tick
+      and require("image_tools.document.formats").get(opts._document_filetype or filetype) == adapter
   end
   local function done(err)
     if not active then
@@ -48,7 +50,7 @@ function M.check(opts, callback)
   end
   local insertion = opts.insert or {}
   local ok, directory = pcall(function()
-    assert(kind and document ~= "", "Save a Markdown, LaTeX or Typst document before checking assets")
+    assert(kind and document ~= "", "Save a supported document before checking assets")
     local base = insertion.root or vim.fs.dirname(document)
     if type(base) == "function" then
       base = base(document)

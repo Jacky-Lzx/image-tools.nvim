@@ -197,6 +197,20 @@ inside LaTeX's caption, or after the reference in Typst. If another window or
 document is current when asynchronous insertion finishes, its focus, cursor and
 mode are preserved.
 
+Document adapters:
+register_adapter(filetype, definition) registers/replaces a custom adapter and
+returns an unregister function. unregister_adapter(filetype) removes the current
+custom adapter; built-ins are protected. Definitions require image_formats (list)
+and markup (string template or function returning text, optional byte offset).
+Optional hooks: find, references, insertion_base, sanitize_filename,
+validate_reference. file_extensions enables project discovery when references is
+provided. Registration is copied and survives setup; old cleanup functions cannot
+remove newer registrations. Replacement/removal invalidates pending imports.
+Markup-only inspection reports an enumeration error. See doc/adapters.md.
+HTML supports same-line literal img src attributes, comments/raw-element exclusion,
+entity decoding, escaped insertion and alt-text editing. No srcset, dynamic
+bindings, multiline tags, remote images or DOM evaluation.
+
 Naming rules:
 insert.file_name / per-call file_name accepts an os.date pattern or function.
 filename takes precedence. Functions get document, document_name, filetype, kind
