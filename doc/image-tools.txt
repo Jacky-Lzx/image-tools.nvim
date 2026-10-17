@@ -197,6 +197,15 @@ inside LaTeX's caption, or after the reference in Typst. If another window or
 document is current when asynchronous insertion finishes, its focus, cursor and
 mode are preserved.
 
+Naming rules:
+insert.file_name / per-call file_name accepts an os.date pattern or function.
+filename takes precedence. Functions get document, document_name, filetype, kind
+(file/clipboard), extension, timestamp, plus source/source_name for file copies.
+Time is captured before prompts/menus. Return a single basename; the real extension
+is retained. Default: clipboard timestamp, original filename for imports. Reference
+mode and already-imported assets do not rename. Invalid names/errors roll back the batch; collisions and
+deduplication use the existing import rules.
+
 Custom templates:
 insert.template (or per-call template) accepts a string, function or filetype
 table; missing entries use built-ins, and tex entries cover latex/plaintex.

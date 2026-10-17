@@ -115,7 +115,17 @@ local function paste_selected(opts, callback, dependencies)
     return cancel
   end
 
-  local filename = opts.filename or os.date("%Y-%m-%d_%H-%M-%S") .. "." .. format
+  local named, filename = pcall(require("image_tools.workflow.naming").resolve, opts, {
+    document = context.document,
+    filetype = context.filetype,
+    extension = format,
+    kind = "clipboard",
+    timestamp = context.timestamp,
+  })
+  if not named then
+    finish(tostring(filename))
+    return cancel
+  end
 
   local executable = opts.pngpaste or "pngpaste"
   if vim.fn.executable(executable) ~= 1 then

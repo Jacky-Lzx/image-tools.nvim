@@ -18,6 +18,7 @@
 ---@class ImageToolsInsertContext
 ---@field buf integer Originating document buffer; asynchronous work never targets a replacement buffer.
 ---@field win integer Originating window; completion only moves the cursor while it is current.
+---@field timestamp integer Local naming time captured before prompts or asynchronous work.
 ---@field document string Captured buffer filename used to detect rename and compute roots.
 ---@field filetype string Captured format used to detect filetype changes.
 ---@field strategy "insert_after"|"insert_before"|"insert_line_after"|"insert_line_before" Text transaction placement policy.
@@ -29,6 +30,7 @@
 ---@field mode? "copy"|"reference" File import policy; copy reuses sources already inside the import directory.
 ---@field deduplicate? boolean Reuse identical files of the same extension in the destination directory.
 ---@field filename? string Imported basename override; source extension is retained.
+---@field file_name? string|function os.date format or naming function; file imports keep their names by default.
 ---@field alt? string Markdown/Typst image description.
 ---@field template? string|function|table|false Markup override, optionally indexed by filetype; false uses the adapter default.
 ---@field process? table|"select"|false Clipboard processing preset or selectable list; select uses built-ins.
@@ -111,6 +113,7 @@ function M.capture(opts)
   return {
     buf = buf,
     win = vim.api.nvim_get_current_win(),
+    timestamp = os.time(),
     document = vim.api.nvim_buf_get_name(buf),
     filetype = vim.bo[buf].filetype,
     strategy = strategy,
@@ -459,7 +462,19 @@ function M.files(paths, opts, callback)
         end)
       )
     end
-    local name = opts.filename or vim.fs.basename(source)
+    local named, name = pcall(require("image_tools.workflow.naming").resolve, opts, {
+      document = context.document,
+      filetype = context.filetype,
+      source = source,
+      source_name = vim.fs.basename(source),
+      extension = source:match("%.([^./]+)$"),
+      kind = "file",
+      timestamp = context.timestamp,
+    })
+    if not named then
+      fail(name)
+      return
+    end
     if opts.prompt_for_file_name then
       vim.ui.input({ prompt = "Image filename: ", default = name }, save)
     else

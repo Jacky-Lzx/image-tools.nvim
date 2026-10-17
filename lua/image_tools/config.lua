@@ -130,6 +130,7 @@ function M.resolve(opts)
   assert(type(options.insert.deduplicate) == "boolean", "insert.deduplicate must be boolean")
   require("image_tools.workflow.template").validate(options.insert.template)
   require("image_tools.workflow.process").validate(options.insert.process)
+  require("image_tools.workflow.naming").validate(options.insert.file_name)
   for _, name in ipairs({ "max_entries", "max_document_bytes" }) do
     assert(
       type(options.assets[name]) == "number" and options.assets[name] >= 1 and options.assets[name] % 1 == 0,

@@ -251,6 +251,27 @@ immediately after the first image reference.
 If you switch windows or documents before an asynchronous import finishes, it
 keeps your current focus, cursor and mode.
 
+### File naming rules
+
+`insert.file_name` (or per-call `file_name`) accepts an `os.date` pattern or
+function. For example `file_name = "figure-%Y-%m-%d_%H-%M-%S"`. Without a rule,
+clipboard images keep the default timestamp and imported files keep their original
+names. An explicit `filename` has priority; reference mode and resources already
+inside the asset directory reuse the source without renaming it.
+
+```lua
+file_name = function(ctx)
+  return ctx.document_name .. "_" .. os.date("%Y-%m-%d", ctx.timestamp)
+end
+```
+
+Context fields: `document`, `document_name` (stem), `filetype`, `kind` (`file` or
+`clipboard`), `extension`, `timestamp`; file copies also supply `source` and
+`source_name`. Time is captured before prompts/processing selection. Return a
+single basename, optionally without its extension. The actual source/output
+extension is retained, TeX names are sanitized, collisions get suffixes and
+`deduplicate` still reuses identical resources. Errors roll back the whole batch.
+
 ### Custom insertion templates
 
 Set `insert.template` globally or pass `template` to `insert`, `paste`, or
