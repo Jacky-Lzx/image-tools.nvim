@@ -25,9 +25,8 @@
 local M = {}
 local uv = vim.uv
 local defaults = require("image_tools.defaults")
-local limits = require("image_tools.media.conversion_limits")
+local process = require("image_tools.workflow.process")
 local SIGTERM = 15
-local DEFAULT_QUALITY = 75
 local DEFAULT_CLIPBOARD_TIMEOUT_MS = 5000
 local formats = { png = true, jpg = true, webp = true, avif = true }
 
@@ -39,7 +38,7 @@ local formats = { png = true, jpg = true, webp = true, avif = true }
 ---@param callback? ImageToolsInsertCallback Defaults to error notifications.
 ---@param dependencies? table macos=true enables controlled platform tests.
 ---@return ImageToolsCancel cancel Stops owned read/process/import work and cleans temporary resources.
-function M.paste(opts, callback, dependencies)
+local function paste_selected(opts, callback, dependencies)
   opts, dependencies = opts or {}, dependencies or {}
   callback = callback
     or function(err)
@@ -159,35 +158,26 @@ function M.paste(opts, callback, dependencies)
   -- Bypass conversion for PNG; other formats share the configured process queue and timeout.
   ---@return nil
   local function convert()
-    if format == "png" then
+    if format == "png" and not opts.resize and not opts.command then
       imported(png)
       return
     end
 
-    local magick = opts.magick or "magick"
-    if vim.fn.executable(magick) ~= 1 then
-      finish("ImageMagick is required for clipboard conversion")
+    local output = state.directory .. "/clipboard." .. format
+    local ok, command = pcall(process.command, opts, png, output)
+    if not ok then
+      finish(tostring(command))
       return
     end
-    local output = state.directory .. "/clipboard." .. format
+    if vim.fn.executable(command[1]) ~= 1 then
+      finish(
+        opts.command and ("Clipboard converter not found: " .. command[1])
+          or "ImageMagick is required for clipboard conversion"
+      )
+      return
+    end
     state.cancel_conversion = require("image_tools.media.conversion_queue").run(
-      {
-        magick,
-        "-limit",
-        "memory",
-        limits.MAGICK_MEMORY,
-        "-limit",
-        "map",
-        limits.MAGICK_MAP,
-        "-limit",
-        "disk",
-        limits.MAGICK_DISK,
-        png,
-        "-auto-orient",
-        "-quality",
-        tostring(opts.quality or DEFAULT_QUALITY),
-        output,
-      },
+      command,
       { timeout = opts.convert_timeout or defaults.convert_timeout },
       vim.schedule_wrap(function(result)
         state.cancel_conversion = nil
@@ -247,6 +237,54 @@ function M.paste(opts, callback, dependencies)
       state.cancel_read()
     end
     cancel()
+  end
+end
+
+-- Capture authority before opening a processing menu. A late selection after
+-- cancellation cannot read the clipboard or import into another document.
+function M.paste(opts, callback, dependencies)
+  opts = opts or {}
+  if not opts.process then
+    return paste_selected(opts, callback, dependencies)
+  end
+  local I = require("image_tools.workflow.insert")
+  local context = opts.context or I.capture(opts)
+  local done, cancel_active = false, nil
+  local function finish(err, paths)
+    if done then
+      return
+    end
+    done = true
+    I.release(context)
+    if callback then
+      callback(err, paths)
+    elseif err and err ~= "Cancelled" then
+      vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
+    end
+  end
+  local default_format = opts.format or (I.supported(context.filetype, "clipboard.avif") and "avif" or "png")
+  local ok, err = pcall(process.select, opts.process, context.filetype, default_format, function(selected)
+    if done then
+      return
+    end
+    if not selected then
+      finish("Cancelled")
+      return
+    end
+    local options = vim.tbl_extend("force", opts, selected, { context = context, process = false })
+    cancel_active = paste_selected(options, finish, dependencies)
+  end)
+  if not ok then
+    finish(tostring(err))
+  end
+  return function()
+    if not done then
+      if cancel_active then
+        cancel_active()
+      else
+        finish("Cancelled")
+      end
+    end
   end
 end
 

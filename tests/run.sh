@@ -99,6 +99,7 @@ run_test render/session.lua
 # manual/clipboard_native.lua requires a prepared system clipboard and runs separately.
 run_test workflow/insert.lua
 run_test workflow/template.lua
+run_test workflow/process.lua
 # Main-loop execution lets Insert mode activate and tests real queued typing.
 run_suite tests/workflow/insert_mode.lua nvim --headless -u NONE -i NONE --noplugin \
   -c "luafile $root/tests/workflow/insert_mode.lua"

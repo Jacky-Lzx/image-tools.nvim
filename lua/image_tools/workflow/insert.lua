@@ -31,6 +31,9 @@
 ---@field filename? string Imported basename override; source extension is retained.
 ---@field alt? string Markdown/Typst image description.
 ---@field template? string|function|table|false Markup override, optionally indexed by filetype; false uses the adapter default.
+---@field process? table|"select"|false Clipboard processing preset or selectable list; select uses built-ins.
+---@field resize? string Internal selected ImageMagick geometry.
+---@field command? string[] Internal selected custom converter argv with $INPUT/$OUTPUT.
 ---@field prompt_for_file_name? boolean Prompt for each imported basename.
 ---@field insert_strategy? string Text placement strategy; default insert_line_after.
 ---@field context? ImageToolsInsertContext Captured transaction context reused by prompt/clipboard/picker.

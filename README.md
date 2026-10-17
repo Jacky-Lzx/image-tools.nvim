@@ -380,6 +380,27 @@ Empty clipboard, unsupported platform, missing tools and failed conversion repor
 errors without inserting text or leaving image resources. The cancel function also
 stops pending reads/processes and removes temporary files.
 
+### Clipboard processing presets
+
+Pass `process = "select"` to paste to choose from PNG, AVIF, JPEG and a WebP
+1600px preset. The menu filters formats using the captured document type. A single
+compatible preset runs immediately; cancelling a menu performs no clipboard read.
+Configure `insert.process` for a default menu/preset, or pass a preset/list per call:
+
+```lua
+require("image_tools").paste({ process = {
+  { name = "Original PNG", format = "png" },
+  { name = "Small WebP", format = "webp", resize = "1200x1200>", quality = 80 },
+} })
+```
+
+Presets accept `name`, `format`, `quality`, `resize` (ImageMagick geometry), and
+`command`. Custom commands are argv lists containing `$INPUT` and `$OUTPUT`, e.g.
+`{ "magick", "$INPUT", "-resize", "800x800>", "$OUTPUT" }`; no shell pipeline is
+used. The custom command owns processing/encoding; select a matching `format`.
+Converters share the existing queue, timeout, cancellation and import rollback.
+Preset values override per-call format/quality. `process = false` bypasses a menu.
+
 ## Snacks picker integration
 
 Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
