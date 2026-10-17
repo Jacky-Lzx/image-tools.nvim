@@ -39,7 +39,7 @@ return {
   cmd = {
     "ImagePreview", "ImagePreviewClose", "ImagePreviewToggle", "ImagePreviewClearCache",
     "ImageCacheClear", "ImageInfo", "ImageCheckAssets", "ImageInsert", "ImagePaste", "ImagePick",
-    "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan", "ImageMove",
+    "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan", "ImageMove", "ImageLocalize",
   },
   opts = { auto_preview = true, max_width = 60, max_height = 30 },
   config = function(_, opts) require("image_tools").setup(opts) end,
@@ -84,7 +84,8 @@ Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
 `register_adapter(filetype, definition)`, `unregister_adapter(filetype)`,
-`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`, `info()`.
+`open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`,
+`move(source, destination, opts, callback)`, `localize(opts, callback)`, `info()`.
 
 ### Move images and update references
 
@@ -119,7 +120,9 @@ Paths supplied to `preview` are relative to cwd.
 Markdown references are relative to the document; changing cwd does not change their meaning.
 An optional `root` replaces the document directory, or `resolve(document, source)` can return a custom absolute path.
 LaTeX additionally searches literal `graphicspath` directories and tries omitted
-extensions. Remote image references are rejected; the plugin does not fetch them.
+extensions. HTTPS images require `remote.enabled = true`; other remote schemes
+are rejected. Explicit localization can download a selected HTTPS reference even
+when automatic remote loading is disabled.
 
 Automatic preview selects an image when the cursor enters its line, including when
 it is outside the image link. On a line with multiple images, the reference under
@@ -153,6 +156,7 @@ require("image_tools").setup({
   auto_preview_delay = 100, -- milliseconds before preparing a new automatic selection; 0 is immediate
   preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
+  remote = { enabled = false, curl = "curl", timeout = 10000, ttl = 3600, max_redirects = 5 },
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   math = {
     enabled = true,
@@ -211,7 +215,8 @@ Converted disk images are managed asynchronously by `disk_cache` limits.
 Unused images are removed in access order; currently used images are protected
 and may temporarily exceed the limits. Set `disk_cache.enabled = false` to
 disable automatic eviction. `:ImageCacheClear` clears unused conversions manually.
-Cleanup selects hash-named PNGs directly inside the configured cache directory.
+Cleanup selects hash-named converted PNGs and downloaded originals in supported
+image formats directly inside the configured cache directory.
 Subdirectories, other filenames, symbolic links and conversion temporaries
 are excluded. After a restart, file modification times provide the
 initial eviction order until images are accessed again.
@@ -266,7 +271,7 @@ are avoided.
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and
 percent-encoded paths. Fenced code, indented code and inline code are excluded.
-Multiline Markdown image calls, remote URLs and inline rendering inside document text
+Multiline Markdown image calls and inline rendering inside document text
 are future work. Reference images (`![alt][id]`, `![id][]`, `![id]`) resolve
 case-insensitive, whitespace-normalized labels from same-line definitions, including
 forward definitions within `max_scan_lines`. The first definition outside code wins.
@@ -315,7 +320,8 @@ Built-in insertion/lookup supports Markdown, LaTeX, Typst and HTML. HTML emits
 encoded and attribute text is escaped. Preview/asset inspection recognizes
 literal same-line `img src` attributes, excluding comments and script/style/pre/code
 content. Named basic and numeric entities are decoded; dynamic bindings, srcset,
-multiline tags, DOM evaluation and remote images are unsupported.
+multiline tags and DOM evaluation are unsupported. HTTPS sources use the optional
+remote loader described below.
 
 Register additional filetypes without replacing built-ins:
 
@@ -386,6 +392,43 @@ and `cursor`; return a string using `ctx.cursor` at the editing target. Paths an
 alt text in custom templates are raw values: escape them for the syntax you emit.
 Built-in source-format/path validation and transactional rollback still apply.
 Reference previews follow the syntax recognized by the document adapter.
+
+## HTTPS images and localization
+
+Enable `remote = { enabled = true }` to preview HTTPS image links in Markdown/HTML
+or with `:ImagePreview https://example.org/image.png`. curl is required for cache
+misses; configure `remote.curl` for an executable override. PNG remains usable
+without ImageMagick. Other formats use the usual conversion tools.
+
+Downloads share `convert_concurrency`, with interactive priority. TLS verification
+stays enabled; curl configuration files are disabled, and initial URLs and redirects
+are restricted to HTTPS. `remote.timeout` bounds each download (default 10000 ms),
+`max_redirects` defaults to 5, and streamed response bytes are bounded by `max_bytes`,
+including responses without Content-Length. Image type is detected from content,
+not a URL's extension; error pages and invalid/oversized images are rejected.
+
+Validated original bytes are cached by URL/downloader under the existing disk-cache
+limits, with a freshness TTL of 3600 seconds. `remote.ttl = 0` disables reuse.
+Simultaneous matching requests share a download; cancelling one subscriber leaves
+the others active. Closing the final view cancels pending work. `:ImageReload`
+bypasses the URL cache for the current floating preview. `:ImageCacheClear` removes
+unused downloads and conversions; active handles pin their files. `status().remote`
+reports configuration, download/cache-hit counters and pending shared jobs. Asset
+inspection skips HTTPS references and never downloads them.
+
+`:ImageLocalize` / `localize(opts, callback)` downloads the selected HTTPS image,
+copies its original format/bytes into `insert.directory`, and replaces only the
+reference destination. This explicit operation also works with remote loading
+disabled. It supports Markdown inline/reference images and HTML; shared Markdown
+definitions retain their labels and update all uses of that definition. Titles,
+descriptions and other HTML attributes survive. It returns a cancel function.
+
+Names use the URL basename with the detected extension; `filename` overrides it.
+Insertion directory/root, filename prompts, collision suffixes and deduplication
+apply. Localization bypasses processing presets to preserve downloaded originals.
+The document is left modified, with a separate undo entry. Focus is preserved;
+edits, renames, unloads or adapter changes during download/import reject the
+replacement and roll back new resource copies. Text undo retains the asset.
 
 ## Development
 

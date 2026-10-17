@@ -169,3 +169,19 @@ encoding, source preservation, original naming context, document-compatible outp
 existing-asset/reference reuse, menu cancellation, context capture, batch failure,
 limits and converter timeout/cancellation. With Snacks configured, picker tests
 select a WebP for a LaTeX document and verify the converted PNG and input filter.
+
+## Local HTTPS integration
+
+`python3 tests/https/run.py` starts a temporary TLS server bound to 127.0.0.1 and
+runs `tests/media/remote.lua` with real curl. Requires Python 3, openssl, curl,
+Neovim and ImageMagick. The generated certificate is trusted only by a temporary
+downloader wrapper; no external site is contacted and system trust is unchanged.
+The runner is also included in `tests/run.sh` when Python is available.
+
+Coverage includes verified TLS, HTTPS redirects and HTTP downgrade rejection,
+redirect limits, invalid/error content, streamed byte caps without Content-Length,
+timeouts, content-based formats, dimension limits, URL caching and explicit
+refresh, independent cancellation of shared downloads, preview lifecycle and
+Markdown/HTML localization with original bytes, stale edits and cache leases.
+Terminal acknowledgements are simulated; visible Kitty pixels remain a separate
+manual check. Restricted execution environments must permit local socket binding.

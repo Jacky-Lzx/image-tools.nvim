@@ -16,6 +16,7 @@ return {
   auto_preview_delay = 100, -- milliseconds before preparing a newly selected automatic preview
   preview_loading_delay = 300, -- milliseconds; zero disables the loading hint
   treesitter = true,
+  remote = { enabled = false, curl = "curl", timeout = 10000, ttl = 3600, max_redirects = 5 },
   latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
   math = {
     enabled = true,

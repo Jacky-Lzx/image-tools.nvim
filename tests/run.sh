@@ -153,14 +153,15 @@ run_test document/typst.lua
 run_test render/buffer.lua
 run_test render/canvas_bounds.lua
 
-# 7. Real Neovim TUI: Python starts Neovim in a PTY and simulates Kitty replies.
+# 7. Local HTTPS integration, then real Neovim TUI with simulated Kitty replies.
 # Checks uploads, placeholders, caches and window lifecycle. Visible pixels still
 # require a real Kitty check. tui/run.py launches the Lua scenarios in tui/;
 # those files require TUI execution and should not be run as headless tests.
 if command -v python3 >/dev/null 2>&1; then
+  run_suite tests/https/run.py python3 "$root/tests/https/run.py"
   run_suite tests/tui/run.py python3 "$root/tests/tui/run.py"
 else
-  log skip 'TUI protocol tests: python3 unavailable'
+  log skip 'HTTPS integration and TUI protocol tests: python3 unavailable'
 fi
 
 log done 'Test run completed; review skip messages for optional coverage.'

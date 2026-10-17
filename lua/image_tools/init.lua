@@ -215,6 +215,10 @@ function M.move(source, target, opts, callback)
   return runtime():move(source, target, opts, callback)
 end
 
+function M.localize(opts, callback)
+  return runtime():localize(opts, callback)
+end
+
 -- Metadata inspection does not implicitly configure an unused plugin.
 function M.info()
   if not instance then

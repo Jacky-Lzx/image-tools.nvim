@@ -203,6 +203,10 @@ function M.register(runtime)
     runtime:paste()
   end, { desc = "Paste a clipboard image", force = true })
 
+  command("ImageLocalize", function()
+    runtime:localize()
+  end, { desc = "Download the selected HTTPS image and replace its reference", force = true })
+
   command(
     "ImageInsert",
     function(args)

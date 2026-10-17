@@ -135,7 +135,7 @@ function M.check(opts, callback)
       if not opts._document_path then
         location.bufnr = buf
       end
-      if item.path then
+      if item.path and not item.path:match("^https://") then
         local key = uv.fs_realpath(item.path) or item.path
         referenced[key] = true
         report.references[key] = report.references[key] or {}

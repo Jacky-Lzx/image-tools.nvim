@@ -325,6 +325,11 @@ function M.files(paths, opts, callback)
     if index > #paths then
       local snippets = {}
       local success, message = pcall(function()
+        if opts._commit then
+          assert(valid(context), "Source document is no longer editable")
+          opts._commit(context, state.outputs)
+          return
+        end
         local edit_offset
         for _, path in ipairs(state.outputs) do
           if format.validate_reference then

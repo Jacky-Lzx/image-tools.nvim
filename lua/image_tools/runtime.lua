@@ -266,7 +266,7 @@ function Runtime:open_preview(path, opts)
   if type(path) ~= "string" or path == "" then
     return false, "An image path is required"
   end
-  if not (opts and opts._formula) then
+  if not (opts and opts._formula) and not path:match("^https://") then
     path = vim.fs.normalize(vim.fn.fnamemodify(path, ":p"))
   end
   local stat = vim.uv.fs_stat(path)
@@ -438,6 +438,29 @@ function Runtime:move(source, target, opts, callback)
   return cancel
 end
 
+function Runtime:localize(opts, callback)
+  self.moves = self.moves or {}
+  local cancel, completed
+  cancel = require("image_tools.workflow.localize").run(
+    vim.tbl_deep_extend("force", self.options, opts or {}),
+    function(err, outputs)
+      completed = true
+      if cancel then
+        self.moves[cancel] = nil
+      end
+      if callback and not self.disposed then
+        callback(err, outputs)
+      elseif not self.disposed and err ~= "Cancelled" then
+        vim.notify(err or ("Localized image: " .. outputs[1]), err and vim.log.levels.ERROR or vim.log.levels.INFO)
+      end
+    end
+  )
+  if not completed then
+    self.moves[cancel] = true
+  end
+  return cancel
+end
+
 function Runtime:zoom(value)
   return self.buffers:zoom(value)
 end
@@ -460,6 +483,7 @@ function Runtime:reload()
       reference = state.reference,
       reference_range = state.reference_range,
       _formula = state.formula,
+      _remote_refresh = state.path:match("^https://") ~= nil,
     })
   end
   return false, "No image/PDF viewer or floating preview to reload"
@@ -635,8 +659,9 @@ function Runtime:info()
   local stat = vim.uv.fs_stat(path)
   return {
     path = path,
-    format = not buffer and state and state.formula and "math" or require("image_tools.media.formats").extension(path),
-    bytes = stat and stat.size,
+    format = not buffer and state and (state.formula and "math" or state.source_format)
+      or require("image_tools.media.formats").extension(path),
+    bytes = stat and stat.size or state and state.source_bytes,
     width = buffer and dimensions.width or state and state.image_width,
     height = buffer and dimensions.height or state and state.image_height,
     page = buffer and buffer.page or (path:lower():match("%.pdf$") and 1 or nil),
@@ -664,6 +689,11 @@ function Runtime:status()
     clipboard = clipboard and { backend = clipboard.name, executable = clipboard.executable }
       or { error = clipboard_error },
     configured = not self.disposed,
+    remote = vim.tbl_extend(
+      "force",
+      self.options.remote,
+      package.loaded["image_tools.media.remote"] and package.loaded["image_tools.media.remote"].status() or {}
+    ),
     buffer = self.buffers and self.buffers:status() or nil,
     auto_preview = self.options and self.options.auto_preview or false,
     path = self.preview and self.preview.state and self.preview.state.path or nil,

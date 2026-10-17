@@ -10,7 +10,7 @@
 --
 -- Ownership:
 --   Keep no path cache: evaluate roots and resolvers on each call. Reject
---   remote schemes and invalid path bytes without fetching resources.
+--   unsupported schemes and invalid path bytes without fetching resources.
 
 local M = {}
 
@@ -47,7 +47,10 @@ function M.resolve(src, document, opts)
 
   -- Reject URLs before decoding, so percent escapes cannot hide a scheme.
   if src:match("^%a[%w+.-]*:") or src:sub(1, 2) == "//" then
-    return nil, "Remote image references are not supported yet"
+    if src:match("^https://") and opts.remote and opts.remote.enabled and not src:find("[%c%s]") then
+      return src
+    end
+    return nil, "Remote image references require HTTPS and remote.enabled=true"
   end
   if not opts.literal then
     src = src:gsub("%%(%x%x)", function(hex)

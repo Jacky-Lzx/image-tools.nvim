@@ -123,6 +123,9 @@ end
 ---@param callback ImageToolsImageCallback Metadata is deep-copied for each subscriber.
 ---@return ImageToolsPreparationHandle handle
 function M.request(path, opts, callback)
+  if path:match("^https://") then
+    return require("image_tools.media.remote").prepare(path, opts, callback)
+  end
   local extension = path:match("%.([^./]+)$")
   extension = extension and extension:lower()
   local stat = convertible[extension] and uv.fs_stat(path)

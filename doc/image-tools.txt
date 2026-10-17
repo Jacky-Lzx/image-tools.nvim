@@ -19,6 +19,8 @@ SETUP                                                      *image-tools-setup*
     auto_preview = true,
     convert_concurrency = 2, -- simultaneous conversion/hash processes
     treesitter = true, -- LaTeX/Typst parsers, with automatic Lua scanner fallback
+    remote = { enabled = false, curl = "curl", timeout = 10000,
+      ttl = 3600, max_redirects = 5 },
     latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
     math = { enabled = true, latex = "latex", dvipng = "dvipng", density = 360,
       foreground = "auto", preamble = "\\usepackage{amsmath,amssymb}",
@@ -112,6 +114,8 @@ open(path)             Open an image/PDF file buffer; returns ok, error.
 page(n)                Select a PDF page; reject out-of-range values.
 next_page(delta)       Move by delta (default 1); clamp to the first/last page.
 reload()               Reload the current image/PDF buffer and metadata.
+move(source, dest, opts, cb) Review an image move and project reference updates.
+localize(opts, cb)      Download the selected HTTPS image and replace its path.
 
 See README.md for resource limits, caching and custom path resolution.
 Before setup, status() returns configured=false, auto_preview=false and
@@ -163,8 +167,9 @@ Complete same-line Markdown inline images, angle-bracket destinations, quoted
 titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
 excluded. LaTeX, Typst, independent insertion, clipboard paste, Snacks
 picker integration and read-only image/PDF file buffers are supported below.
-Remote URLs, multiline Markdown image calls and inline rendering inside document
-text are unsupported. Formula floating previews are described below.
+HTTPS images are optional; see |image-tools-https|. Multiline Markdown image
+calls and inline rendering inside document text are unsupported.
+Formula floating previews are described below.
 Insertion has no dependency on image-insert.nvim.
 
 DISK CACHE                                                *image-tools-disk-cache*
@@ -173,7 +178,8 @@ Converted PNGs are stored under cache (default stdpath("cache") .. "/image-tools
 Automatic asynchronous eviction defaults to 256 files / 512 MiB. Active handles
 pin files and may temporarily exceed these limits. disk_cache.enabled=false
 disables automatic eviction; :ImageCacheClear still removes unused conversions.
-Cleanup considers only 64-hex-digit PNG names directly in that directory; other
+Cleanup considers only 64-hex-digit names with supported image extensions
+(converted PNGs and downloaded originals) directly in that directory; other
 files, symlinks and conversion temporaries are excluded. Access order is tracked
 in memory, with modification times providing the initial order after restart.
 Disk conversions are independent of the terminal pixel cache.
@@ -194,7 +200,8 @@ Collisions add suffixes without overwriting. Failure/cancellation removes newly
 imported files; text undo retains them for reuse. A batch is inserted as one edit.
 The document must be saved and modifiable. Unloading/deleting or renaming it,
 changing its filetype, or disabling modifiable invalidates a pending import;
-readonly alone does not block insertion. File imports preserve bytes and format.
+readonly alone does not block insertion. File imports preserve bytes and format
+unless processing presets are enabled; see |image-tools-file-process|.
 Successful insertion, paste and picker confirmation enter Insert mode at the first
 inserted image: inside Markdown's ![|](path) description (before existing alt text),
 inside LaTeX's caption, or after the reference in Typst. If another window or
@@ -207,13 +214,13 @@ returns an unregister function. unregister_adapter(filetype) removes the current
 custom adapter; built-ins are protected. Definitions require image_formats (list)
 and markup (string template or function returning text, optional byte offset).
 Optional hooks: find, references, insertion_base, sanitize_filename,
-validate_reference. file_extensions enables project discovery when references is
+validate_reference, path_edit. file_extensions enables project discovery when references is
 provided. Registration is copied and survives setup; old cleanup functions cannot
 remove newer registrations. Replacement/removal invalidates pending imports.
 Markup-only inspection reports an enumeration error. See doc/adapters.md.
 HTML supports same-line literal img src attributes, comments/raw-element exclusion,
 entity decoding, escaped insertion and alt-text editing. No srcset, dynamic
-bindings, multiline tags, remote images or DOM evaluation.
+bindings, multiline tags or DOM evaluation. HTTPS sources require remote.enabled.
 
 Naming rules:
 insert.file_name / per-call file_name accepts an os.date pattern or function.
@@ -573,3 +580,71 @@ PDF delegate.
     See the viewer and asset-check usage above.
 
 vim:tw=78:ts=8:noet:ft=help:norl:
+
+IMAGE MOVES                                               *image-tools-move*
+
+:ImageMove destination                                      *:ImageMove*
+Move/rename the selected local image and update recognized project references.
+Destination is relative to cwd; spaces are literal. Preserve the extension.
+A diff opens before application; choose Apply move or Cancel. Descriptions,
+titles, labels and document options survive. Shared definitions are changed once.
+API: move(source, destination, opts, callback), returning cancellation. Options:
+project_root (nearest .git or document directory by default), confirm=false to
+apply programmatically without the review UI, plus ordinary scan/root limits.
+Live buffers keep unsaved edits and remain modified; use :wall to save them.
+Unopened documents are replaced atomically, preserving CRLF and final newlines.
+Stale/incomplete scans and existing destinations reject application. Failure
+rolls back files and buffer edits; recovery backups are reported if rollback fails.
+Only recognized references in the scanned root are updated. Excluded/external
+files and dynamic expressions are not updated. Custom adapters require path_edit
+(see doc/adapters.md). Text undo does not move the image back. Reopen any image
+viewer still using the old filename.
+
+FILE PROCESSING                                           *image-tools-file-process*
+
+insert.process / per-call process accepts the same presets as clipboard paste:
+"select", a preset {format="png", resize="1600x1600>", quality=80}, or a list.
+File batches select once, process external copies, then insert as one transaction.
+Without format, file presets default to PNG. Processing-enabled pickers include
+convertible sources (e.g. WebP/AVIF for a LaTeX document importing PNG/JPEG).
+Default names keep source stems with output extensions; naming callbacks retain
+the original source/source_name and receive the output extension. Source files
+are unchanged. Existing assets in the destination and reference mode skip
+processing and keep their original formats, names and bytes.
+ImageMagick validates output encoding/size/dimensions. Shared queues, timeouts,
+cancellation and batch rollback apply. process=false disables processing.
+
+HTTPS IMAGES                                              *image-tools-https*
+
+Set remote.enabled=true for automatic/manual HTTPS previews in Markdown/HTML.
+:ImagePreview https://example.org/image.png also uses this setting. curl is needed
+for uncached downloads. remote.curl overrides its executable. TLS verification is
+enabled; curl config files are disabled. Redirects are limited to HTTPS and
+remote.max_redirects (default 5). remote.timeout=10000 bounds each download.
+Streamed bytes obey max_bytes, even without Content-Length. Content determines
+format; invalid/error responses and oversized images fail before publication.
+Other format conversion dependencies remain the same as for local images.
+
+Downloads share convert_concurrency and matching requests coalesce. A subscriber
+can cancel without stopping others. Validated originals share the bounded disk
+cache; active leases protect files. remote.ttl=3600 controls freshness in seconds;
+0 disables reuse. :ImageReload refreshes a floating URL preview from the network.
+:ImageCacheClear removes unused downloads/conversions. status().remote reports
+configuration, download/cache-hit counters and pending jobs. Asset checks skip
+URLs and never download them.
+
+:ImageLocalize                                              *:ImageLocalize*
+localize(opts, callback) downloads the selected HTTPS reference, copies original
+bytes into insert.directory and replaces only its path. This explicit action
+also works with remote.enabled=false. Supports Markdown inline/reference images
+and HTML. Shared definitions retain their labels; descriptions/titles/attributes
+survive. Names use the URL basename and detected extension; filename overrides.
+Copy naming prompts, collision handling, roots and deduplication apply. Processing
+presets are bypassed. It returns cancellation; stale document identity/text or
+adapter changes reject replacement and roll back copies. The document stays
+modified; text undo retains the imported asset.
+
+HTTPS tests: python3 tests/https/run.py runs real curl against a local temporary
+TLS server, with isolated certificate trust and no external requests. It needs
+Python 3, openssl, curl, Neovim, ImageMagick and local socket permission. The main
+runner includes it when Python is available. Actual Kitty pixels remain manual.

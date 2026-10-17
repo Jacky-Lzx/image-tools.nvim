@@ -108,4 +108,6 @@ through the shared syntax cache. It decodes amp/quot/apos/lt/gt and numeric
 entities, uses byte ranges for multiple images on a line and updates after edits.
 Insertion percent-encodes paths and escapes alt attributes; editing starts inside
 alt text. Supported formats are PNG/JPEG/GIF/WebP/AVIF/BMP/SVG. It does not evaluate
-the DOM, JavaScript, template expressions, srcset, remote URLs or multiline img tags.
+the DOM, JavaScript, template expressions, srcset or multiline img tags. HTTPS
+sources are available with `remote.enabled = true`; explicit localization uses
+the same `path_edit` hook as image moves.

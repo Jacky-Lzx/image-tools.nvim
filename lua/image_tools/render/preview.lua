@@ -180,6 +180,9 @@ function M:open(path, options)
     end, delay)
   end
   local preparation = state.formula and vim.tbl_extend("force", self.opts, { _formula = state.formula }) or self.opts
+  if options._remote_refresh then
+    preparation = vim.tbl_extend("force", preparation, { _remote_refresh = true })
+  end
   state.render:start(path, preparation, {
     -- Validate generation, owner, text version and current selected cursor/range authority.
     ---@return boolean current
@@ -217,6 +220,7 @@ function M:open(path, options)
     ---@return integer height
     size = function(image)
       state.image_width, state.image_height = image.width, image.height
+      state.source_bytes, state.source_format = image.source_bytes, image.source_format
       return require("image_tools.render.geometry").fit(
         image.display_size or image,
         terminal.cell_size(self.opts.cell_size),

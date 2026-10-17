@@ -17,6 +17,8 @@ for _, executable in ipairs({
   "pdfinfo",
   "rsvg-convert",
   "python3",
+  "openssl",
+  "curl",
   "typst",
   "pdflatex",
   "latex",

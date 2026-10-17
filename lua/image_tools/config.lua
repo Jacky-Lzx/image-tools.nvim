@@ -17,6 +17,7 @@
 ---@field auto_preview_delay integer Delay before preparing a newly selected automatic reference; zero is immediate.
 ---@field preview_loading_delay integer Milliseconds before a loading hint; zero disables it.
 ---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
+---@field remote table HTTPS opt-in, curl path, timeout, TTL and redirect budget.
 ---@field latex {max_reference_lines: integer, max_reference_bytes: integer} Budgets for one LaTeX reference.
 ---@field math table Formula enablement, latex/dvipng executables, DPI, color, preamble and scan budgets.
 ---@field _formula? string Internal selected formula source, including delimiters.
@@ -62,6 +63,16 @@ function M.resolve(opts)
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   assert(type(options.treesitter) == "boolean", "treesitter must be boolean")
+  assert(type(options.remote.enabled) == "boolean", "remote.enabled must be boolean")
+  assert(type(options.remote.curl) == "string" and options.remote.curl ~= "", "remote.curl must be an executable")
+  for _, name in ipairs({ "timeout", "ttl", "max_redirects" }) do
+    assert(
+      type(options.remote[name]) == "number"
+        and options.remote[name] % 1 == 0
+        and options.remote[name] >= (name == "timeout" and 1 or 0),
+      "Invalid remote." .. name
+    )
+  end
   assert(type(options.math.enabled) == "boolean", "math.enabled must be boolean")
   for _, name in ipairs({ "latex", "dvipng" }) do
     assert(

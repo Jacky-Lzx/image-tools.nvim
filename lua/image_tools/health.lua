@@ -110,6 +110,16 @@ function M.check()
   end
 
   local clipboard = state.clipboard
+  local remote = state.remote or defaults.remote
+  if remote.enabled then
+    if vim.fn.executable(remote.curl) == 1 then
+      vim.health.ok("HTTPS downloader: " .. remote.curl .. " (TLS verification enabled)")
+    else
+      vim.health.warn("HTTPS downloader missing: " .. remote.curl)
+    end
+  else
+    vim.health.info("Automatic HTTPS loading disabled; enable remote.enabled to preview remote references")
+  end
   if not clipboard then
     local backend, err = require("image_tools.workflow.clipboard_backend").detect({})
     clipboard = backend and { backend = backend.name, executable = backend.executable } or { error = err }

@@ -5,7 +5,7 @@
 --   inspection.
 --
 -- Architecture:
---   Share managers by canonical cache directory. Scan managed hash-named PNGs
+--   Share managers by canonical cache directory. Scan managed hash-named images
 --   asynchronously, evict unused files in access order and coordinate readers
 --   with in-flight deletions.
 --
@@ -78,11 +78,12 @@ local function canonical(path)
   end
 end
 
--- Accept only the plugin hash-PNG basename shape; content and ownership are checked elsewhere.
+-- Accept hash-named converted PNGs and downloaded originals in supported formats.
 ---@param name string Directory entry basename.
 ---@return boolean managed
 local function managed(name)
-  return #name == SHA256_HEX_LENGTH + #".png" and name:match("^%x+%.png$") ~= nil
+  local hash = name:match("^(%x+)%.%l+$")
+  return hash ~= nil and #hash == SHA256_HEX_LENGTH and require("image_tools.media.formats").supported(name)
 end
 
 -- Read-only batched traversal shared by eviction and health diagnostics.
