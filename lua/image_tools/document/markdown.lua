@@ -308,6 +308,40 @@ function M.image_formats()
 end
 M.supports_image = require("image_tools.media.formats").supported
 M.insertion_base = require("image_tools.document.paths").base
+
+-- Return only the destination byte range, preserving descriptions, titles and
+-- reference labels. Shared definitions are deduplicated by the transaction.
+function M.path_edit(buf, ref, target, opts)
+  local row, line, first, src = ref.start_row
+  line = vim.api.nvim_buf_get_lines(buf, row - 1, row, false)[1]
+  if ref.label then
+    local state = {}
+    for i, text in ipairs(vim.api.nvim_buf_get_lines(buf, 0, opts.max_scan_lines, false)) do
+      local context
+      context, state = scan_context({ text }, state)
+      local label, content = text:match("^ ? ? ?%[([^%]]+)%]:%s*(.+)$")
+      if not context.blocked and label and label_key(label) == label_key(ref.label) and destination(content) then
+        row, line, src = i, text, destination(content)
+        first = text:find("%]:") + 2
+        break
+      end
+    end
+    assert(first, "Image reference definition is no longer available")
+  elseif ref.literal then
+    first, src = ref.start_col + 4, ref.src
+    assert(not target:find("[|%]%c]"), "Wikilink image paths cannot contain pipes, closing brackets or control bytes")
+    return { row = row, first = first - 1, last = first - 1 + #src, text = target }
+  else
+    local alt_end = closing(line, ref.start_col + 2, "[", "]")
+    first = assert(alt_end) + 2
+    src = assert(destination(line:sub(first, ref.end_col - 1)))
+  end
+  first = assert(line:find(src, first, true))
+  local encoded = target:gsub("[^%w%-%._~/]", function(c)
+    return string.format("%%%02X", c:byte())
+  end)
+  return { row = row, first = first - 1, last = first - 1 + #src, text = encoded }
+end
 -- Emit an angle-bracket image destination with byte-wise escaping and sanitized alt text.
 ---@param path string Relative resource path.
 ---@param alt? string Optional image description.

@@ -75,6 +75,7 @@ function M.check(opts, callback)
     scanned = 0,
     truncated = false,
     warnings = {},
+    snapshots = opts._capture_documents and {} or nil,
   }
   local function cleanup()
     if cancel_child then
@@ -315,6 +316,10 @@ function M.check(opts, callback)
     verify()
   end
   local function inspect_assets()
+    if opts._references_only then
+      finish()
+      return
+    end
     walk(vim.tbl_keys(directories), function(path)
       if require("image_tools.media.formats").supported(path) then
         local key = uv.fs_realpath(path) or path
@@ -342,6 +347,15 @@ function M.check(opts, callback)
         return
       end
       directories[result.directory] = true
+      if report.snapshots then
+        report.snapshots[path] = {
+          buf = live[path],
+          filetype = ft,
+          lines = vim.api.nvim_buf_get_lines(buffer, 0, -1, false),
+          tick = live[path] and vim.api.nvim_buf_get_changedtick(buffer) or nil,
+          version = disk_versions[path],
+        }
+      end
       report.documents[#report.documents + 1] = path
       report.scanned = report.scanned + result.scanned
       if result.truncated then

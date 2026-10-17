@@ -154,3 +154,10 @@ a delimiter, change the colorscheme and run `:ImageReload` / `:ImageInfo`. Verif
 that stale pixels and loading hints disappear, cached formulas return correctly,
 and code/comment examples do not preview. Real compilation and simulated Kitty
 traffic do not establish the visible-pixel result; record that check separately.
+
+## Image move transactions
+
+`tests/workflow/move.lua` checks destination-only rewriting across Markdown
+inline/reference/wikilinks, multiline LaTeX, Typst and HTML. It exercises live
+unsaved buffers, CRLF disk documents, stale snapshots, incomplete scans, exclusive
+destinations, injected mid-commit filesystem failure/rollback, and review cancellation.

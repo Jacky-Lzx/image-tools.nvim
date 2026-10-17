@@ -71,7 +71,14 @@ function M.register(filetype, definition)
     )
     assert(not occupied[ext] or occupied[ext] == filetype, "Document extension already registered: " .. ext)
   end
-  for _, hook in ipairs({ "find", "references", "insertion_base", "sanitize_filename", "validate_reference" }) do
+  for _, hook in ipairs({
+    "find",
+    "references",
+    "insertion_base",
+    "sanitize_filename",
+    "validate_reference",
+    "path_edit",
+  }) do
     assert(spec[hook] == nil or type(spec[hook]) == "function", "Adapter " .. hook .. " must be a function")
   end
   -- A markup-only adapter cannot enumerate references for project inspection.
@@ -111,6 +118,7 @@ function M.register(filetype, definition)
     insertion_base = spec.insertion_base or require("image_tools.document.paths").base,
     sanitize_filename = spec.sanitize_filename,
     validate_reference = spec.validate_reference,
+    path_edit = spec.path_edit,
   }
   adapter.markup = function(path, alt)
     local text, offset

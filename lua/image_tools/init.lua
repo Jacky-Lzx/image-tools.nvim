@@ -210,6 +210,11 @@ function M.check_assets(opts, callback)
   end)
 end
 
+-- Review and apply an image move across recognized project references.
+function M.move(source, target, opts, callback)
+  return runtime():move(source, target, opts, callback)
+end
+
 -- Metadata inspection does not implicitly configure an unused plugin.
 function M.info()
   if not instance then

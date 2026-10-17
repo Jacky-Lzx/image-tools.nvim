@@ -154,6 +154,9 @@ function Runtime:destroy()
 
   -- Disable callbacks before closing windows, which can trigger more events.
   self.disposed = true
+  for cancel in pairs(self.moves or {}) do
+    cancel()
+  end
   if self.group then
     vim.api.nvim_del_augroup_by_id(self.group)
     self.group = nil
@@ -398,6 +401,37 @@ end
 -- Inspect a captured document or project and its import directories; never mutate files.
 function Runtime:check_assets(opts, callback)
   return require("image_tools.workflow.assets").check(vim.tbl_deep_extend("force", self.options, opts or {}), callback)
+end
+
+function Runtime:move(source, target, opts, callback)
+  self.moves = self.moves or {}
+  local cancel
+  cancel = require("image_tools.workflow.move").move(
+    source,
+    target,
+    vim.tbl_deep_extend("force", self.options, opts or {}),
+    function(err, plan)
+      if cancel then
+        self.moves[cancel] = nil
+      end
+      if not self.disposed then
+        if not err then
+          self:close()
+          self:schedule_refresh()
+        end
+        if callback then
+          callback(err, plan)
+        elseif err ~= "Cancelled" then
+          vim.notify(
+            err or string.format("Moved image; updated %d document(s). Save modified buffers with :wall", #plan.changes),
+            err and vim.log.levels.ERROR or vim.log.levels.INFO
+          )
+        end
+      end
+    end
+  )
+  self.moves[cancel] = true
+  return cancel
 end
 
 function Runtime:zoom(value)

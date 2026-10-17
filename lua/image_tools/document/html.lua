@@ -42,7 +42,7 @@ end
 
 local function source(tag)
   local pos = tag:find("%s") or #tag
-  local src
+  local src, source_first, source_last
   while pos < #tag do
     local first, last, name = tag:find("^%s*([%w_:%-]+)", pos)
     if not first then
@@ -53,25 +53,43 @@ local function source(tag)
     if equals_end then
       pos = equals_end
       local quote, value = tag:sub(pos, pos)
+      local value_first, value_last
       if quote == '"' or quote == "'" then
         local close = tag:find(quote, pos + 1, true)
         if not close then
           return
         end
+        value_first, value_last = pos + 1, close - 1
         value, pos = tag:sub(pos + 1, close - 1), close + 1
       else
         local finish = tag:find("[%s>]", pos) or #tag + 1
+        value_first, value_last = pos, finish - 1
         value, pos = tag:sub(pos, finish - 1), finish
       end
       if name:lower() == "src" and src == nil then
         src = entities(value)
+        source_first, source_last = value_first, value_last
       end
     end
   end
   if src and (src:find("{{", 1, true) or src:find("<%", 1, true) or src:find("${", 1, true)) then
     return nil
   end
-  return src
+  return src, source_first, source_last
+end
+
+function M.path_edit(buf, ref, target)
+  local line = vim.api.nvim_buf_get_lines(buf, ref.start_row - 1, ref.start_row, false)[1]
+  local _, first, last = source(line:sub(ref.start_col + 1, ref.end_col))
+  assert(first and last, "HTML image source is no longer available")
+  return {
+    row = ref.start_row,
+    first = ref.start_col + first - 1,
+    last = ref.start_col + last,
+    text = target:gsub("[^%w%-%._~/]", function(c)
+      return string.format("%%%02X", c:byte())
+    end),
+  }
 end
 
 function M.scan(lines, state)

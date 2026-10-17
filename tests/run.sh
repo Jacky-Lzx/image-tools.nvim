@@ -113,6 +113,7 @@ run_suite tests/workflow/insert_mode.lua nvim --headless -u NONE -i NONE --noplu
 run_test workflow/content.lua
 run_test workflow/assets.lua
 run_test workflow/asset_project.lua
+run_test workflow/move.lua
 run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
 run_test workflow/picker.lua

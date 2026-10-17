@@ -44,6 +44,27 @@ function M.register(runtime)
     report(runtime:open(args.args))
   end, { nargs = 1, complete = "file", desc = "Open an image/PDF in a read-only buffer", force = true })
 
+  command("ImageMove", function(args)
+    local document = require("image_tools.document")
+    local buf = vim.api.nvim_get_current_buf()
+    local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+    local opts = vim.tbl_extend("force", runtime.options, { treesitter = false })
+    local source, err, status = document.at_cursor(buf, row, col, opts)
+    if not source and status == "miss" then
+      source, err = document.at_line(buf, row, opts)
+    end
+    if not source or source:match("^image%-tools%-math:") then
+      report(false, err or "Select a local image reference before moving it")
+      return
+    end
+    runtime:move(source, args.args)
+  end, {
+    nargs = 1,
+    complete = "file",
+    desc = "Move the selected image and review project reference updates",
+    force = true,
+  })
+
   command("ImagePage", function(args)
     report(runtime:page(tonumber(args.args)))
   end, { nargs = 1, desc = "Display a PDF page", force = true })

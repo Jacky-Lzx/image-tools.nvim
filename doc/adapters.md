@@ -40,6 +40,11 @@ Optional hooks match the built-in adapter contract:
   or resource boundaries before markup is committed.
 - `find(buf, row, col, opts)` resolves a selected reference for previews.
 - `references(buf, row, opts)` enumerates references for asset inspection.
+- `path_edit(buf, reference, relative_target, opts)` enables image moves and returns
+  `{ row, first, last, text }`: a one-based row, zero-based start and exclusive end
+  byte columns, and a single-line replacement destination. Preserve other markup.
+  A shared definition may return the same range for multiple references; moves
+  deduplicate it. Missing hooks reject moves that would affect this adapter.
 - `file_extensions`, e.g. `{ "org" }`, enables offline project discovery when
   `references` is supplied. Defaults to a simple lowercase filetype name; use an
   empty list to disable discovery. Extension conflicts are rejected.

@@ -39,7 +39,7 @@ return {
   cmd = {
     "ImagePreview", "ImagePreviewClose", "ImagePreviewToggle", "ImagePreviewClearCache",
     "ImageCacheClear", "ImageInfo", "ImageCheckAssets", "ImageInsert", "ImagePaste", "ImagePick",
-    "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan",
+    "ImageOpen", "ImagePage", "ImageNextPage", "ImagePreviousPage", "ImageReload", "ImageZoom", "ImagePan", "ImageMove",
   },
   opts = { auto_preview = true, max_width = 60, max_height = 30 },
   config = function(_, opts) require("image_tools").setup(opts) end,
@@ -85,6 +85,34 @@ Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
 `register_adapter(filetype, definition)`, `unregister_adapter(filetype)`,
 `open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`, `info()`.
+
+### Move images and update references
+
+`:ImageMove Figures/architecture.png` moves the local image selected under the
+cursor (with current-line fallback). The destination is relative to cwd; spaces
+are literal. This also renames images. Keep the original extension.
+The command scans the project, opens a diff of destination-only changes and asks
+whether to apply. Descriptions, titles, reference labels, HTML attributes and
+LaTeX/Typst options are preserved. Shared Markdown definitions are updated once.
+LaTeX omitted extensions/graphicspath references become explicit paths.
+
+`move(source, destination, opts, callback)` provides the same workflow. Set
+`project_root` to choose a scan root (default: nearest `.git`, then the source
+document directory); set `confirm = false` for programmatic application without
+the diff UI. The returned function cancels pending scanning/review.
+
+Loaded documents retain their unsaved edits and are left modified: save them with
+`:wall`. Unopened documents are written atomically, preserving CRLF and final
+newlines. Existing destinations and symlink sources are rejected. Incomplete
+scans and stale document/image/adapter snapshots prevent application. Failures
+roll back document replacements, buffer edits and the new image; an exceptional
+rollback failure reports retained recovery backups. Ordinary text undo only
+undoes the buffer edits, not the image move.
+
+Only literal references recognized in the scanned project are changed; references
+outside that root, excluded directories and dynamic expressions are not updated.
+Custom adapters need a `path_edit` hook for referenced images. Moving a file does
+not rename an already-open image viewer; reopen that viewer at its new path.
 
 `require("image_tools")` alone registers no handlers.
 Paths supplied to `preview` are relative to cwd.

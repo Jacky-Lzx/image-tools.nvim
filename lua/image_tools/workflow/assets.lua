@@ -129,6 +129,9 @@ function M.check(opts, callback)
     for _, item in ipairs(enumeration.references) do
       local ref = item.reference
       local location = { filename = document, lnum = ref.start_row, col = ref.start_col + 1 }
+      if opts._capture_documents then
+        location.reference = vim.deepcopy(ref)
+      end
       if not opts._document_path then
         location.bufnr = buf
       end
