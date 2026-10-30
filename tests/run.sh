@@ -98,6 +98,7 @@ run_test terminal/transfer.lua
 run_test terminal/stream.lua
 run_test terminal/pixel_pool.lua
 run_test render/session.lua
+run_test render/view.lua
 
 # 3. Image insertion, clipboard adapters and picker integration.
 # workflow/clipboard.lua uses fake commands without accessing the system clipboard.

@@ -57,7 +57,7 @@ local dependency_modules = {
 ---@field disposed boolean Guard that disables callbacks before teardown.
 ---@field preview? ImageToolsPreview Created on the first accepted floating preview.
 ---@field buffers ImageToolsBuffers File-buffer controller.
----@field renderers table<table, boolean> Weak-key set of tracked picker renderers.
+---@field renderers table<table, boolean> Weak-key set of picker and embedded renderers.
 ---@field group? integer Runtime autocmd group installed at start.
 ---@field commands? string[] Registered command names removed at destruction.
 ---@field refresh_pending? boolean Coalesced scheduled refresh.
@@ -90,6 +90,18 @@ function Runtime.new(options, dependencies)
   })
   self.buffers = self:dependency("buffer").new(options, self.dependencies)
   return self
+end
+
+-- Create a view over host-owned resources using this Runtime's shared pool.
+---@param request ImageToolsEmbeddedRequest
+---@return ImageToolsEmbeddedView? view
+---@return string? error
+function Runtime:render(request)
+  local view, err = require("image_tools.render.view").new(request, self.options, self.dependencies)
+  if view then
+    self.renderers[view] = true
+  end
+  return view, err
 end
 
 -- Construct the floating controller only for an actual preview request.

@@ -7,6 +7,7 @@ local function check(ok, message)
 end
 local deferred = {
   "render.preview",
+  "render.view",
   "render.inline",
   "document.inline",
   "render.canvas",
@@ -28,6 +29,8 @@ local function unloaded()
 end
 local api = require("image_tools")
 check(not api.status().configured, "Requiring the API does not configure it")
+check(api.supports("example.PNG") and not api.supports("example.txt"), "Capability checks are lightweight")
+check(not api.status().configured, "Capability checks do not configure services")
 api.setup()
 vim.wait(20, function()
   return false

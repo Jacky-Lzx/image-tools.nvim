@@ -638,6 +638,36 @@ batch leaves no inserted text or partial imported resources.
 
 ## Snacks picker integration
 
+### Embed images in another plugin's pane
+
+`supports(path)` checks image/PDF extensions without initializing services.
+`render(request)` borrows an existing `nofile` buffer/window and returns a view
+(or `nil, error` when the target/format/terminal is unsupported):
+
+```lua
+local image = require("image_tools")
+local view, err = image.render({
+  path = "/project/figure.png", buf = preview_buf, win = preview_win,
+  is_valid = function() return selection_is_current end,
+  on_error = function(message) show_preview_error(message) end,
+})
+-- On layout changes and selection/owner teardown:
+if view then view:resize(); view:close() end
+```
+
+The host owns the scratch buffer, window and focus; image-tools owns preparation,
+placeholder highlights and placement leases. Drawing preserves buffer flags and
+fits the pane after gutters, with `upscale=true` by default. `page` selects a PDF
+page. Optional `paint(draw)` must synchronously execute `draw()` on the main
+thread, including both buffer lines and extmarks, and may return false to reject
+a stale transaction. This supports hosts whose normal line writer is asynchronous.
+
+`resize()` reuses the shared pixel pool; `close()` is idempotent and preserves the
+host's buffer/window. Buffer/window closure, runtime reconfiguration and cache
+cleanup also release views. An already-owned target replaces its previous view.
+The API does not depend on Snacks, create windows, or register picker callbacks.
+Load the plugin only when an image candidate actually needs rendering.
+
 Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
 preview in the existing picker window using this plugin's Kitty transport/cache.
 Picker previews scale up or down to fit the pane, preserve the aspect ratio and

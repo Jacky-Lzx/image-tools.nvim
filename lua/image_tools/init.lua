@@ -103,6 +103,20 @@ function M.status()
   return instance and instance:status() or { configured = false, auto_preview = false, transport = "auto" }
 end
 
+-- Inspect supported extensions without configuring services or loading renderers.
+function M.supports(path)
+  return type(path) == "string" and require("image_tools.media.formats").supported(path) or false
+end
+
+-- Render into a caller-owned nofile buffer/window; no windows are created.
+-- The returned view has idempotent close() and geometry-aware resize().
+---@param request ImageToolsEmbeddedRequest
+---@return ImageToolsEmbeddedView? view
+---@return string? error
+function M.render(request)
+  return runtime():render(request)
+end
+
 -- Start a floating preview of an explicit path resolved relative to cwd.
 ---@param path string Image path.
 ---@param opts? ImageToolsPreviewOptions Notification/reference authority options.
