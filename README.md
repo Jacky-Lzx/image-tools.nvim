@@ -656,6 +656,13 @@ local view, err = image.render({
 if view then view:resize(); view:close() end
 ```
 
+For flicker-free replacement, retain a ready view with `previous = view:retain()`
+and pass that handle in the next `render({ previous = previous, ... })` request.
+The old grid and placement stay visible through preparation/upload; the new
+acknowledged grid is painted before the old lease is released. Retaining a pending
+view cancels it and returns its last ready predecessor. Close the retained handle
+if replacement is abandoned. Retained views never repaint stale selections.
+
 The host owns the scratch buffer, window and focus; image-tools owns preparation,
 placeholder highlights and placement leases. Drawing preserves buffer flags and
 fits the pane after gutters, with `upscale=true` by default. `page` selects a PDF
@@ -685,7 +692,9 @@ imports current/multiple selections in source order at the original document
 extmark, after picker cleanup. Escape cancels without importing or modifying the
 document. The captured insertion context is single-use, so this chooser is not
 recorded by picker resume. Selection changes/close release render views, and
-resize reuses uploaded pixels.
+resize reuses uploaded pixels. Switching images retains the last ready image
+until the next image is acknowledged and drawn, without inserting a Loading
+placeholder between them; skipped requests still cancel.
 
 ```lua
 require("image_tools").pick({

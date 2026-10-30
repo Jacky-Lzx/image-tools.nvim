@@ -587,9 +587,13 @@ PDF delegate.
 EMBEDDED RENDERING                                  *image-tools-render*
 
 image_tools.supports(path) checks supported extensions without setup.
-image_tools.render({path,buf,win,is_valid?,paint?,on_error?,page?,upscale?})
+image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?})
 returns view or nil,error. buf must be a caller-owned nofile scratch buffer
 already displayed in win. The renderer creates no windows or picker callbacks.
+view:retain() freezes a ready grid/lease, or cancels a pending request and returns
+its retained predecessor. Supply this handle as previous=... in the next render
+request for an acknowledged, atomic replacement. Abandoning the request must
+close the retained handle. Frozen views cannot repaint old selections.
 view:resize() adapts geometry using shared uploaded pixels; view:close() is
 idempotent and releases only this view's sessions, leases and placeholders.
 Window options are temporarily made minimal and restored when still owned.

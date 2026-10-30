@@ -99,6 +99,7 @@ run_test terminal/stream.lua
 run_test terminal/pixel_pool.lua
 run_test render/session.lua
 run_test render/view.lua
+run_test render/handoff.lua
 
 # 3. Image insertion, clipboard adapters and picker integration.
 # workflow/clipboard.lua uses fake commands without accessing the system clipboard.
@@ -120,6 +121,7 @@ run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
 run_test workflow/picker.lua # optional ordinary Snacks preview compatibility
 run_test workflow/selection.lua # optional real selection-tools chooser
+run_test workflow/selection_handoff.lua # delayed replacement/retained pixels
 
 # 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter
 # queries/fallback. treesitter.lua always runs and reports skipped real-language

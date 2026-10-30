@@ -5,6 +5,7 @@
 ---@field buf integer Caller-owned nofile scratch buffer.
 ---@field win integer Window already displaying buf.
 ---@field page? integer PDF page override.
+---@field previous? ImageToolsEmbeddedView Retained view of this same pane.
 ---@field upscale? boolean Fit small images to the pane; default true.
 ---@field is_valid? fun(): boolean Host generation/selection authority.
 ---@field paint? fun(draw: fun(): boolean): boolean? Synchronous host drawing transaction.
@@ -13,10 +14,12 @@
 ---@field closed? boolean
 ---@field error? string
 ---@field resize fun(self: ImageToolsEmbeddedView)
+---@field retain fun(self: ImageToolsEmbeddedView): ImageToolsEmbeddedView?
 ---@field close fun(self: ImageToolsEmbeddedView)
 local M = {}
 local api = vim.api
 local ns = api.nvim_create_namespace("image_tools.embedded")
+local serial = 0
 local owners = setmetatable({}, { __mode = "v" })
 local View = {}
 View.__index = View
@@ -39,14 +42,19 @@ function View:dependency(name)
   return self.dependencies[name] or require(modules[name] or ("image_tools." .. name))
 end
 function View:current()
+  local owner = owners[self.buf]
+  local owned = owner == self or (self.retained and owner and owner.previous == self)
   if
     self.closed
-    or owners[self.buf] ~= self
+    or not owned
     or not api.nvim_buf_is_valid(self.buf)
     or not api.nvim_win_is_valid(self.win)
     or api.nvim_win_get_buf(self.win) ~= self.buf
   then
     return false
+  end
+  if self.retained then
+    return true
   end
   if self.request.is_valid then
     local ok, valid = pcall(self.request.is_valid)
@@ -60,7 +68,7 @@ function View:viewport()
 end
 -- The host may wrap the synchronous transaction to record preview metadata.
 function View:paint(draw)
-  if not self:current() then
+  if self.retained or not self:current() then
     return false
   end
   local function transaction()
@@ -85,15 +93,16 @@ function View:paint(draw)
   end
   return transaction()
 end
-function View:release()
+function View:release(keep_previous)
   if self.session then
     self.session:close()
     self.session = nil
   end
-  if api.nvim_buf_is_valid(self.buf) and owners[self.buf] == self then
+  local grid = self.grid or (not keep_previous and self.previous_grid)
+  if (grid or self.highlight) and api.nvim_buf_is_valid(self.buf) and owners[self.buf] == self then
     api.nvim_buf_clear_namespace(self.buf, ns, 0, -1)
     -- Do not erase content installed by a new owner or by the host itself.
-    if self.grid and vim.deep_equal(api.nvim_buf_get_lines(self.buf, 0, -1, false), self.grid) then
+    if grid and vim.deep_equal(api.nvim_buf_get_lines(self.buf, 0, -1, false), grid) then
       local writable, modified = vim.bo[self.buf].modifiable, vim.bo[self.buf].modified
       vim.bo[self.buf].modifiable = true
       api.nvim_buf_set_lines(self.buf, 0, -1, false, { "" })
@@ -104,6 +113,9 @@ function View:release()
     require("image_tools.render.placeholder").clear(self)
   end
   self.grid, self.id, self.placement_id, self.highlight = nil, nil, nil, nil
+  if not keep_previous then
+    self.previous_grid = nil
+  end
 end
 function View:close()
   if self.closed then
@@ -116,18 +128,54 @@ function View:close()
     pcall(api.nvim_del_augroup_by_id, self.group)
     self.group = nil
   end
+  local previous = self.previous
+  self.previous = nil
   if owners[self.buf] == self then
-    owners[self.buf] = nil
-    if api.nvim_win_is_valid(self.win) and api.nvim_win_get_buf(self.win) == self.buf then
-      for name, value in pairs(self.saved_options) do
-        if vim.wo[self.win][name] == window_options[name] then
-          vim.wo[self.win][name] = value
+    if previous and not previous.closed then
+      owners[self.buf] = previous
+      previous:close()
+    else
+      owners[self.buf] = nil
+      if api.nvim_win_is_valid(self.win) and api.nvim_win_get_buf(self.win) == self.buf then
+        for name, value in pairs(self.saved_options) do
+          if vim.wo[self.win][name] == window_options[name] then
+            vim.wo[self.win][name] = value
+          end
         end
       end
     end
+  elseif previous then
+    previous:close()
   end
 end
 View.destroy = View.close
+-- Freeze a completed frame, or cancel pending work and return its ready ancestor.
+-- A frozen view cannot start new draws; its leases survive until close/replacement.
+function View:retain()
+  if
+    self.closed
+    or owners[self.buf] ~= self
+    or not api.nvim_buf_is_valid(self.buf)
+    or not api.nvim_win_is_valid(self.win)
+    or api.nvim_win_get_buf(self.win) ~= self.buf
+  then
+    self:close()
+    return nil
+  end
+  if self.grid and self.session and self.session.stage == "ready" then
+    self.retained = true
+    return self
+  end
+  local previous = self.previous
+  if previous and not previous.closed then
+    self.previous, self.previous_grid = nil, nil
+    owners[self.buf] = previous
+    self:close()
+    return previous
+  end
+  self:close()
+end
+
 function View:fail(err)
   if not self:current() then
     self:close()
@@ -153,7 +201,7 @@ function View:_start()
     self:close()
     return
   end
-  self:release()
+  self:release(true)
   self.view_width, self.view_height = self:viewport()
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   self.session = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
@@ -201,6 +249,13 @@ function View:_start()
         end)
       then
         self:close()
+      else
+        local previous = self.previous
+        self.previous, self.previous_grid = nil, nil
+        if previous and not previous.closed then
+          vim.cmd.redraw()
+          previous:close()
+        end
       end
     end,
   })
@@ -213,6 +268,9 @@ function View:start()
 end
 
 function View:resize()
+  if self.retained then
+    return
+  end
   if not self:current() then
     self:close()
     return
@@ -261,7 +319,20 @@ function M.new(request, options, dependencies)
   if not supported then
     return nil, reason
   end
-  if owners[buf] then
+  local previous = request.previous
+  if
+    not (
+      getmetatable(previous) == View
+      and previous.retained
+      and not previous.closed
+      and previous.buf == buf
+      and previous.win == win
+      and owners[buf] == previous
+    )
+  then
+    previous = nil
+  end
+  if owners[buf] and owners[buf] ~= previous then
     owners[buf]:close()
   end
   local self = setmetatable({
@@ -271,27 +342,36 @@ function M.new(request, options, dependencies)
     path = vim.fs.normalize(vim.fn.fnamemodify(request.path, ":p")),
     buf = buf,
     win = win,
-    saved_options = {},
+    previous = previous,
+    previous_grid = previous and previous.grid,
+    saved_options = previous and vim.deepcopy(previous.saved_options) or {},
   }, View)
   self.transfer = require("image_tools.terminal.transfer").new(options, dependencies)
   owners[buf] = self
   for name, value in pairs(window_options) do
-    self.saved_options[name] = vim.wo[win][name]
+    if not previous then
+      self.saved_options[name] = vim.wo[win][name]
+    end
     vim.wo[win][name] = value
   end
-  self.group = api.nvim_create_augroup("ImageToolsEmbedded" .. buf, { clear = true })
+  serial = serial + 1
+  self.group = api.nvim_create_augroup("ImageToolsEmbedded" .. buf .. "_" .. serial, { clear = true })
   api.nvim_create_autocmd("WinClosed", {
     group = self.group,
     pattern = tostring(win),
     callback = function()
-      self:close()
+      if owners[buf] == self then
+        self:close()
+      end
     end,
   })
   api.nvim_create_autocmd({ "BufWipeout", "BufWinLeave" }, {
     group = self.group,
     buffer = buf,
     callback = function()
-      self:close()
+      if owners[buf] == self then
+        self:close()
+      end
     end,
   })
   api.nvim_create_autocmd({ "WinResized", "VimResized" }, {
@@ -310,7 +390,9 @@ function M.new(request, options, dependencies)
   api.nvim_create_autocmd({ "VimLeavePre", "VimSuspend" }, {
     group = self.group,
     callback = function()
-      self:close()
+      if owners[buf] == self then
+        self:close()
+      end
     end,
   })
   vim.schedule(function()

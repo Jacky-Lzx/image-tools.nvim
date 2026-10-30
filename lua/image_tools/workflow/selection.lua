@@ -8,15 +8,18 @@ local function preview(render)
       ctx.set_lines({ "ImagePick requires selection-tools with preview provider support" })
       return
     end
-    if
-      not ctx.paint(function(buf)
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading image…" })
-      end, { title = vim.fs.basename(ctx.path) })
-    then
-      return
+    if not ctx.previous and not ctx.has_preview then
+      if
+        not ctx.paint(function(buf)
+          vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading image…" })
+        end, { title = vim.fs.basename(ctx.path) })
+      then
+        return
+      end
     end
     local view, err = render({
       path = ctx.path,
+      previous = ctx.previous,
       buf = ctx.buf,
       win = ctx.win,
       is_valid = function()
