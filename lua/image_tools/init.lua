@@ -151,7 +151,7 @@ function M.snacks_preview(ctx)
   return runtime():snacks_preview(ctx)
 end
 
--- Open the optional Snacks picker and import confirmed selections at the original extmark.
+-- Open the optional selection-tools picker and import at the original extmark.
 ---@param opts? table insert and picker override tables.
 ---@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.
 ---@return table? picker Nil when picker construction fails.

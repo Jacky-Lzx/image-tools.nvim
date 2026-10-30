@@ -102,7 +102,7 @@ run_test render/view.lua
 
 # 3. Image insertion, clipboard adapters and picker integration.
 # workflow/clipboard.lua uses fake commands without accessing the system clipboard.
-# workflow/picker.lua checks IMAGE_TOOLS_SNACKS_ROOT and reports a skip when unconfigured.
+# workflow/{picker,selection}.lua check their optional picker checkout roots.
 # manual/clipboard_native.lua requires a prepared system clipboard and runs separately.
 run_test workflow/insert.lua
 run_test workflow/template.lua
@@ -118,7 +118,8 @@ run_test workflow/asset_project.lua
 run_test workflow/move.lua
 run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
-run_test workflow/picker.lua
+run_test workflow/picker.lua # optional ordinary Snacks preview compatibility
+run_test workflow/selection.lua # optional real selection-tools chooser
 
 # 4. Document recognition: format dispatch, Lua scanner caches and Tree-sitter
 # queries/fallback. treesitter.lua always runs and reports skipped real-language

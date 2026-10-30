@@ -14,6 +14,7 @@ local deferred = {
   "terminal.pixel_pool",
   "terminal.upload",
   "terminal.transfer",
+  "workflow.selection",
   "workflow.template",
   "workflow.process",
   "workflow.naming",

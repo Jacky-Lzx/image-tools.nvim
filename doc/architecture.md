@@ -74,7 +74,8 @@ lua/image_tools/
     naming.lua             date/function filename rules
     clipboard.lua          shared clipboard validation/conversion/import
     clipboard_backend.lua  platform readers and bounded binary output
-    picker.lua             Snacks selection and preview integration
+    picker.lua             existing Snacks preview compatibility
+    selection.lua          selection-tools image import chooser
 ```
 
 `defaults.lua` is the single source for configurable defaults, including service
@@ -133,12 +134,13 @@ tests/
     clipboard_backend.lua    platform reader protocols, bounds and cancellation
     content.lua              binary hashes, revisions, cache and worker cancellation
     clipboard.lua            simulated clipboard commands
-    picker.lua               optional real Snacks integration
+    picker.lua               optional real Snacks preview compatibility
+    selection.lua            optional real selection-tools chooser
   tui/
     run.py                   PTY runner and Kitty protocol responder
     preview.lua              floating preview scenario
     buffer.lua               image/PDF buffer scenario
-    picker.lua               optional Snacks scenario
+    picker.lua               optional selection-tools chooser scenario
     cursor.lua               reference-selection scenario
     latex.lua                multiline PDF-reference scenario
   manual/

@@ -48,7 +48,7 @@ are available through `tests/bench/upload.lua`; see [performance](performance.md
 | --- | --- |
 | Format (Ubuntu 24.04) | Pinned StyLua over implementation/tests, shell syntax and whitespace |
 | Basic (macOS 15) | Required headless suites and Python PTY protocol scenarios |
-| Integration (macOS 15) | The same suite plus pinned real LaTeX/Typst parsers, real Snacks picker windows/TUI, LaTeX/Typst compilation and SVG/PDF tools |
+| Integration (macOS 15) | The same suite plus pinned real LaTeX/Typst parsers, real Snacks preview compatibility windows, LaTeX/Typst compilation and SVG/PDF tools |
 
 GitHub Actions are pinned by commit. `tests/ci/versions.sh` pins Neovim, StyLua,
 the Tree-sitter CLI, both parser revisions and Snacks. The integration installer
@@ -167,7 +167,7 @@ destinations, injected mid-commit filesystem failure/rollback, and review cancel
 `tests/workflow/file_process.lua` uses real image conversions to verify dimensions,
 encoding, source preservation, original naming context, document-compatible output,
 existing-asset/reference reuse, menu cancellation, context capture, batch failure,
-limits and converter timeout/cancellation. With Snacks configured, picker tests
+limits and converter timeout/cancellation. With selection-tools configured, chooser tests
 select a WebP for a LaTeX document and verify the converted PNG and input filter.
 
 ## Local HTTPS integration
@@ -212,3 +212,13 @@ Kitty. Check image/formula clarity, transparency, narrower splits, gutters/wrap,
 partial scrolling, folds, floating-menu overlap and toggle cleanup. Editing and
 saving must retain the original Markdown bytes. Record this visible check
 separately from automated headless/TUI results.
+
+## Optional selection-tools chooser checkout
+
+Set `IMAGE_TOOLS_SELECTION_ROOT=/absolute/path/to/selection-tools.nvim` when
+running `sh tests/run.sh` to include the real image chooser and chooser PTY
+scenario. These cover format filtering, shared embedded rendering, resizing,
+multi-selection, extmark-targeted import, existing-asset reuse, processing and
+cancellation. The fixture installer does not fetch this development checkout.
+`IMAGE_TOOLS_SNACKS_ROOT` continues to test existing Snacks preview compatibility.
+Both protocol responders test acknowledgements/placeholders, not physical pixels.

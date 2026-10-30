@@ -248,8 +248,10 @@ run_case("direct")
 run_case("auto", reject_file=True)
 run_case("auto", evict=True)
 
-if os.environ.get("IMAGE_TOOLS_SNACKS_ROOT"):
+if os.environ.get("IMAGE_TOOLS_SELECTION_ROOT"):
     run_case("auto", picker=True)
+else:
+    print("[skip] selection chooser TUI: set IMAGE_TOOLS_SELECTION_ROOT")
 
 run_case("auto", buffer=True)
 

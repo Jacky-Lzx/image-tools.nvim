@@ -1,18 +1,17 @@
 -- Module: image_tools.workflow.picker
 --
 -- Purpose:
---   Integrate Snacks selection and existing preview panes with independent
+--   Adapt existing Snacks preview panes to independent
 --   image rendering.
 --
 -- Architecture:
---   Capture insertion context, filter through document adapters and confirm
---   through workflow/insert. Render image items through render/session and
+--   Render image items through render/session and
 --   shared transfer resources; non-image items use Snacks file preview.
 --
 -- Ownership:
 --   Own picker-specific renderer state, wrapped callbacks and event groups,
 --   plus a weak registry for cleanup. Selection changes invalidate pending
---   work; closing releases placements and cancels unconfirmed import context.
+--   work; closing releases placements. The import chooser lives in workflow/selection.
 
 -- Logical dependency keys remain stable across module directory changes.
 local dependency_modules = {
@@ -314,85 +313,6 @@ function M.preview(ctx, opts, dependencies)
     end
     Snacks.picker.preview.file(ctx)
   end
-end
-
--- Capture import authority, open a format-filtered file picker and publish confirmed selections
--- after picker closure.
----@param insertion ImageToolsInsertOptions Captured insertion/reference options.
----@param opts? table Overrides for Snacks file picker configuration.
----@param previewer function Independent image preview callback.
----@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.
----@return table? picker Nil when format validation or picker construction fails.
-function M.pick(insertion, opts, previewer, callback)
-  local I = require("image_tools.workflow.insert")
-  local context = insertion.context or I.capture(insertion)
-  insertion = vim.tbl_extend("force", insertion, { context = context })
-  local format = require("image_tools.document").adapter(context.filetype)
-  if not format then
-    I.release(context)
-    local err = "Unsupported image insertion filetype"
-    if callback then
-      callback(err)
-    else
-      vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
-    end
-    return nil
-  end
-  local formats = format.image_formats()
-  if insertion.process and insertion.mode ~= "reference" then
-    formats = require("image_tools.media.formats").extensions()
-  end
-  local confirmed = false
-  local config = vim.tbl_deep_extend("force", {
-    ft = formats,
-    preview = previewer,
-  }, opts or {})
-  local on_close = config.on_close
-  config.on_close = function(picker)
-    if not confirmed then
-      I.release(context)
-      if callback then
-        callback("Cancelled")
-      end
-    end
-    if on_close then
-      on_close(picker)
-    end
-  end
-  config.actions = config.actions or {}
-  -- Capture selected paths before closing the pane, then import at the original document extmark.
-  ---@param picker table
-  ---@return nil
-  config.actions.confirm = function(picker)
-    local paths = {}
-    for _, item in ipairs(picker:selected({ fallback = true })) do
-      local path = Snacks.picker.util.path(item)
-      if path then
-        paths[#paths + 1] = path
-      end
-    end
-    if #paths == 0 then
-      return
-    end
-    confirmed = true
-    picker:close()
-    vim.schedule(function()
-      I.files(paths, insertion, callback)
-    end)
-  end
-  local success, picker = pcall(function()
-    return require("snacks").picker.files(config)
-  end)
-  if not success then
-    I.release(context)
-    if callback then
-      callback(tostring(picker))
-    else
-      vim.notify(tostring(picker), vim.log.levels.ERROR, { title = "image-tools" })
-    end
-    return nil
-  end
-  return picker
 end
 
 return M

@@ -111,7 +111,7 @@ status()               Return configured, auto_preview, path, window, transport
 insert(paths, opts, cb) Import/reference one path or a batch; returns cancellation.
                        With nil paths, prompt for a file.
 paste(opts, cb)         Paste a clipboard image; returns cancellation.
-pick(opts, cb)          Open Snacks.picker; returns a picker or nil on failure.
+pick(opts, cb)          Open selection-tools; returns a picker or nil on failure.
 snacks_preview(ctx)    Custom Snacks image previewer with regular file fallback.
 open(path)             Open an image/PDF file buffer; returns ok, error.
 page(n)                Select a PDF page; reject out-of-range values.
@@ -168,7 +168,7 @@ preserved and validated against max_dimension/max_pixels. Floating previews
 do not upscale; picker and file-buffer previews can upscale to fit their pane.
 Complete same-line Markdown inline images, angle-bracket destinations, quoted
 titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
-excluded. LaTeX, Typst, independent insertion, clipboard paste, Snacks
+excluded. LaTeX, Typst, independent insertion, clipboard paste, selection-tools
 picker integration and read-only image/PDF file buffers are supported below.
 HTTPS images are optional; see |image-tools-https|. Multiline Markdown image
 calls are unsupported. Standalone Markdown inline display is optional; see
@@ -276,16 +276,17 @@ process=false bypasses configured processing menus.
 PICKER                                                    *image-tools-picker*
 
 :ImagePick                                                   *:ImagePick*
-pick(opts, callback) requires Snacks.picker. opts.insert overrides
-insertion defaults; opts.picker overrides file picker options. Confirmation
-imports selected files at the original extmark position. Closing cancels.
-Images render in the existing preview pane with this plugin's transport/cache.
-Images scale up/down to fit the pane and align to its top-left, preserving
-their aspect ratio.
-Pane/terminal resizing refreshes placement and reuses pixels. Floating preview
-max_width/max_height do not limit picker size; protocol coordinates cap each axis
-at 297 cells. Selection changes cancel stale conversions; closing frees images
-and handlers.
+pick(opts, callback) requires selection-tools.nvim and ripgrep for format globs.
+opts.insert overrides insertion defaults; opts.picker overrides selection-tools
+files() options. ft optionally restricts supported extensions (case-insensitive).
+Images render through the public embedded API in the existing preview pane.
+Confirmation closes the picker, then imports marked/current files in source
+order at the original document extmark. Cancellation releases the context without
+importing or changing the document. The capture is single-use; resume is disabled.
+Processing-enabled copy pickers also offer convertible source formats. Resize
+reuses uploaded pixels; changing/closing selections releases only their views.
+Set IMAGE_TOOLS_SELECTION_ROOT for real chooser integration and TUI tests.
+
 For regular file pickers/explorer, configure Snacks picker.preview as:
 >
   function(ctx) require("image_tools").snacks_preview(ctx) end

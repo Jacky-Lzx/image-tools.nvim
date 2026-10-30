@@ -516,7 +516,7 @@ The commented groups in `tests/run.sh` cover:
 
 1. Public API, preview windows, cursor/reference lifecycle and health diagnostics.
 2. Image conversion, caches, queues, terminal transfer and rendering resources.
-3. Insertion, simulated clipboard commands and optional Snacks picker integration.
+3. Insertion, simulated clipboard commands, optional selection-tools chooser and Snacks preview compatibility.
 4. Document format dispatch, scanner caches and Tree-sitter queries/fallback.
 5. Optional real-parser asynchronous, incremental and multiline LaTeX checks.
 6. LaTeX/Typst syntax and paths, optional real compilation, image buffers and bounds.
@@ -535,7 +535,8 @@ are required for the suite. Optional coverage is enabled as follows:
 
 - `IMAGE_TOOLS_PARSER_ROOT`: runtime directory containing both `parser/latex.*`
   and `parser/typst.*`; enables real-parser suites and additional lifecycle cases.
-- `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables picker integration checks.
+- `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables preview compatibility checks.
+- `IMAGE_TOOLS_SELECTION_ROOT`: selection-tools checkout; enables chooser and chooser TUI integration checks.
 - `IMAGE_TOOLS_LAZY_ROOT`: lazy.nvim checkout; tests the installation spec's loading triggers.
 - `pdflatex` / `typst`: enable real compilation in the corresponding document tests.
   `pdfimages`, when available, additionally checks embedded image dimensions.
@@ -636,7 +637,7 @@ and dimensions are checked with ImageMagick before publication. Queue budgets,
 timeouts, cancellation, deduplication and import rollback still apply. A failed
 batch leaves no inserted text or partial imported resources.
 
-## Snacks picker integration
+## Picker integration
 
 ### Embed images in another plugin's pane
 
@@ -668,16 +669,32 @@ cleanup also release views. An already-owned target replaces its previous view.
 The API does not depend on Snacks, create windows, or register picker callbacks.
 Load the plugin only when an image candidate actually needs rendering.
 
-Snacks is an optional dependency for `:ImagePick` / `pick(opts, callback)`. Images
-preview in the existing picker window using this plugin's Kitty transport/cache.
-Picker previews scale up or down to fit the pane, preserve the aspect ratio and
-align the image to the top-left of the pane. They follow pane/terminal resizing and layout changes. The
-floating-preview `max_width`/`max_height` limits do not cap the picker; the Kitty
-coordinate table permits up to 297 cells per axis. Resizing reuses uploaded pixels.
-Confirm imports the selected images in order into the original document; closing
-without confirming cancels. Selection changes cancel pending conversions and
-placements; closing releases the picker cache and handlers. Use `pick({ insert =
-{ mode = "reference" }, picker = { cwd = "/images" } })` to configure import/picker.
+### Image chooser: selection-tools
+
+`:ImagePick` / `pick(opts, callback)` uses selection-tools.nvim's file search and
+window/key configuration. Install selection-tools separately; the format glob
+filter requires ripgrep. Other image-tools operations do not require a picker.
+Images use the public embedded renderer over the existing preview pane, sharing
+conversion and terminal pixel caches with other image-tools views.
+
+Search filters follow the original document adapter, including mixed-case image
+extensions; `opts.picker.ft` can further restrict extensions. Processing-enabled
+copy imports also offer convertible input formats. `opts.picker` otherwise uses
+selection-tools `files()` options (`cwd`, `query`, `layout`, `keys`, etc.). Confirm
+imports current/multiple selections in source order at the original document
+extmark, after picker cleanup. Escape cancels without importing or modifying the
+document. The captured insertion context is single-use, so this chooser is not
+recorded by picker resume. Selection changes/close release render views, and
+resize reuses uploaded pixels.
+
+```lua
+require("image_tools").pick({
+  insert = { mode = "reference" },
+  picker = { cwd = "/images", ft = { "png", "pdf" } },
+})
+```
+
+### Existing Snacks preview panes
 
 For ordinary Snacks file pickers and the explorer, set `picker.preview =
 function(ctx) require("image_tools").snacks_preview(ctx) end` in Snacks opts.
@@ -685,8 +702,9 @@ Non-image items retain Snacks' file preview; custom source-specific previewers
 remain source-specific. Keep Snacks.image disabled. The independent previewer
 never calls Snacks.image for supported images. No monkey patches are installed.
 
-Set `IMAGE_TOOLS_SNACKS_ROOT` to an installed Snacks checkout when running tests
-for actual picker window, finder, confirmation, cancellation and TUI integration.
+Set `IMAGE_TOOLS_SELECTION_ROOT` to a selection-tools checkout for chooser
+window/finder/confirmation/cancellation and TUI tests. `IMAGE_TOOLS_SNACKS_ROOT`
+continues to enable the independent Snacks preview compatibility tests.
 
 ## LaTeX
 

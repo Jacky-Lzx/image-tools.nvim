@@ -1,13 +1,12 @@
+-- Retain coverage for ordinary Snacks preview consumers; ImagePick uses selection-tools.
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
-local snacks = vim.env.IMAGE_TOOLS_SNACKS_ROOT
-if not snacks or not vim.uv.fs_stat(snacks .. "/lua/snacks/init.lua") then
-  print("picker: Snacks integration skipped (set IMAGE_TOOLS_SNACKS_ROOT)")
+local root = vim.env.IMAGE_TOOLS_SNACKS_ROOT
+if not root or not vim.uv.fs_stat(root .. "/lua/snacks/init.lua") then
+  print("Snacks preview compatibility: skipped (set IMAGE_TOOLS_SNACKS_ROOT)")
   return
 end
-vim.opt.rtp:prepend(snacks)
-vim.o.termguicolors = true
+vim.opt.rtp:prepend(root)
 vim.o.columns, vim.o.lines = 180, 80
-local pending, requests, writes = {}, {}, {}
 package.loaded["image_tools.terminal"] = {
   supports = function()
     return true
@@ -15,15 +14,12 @@ package.loaded["image_tools.terminal"] = {
   cell_size = function()
     return { width = 10, height = 20 }
   end,
-  write = function(command)
-    writes[#writes + 1] = command
-  end,
-  request = function(id, command, _, cb)
-    requests[#requests + 1] = command
+  write = function() end,
+  request = function(_, _, _, callback)
     local cancelled = false
     vim.schedule(function()
       if not cancelled then
-        cb(nil)
+        callback(nil)
       end
     end)
     return function()
@@ -31,211 +27,34 @@ package.loaded["image_tools.terminal"] = {
     end
   end,
 }
-local original = require("image_tools.media")
-local source = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png"
-require("snacks").setup({ image = { enabled = false }, picker = { enabled = true } })
-local count = 0
-local function check(value, msg)
-  count = count + 1
-  assert(value, msg)
-end
-local tmp = vim.env.IMAGE_TOOLS_TEST_TMP .. "/picker"
-vim.fn.mkdir(tmp, "p")
-local buf = vim.api.nvim_get_current_buf()
-vim.api.nvim_buf_set_name(buf, tmp .. "/note.md")
-vim.bo.filetype = "markdown"
-vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "source" })
 local image = require("image_tools")
 image.setup({ auto_preview = false })
-local done, err, paths
-local picker = image.pick(
-  { picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures", ft = { "png" }, layout = { preset = "default" } } },
-  function(e, p)
-    done, err, paths = true, e, p
-  end
-)
-check(picker ~= nil, "Real Snacks picker created")
-check(
-  vim.wait(3000, function()
-    return picker._image_tools_preview and picker._image_tools_preview.state and picker._image_tools_preview.state.id
-  end),
-  "Own image preview uploaded/placed: "
-    .. vim.inspect({
-      item = picker:current(),
-      state = picker._image_tools_preview and picker._image_tools_preview.state,
-      win = picker.preview.win.win,
-      lines = vim.api.nvim_buf_get_lines(picker.preview.win.buf, 0, -1, false),
-      requests = requests,
-    })
-)
-local renderer, win = picker._image_tools_preview, picker.preview.win.win
-check(renderer.state.win == win, "Rendered in existing picker preview window")
-local function has_grid(state)
-  for _, line in ipairs(vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)) do
-    if line:find(vim.fn.nr2char(0x10EEEE), 1, true) then
-      return true
-    end
-  end
-end
-check(has_grid(renderer.state), "Own left-aligned placeholders")
-check(renderer.state.width > 16 and renderer.state.height > 5, "Small image is enlarged to pane")
-check(
-  renderer.state.width == renderer.state.view_width or renderer.state.height == renderer.state.view_height,
-  "One image edge fills the pane"
-)
-local id = renderer.state.id
-vim.api.nvim_win_set_config(win, { width = 100, height = 40 })
-vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
-check(
-  vim.wait(1000, function()
-    return renderer.state and renderer.state.id and renderer.state.width == 100 and renderer.state.height == 32
-  end),
-  "Resize adapts beyond the old 60/64-column caps"
-)
-check(renderer.state.id == id and renderer.transfer:status().uploads == 1, "Resizing reuses uploaded image")
-check(renderer.state.top == 0 and renderer.state.left == 0, "Wide image starts at top left")
-local lines = vim.api.nvim_buf_get_lines(renderer.state.buf, 0, -1, false)
-check(
-  vim.fn.strdisplaywidth(lines[1]) == 100 and lines[40] == "" and #lines == 40,
-  "Left-aligned grid fits pane bounds"
-)
-local hits = renderer.transfer:status().hits
-vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
-vim.wait(30)
-check(renderer.transfer:status().hits == hits, "Unchanged geometry does not redraw")
-vim.api.nvim_win_set_config(win, { width = 100, height = 20 })
-vim.api.nvim_exec_autocmds("WinResized", { group = renderer.group })
-check(
-  vim.wait(1000, function()
-    return renderer.state and renderer.state.id and renderer.state.width == 64 and renderer.state.height == 20
-  end),
-  "Height-constrained image keeps its aspect ratio"
-)
-check(renderer.state.left == 0 and renderer.state.top == 0, "Remaining horizontal space is on the right")
-check(
-  vim.api.nvim_buf_get_lines(renderer.state.buf, 0, 1, false)[1]:sub(1, 4) == vim.fn.nr2char(0x10EEEE),
-  "No leading image padding"
-)
-check(package.loaded["snacks.image"] == nil, "Snacks.image not loaded for own preview")
-local before, prior_hits = #requests, renderer.transfer:status().hits
-picker.preview:show(picker, { force = true })
-check(
-  vim.wait(1000, function()
-    return renderer.state and renderer.state.id
-  end),
-  "Preview redraw"
-)
-check(#requests == before + 1 and renderer.transfer:status().hits == prior_hits + 1, "Picker reuses uploaded image")
--- Actual confirm closes picker and uses origin context even with subsequent edits.
-vim.api.nvim_buf_set_lines(buf, 0, 0, false, { "before source" })
-picker.opts.actions.confirm(picker)
-check(
-  vim.wait(3000, function()
-    return done
-  end),
-  "Confirm finished import"
-)
-check(not err and #paths == 1, err)
-check(
-  vim.api.nvim_buf_get_lines(buf, 2, 3, false)[1]:match("fixture.png"),
-  "Confirm imports into extmark source position"
-)
-check(renderer.transfer:status().placements == 0, "Close releases picker placement in shared pool")
-check(not renderer.group, "Close removes lifecycle group")
-check(vim.api.nvim_buf_is_valid(buf), "Source buffer retained")
--- Selecting an imported asset again must reference it without another copy.
-local imported = paths[1]
-done, err, paths = false, nil, nil
-picker = image.pick({ picker = { cwd = tmp .. "/Figures", ft = { "png" } } }, function(e, p)
-  done, err, paths = true, e, p
-end)
-check(
-  vim.wait(3000, function()
-    local item = picker:current()
-    local path = item and Snacks.picker.util.path(item)
-    local state = picker._image_tools_preview and picker._image_tools_preview.state
-    return not picker:is_active()
-      and path
-      and vim.uv.fs_realpath(path) == vim.uv.fs_realpath(imported)
-      and state
-      and state.id
-  end),
-  "Picker finds the already imported asset"
-)
-picker.opts.actions.confirm(picker)
-check(
-  vim.wait(3000, function()
-    return done
-  end),
-  "Existing asset confirmation finishes"
-)
-check(
-  not err and #paths == 1 and vim.uv.fs_realpath(paths[1]) == vim.uv.fs_realpath(imported),
-  "Picker references the existing asset"
-)
-check(#vim.fn.readdir(tmp .. "/Figures") == 1, "Picker creates no duplicate asset")
--- Processing widens the input filter while publishing a compiler-compatible output.
-vim.fn.mkdir(tmp .. "/downloads", "p")
-check(vim.system({ "magick", source, tmp .. "/downloads/input.webp" }):wait().code == 0, "Prepare WebP input")
-local tex = vim.api.nvim_create_buf(true, false)
-vim.api.nvim_set_current_buf(tex)
-vim.api.nvim_buf_set_name(tex, tmp .. "/paper.tex")
-vim.bo[tex].filetype = "tex"
-done, err, paths = false, nil, nil
-picker = image.pick(
-  { insert = { process = { format = "png", resize = "40x40>" } }, picker = { cwd = tmp .. "/downloads" } },
-  function(e, p)
-    done, err, paths = true, e, p
-  end
-)
-check(
-  vim.tbl_contains(picker.opts.ft, "webp"),
-  "Processing accepts source formats outside the document's native formats"
-)
-check(
-  vim.wait(3000, function()
-    return not picker:is_active() and picker:current() ~= nil
-  end),
-  "Picker discovers the convertible input"
-)
-picker.opts.actions.confirm(picker)
-check(
-  vim.wait(5000, function()
-    return done
-  end),
-  "Picker processing completed"
-)
-check(not err and paths and vim.fs.basename(paths[1]) == "input.png", tostring(err))
-check(
-  vim.system({ "magick", "identify", "-format", "%m %wx%h", paths[1] }, { text = true }):wait().stdout == "PNG 40x25",
-  "Picker applies real processing"
-)
-vim.api.nvim_set_current_buf(buf)
--- A slow conversion cancelled by moving to a different selection cannot draw late.
-package.loaded["image_tools.media"] = {
-  supported = original.supported,
-  prepare = function(_, _, cb)
-    pending[#pending + 1] = cb
-    return function() end
+require("snacks").setup({ image = { enabled = false }, picker = { enabled = true } })
+local closed = 0
+local picker = Snacks.picker.files({
+  cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures",
+  ft = { "png" },
+  preview = function(ctx)
+    image.snacks_preview(ctx)
   end,
-}
-local cancelled
-picker = image.pick({ picker = { cwd = vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures", ft = { "png" } } }, function(e)
-  cancelled = e
-end)
-check(
-  vim.wait(1000, function()
-    return #pending > 0
-  end),
-  "Deferred conversion started"
-)
-renderer = picker._image_tools_preview
-picker.opts.on_change(picker, nil)
-local previous = #requests
-pending[#pending](nil, { path = source, width = 160, height = 100, key = "late", size = 100 })
-check(not renderer.state and #requests == previous, "Stale selection never uploads")
+  on_close = function()
+    closed = closed + 1
+  end,
+})
+assert(vim.wait(3000, function()
+  return picker._image_tools_preview and picker._image_tools_preview.state and picker._image_tools_preview.state.id
+end, 2))
+local view = picker._image_tools_preview
+assert(view.state.win == picker.preview.win.win)
+local id = view.state.id
+local win = picker.preview.win.win
+vim.api.nvim_win_set_config(win, { width = 100, height = 40 })
+vim.api.nvim_exec_autocmds("WinResized", { group = view.group })
+assert(vim.wait(3000, function()
+  return view.state and view.state.width == 100 and view.state.height == 32
+end, 2))
+assert(view.state.id == id and view.transfer:status().uploads == 1)
 picker:close()
-check(cancelled == "Cancelled", "Closing picker cancels insertion context")
-package.loaded["image_tools.media"] = original
-check(package.loaded["snacks.image"] == nil, "Snacks.image remained disabled")
-print("picker: " .. count .. " assertions with real Snacks windows passed")
+assert(closed == 1 and not view.group and view.transfer:status().placements == 0)
+assert(not package.loaded["snacks.image"])
+print("Snacks preview compatibility: real pane, cached resize and cleanup passed")

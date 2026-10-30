@@ -1,6 +1,6 @@
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_ROOT))
 local D, I, Picker =
-  require("image_tools.document"), require("image_tools.workflow.insert"), require("image_tools.workflow.picker")
+  require("image_tools.document"), require("image_tools.workflow.insert"), require("image_tools.workflow.selection")
 local tmp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/format-policy"
 vim.fn.mkdir(tmp .. "/chapter", "p")
 local source = tmp .. "/image space.png"
@@ -12,21 +12,25 @@ local function check(value, message)
 end
 -- Capture the optional picker adapter's configuration; insertion and decoding
 -- still operate on actual Neovim buffers and copied assets below.
-local previous_snacks, previous_module = _G.Snacks, package.loaded.snacks
-local snacks = { picker = { util = {
-  path = function(item)
-    return item.path
+local previous_selection = package.loaded.selection_tools
+package.loaded.selection_tools = {
+  files = function(options)
+    config = options
+    return {
+      close = function()
+        options.on_choice(nil)
+      end,
+    }
   end,
-} } }
-snacks.picker.files = function(options)
-  config = options
-  return {
-    close = function(self)
-      options.on_close(self)
-    end,
-  }
+}
+local function offered(extension)
+  for _, glob in ipairs(config.globs) do
+    if vim.fn.match("fixture." .. extension, vim.fn.glob2regpat(glob)) >= 0 then
+      return true
+    end
+  end
+  return false
 end
-_G.Snacks, package.loaded.snacks = snacks, snacks
 for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst", "html" }) do
   local buf = vim.api.nvim_create_buf(true, false)
   vim.api.nvim_set_current_buf(buf)
@@ -36,16 +40,13 @@ for _, filetype in ipairs({ "markdown", "tex", "latex", "plaintex", "typst", "ht
   local picker = Picker.pick({}, nil, function() end, function(err)
     cancelled = err
   end)
-  check(picker ~= nil and vim.tbl_contains(config.ft, "png"), filetype .. ": picker exposes importable PNGs")
+  check(picker ~= nil and offered("png"), filetype .. ": picker exposes importable PNGs")
   if filetype == "markdown" then
-    check(vim.tbl_contains(config.ft, "tiff"), "Markdown picker includes TIFF alongside its TIFF import support")
+    check(offered("tiff"), "Markdown picker includes TIFF alongside its TIFF import support")
   elseif filetype == "html" then
-    check(
-      vim.tbl_contains(config.ft, "avif") and not vim.tbl_contains(config.ft, "pdf"),
-      "HTML picker supports browser images"
-    )
+    check(offered("avif") and not offered("pdf"), "HTML picker supports browser images")
   else
-    check(not vim.tbl_contains(config.ft, "avif"), filetype .. ": compiler-incompatible AVIFs stay out of picker")
+    check(not offered("avif"), filetype .. ": compiler-incompatible AVIFs stay out of picker")
   end
   picker:close()
   check(cancelled == "Cancelled", filetype .. ": picker cancellation releases the captured position")
@@ -76,5 +77,5 @@ check(Picker.pick({}, nil, function() end, function(err)
 end) == nil and failure ~= nil, "Unsupported picker document fails immediately")
 local marks = vim.api.nvim_buf_get_extmarks(0, vim.api.nvim_create_namespace("image_tools.insert"), 0, -1, {})
 check(#marks == 0, "Rejected picker context leaves no captured insertion position")
-_G.Snacks, package.loaded.snacks = previous_snacks, previous_module
+package.loaded.selection_tools = previous_selection
 print("document adapters: " .. count .. " assertions passed")

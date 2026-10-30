@@ -22,6 +22,7 @@ local dependency_modules = {
   insert = "image_tools.workflow.insert",
   clipboard = "image_tools.workflow.clipboard",
   picker = "image_tools.workflow.picker",
+  selection = "image_tools.workflow.selection",
 }
 
 ---@class ImageToolsPreviewOptions
@@ -396,7 +397,7 @@ function Runtime:snacks_preview(ctx)
   return result
 end
 
--- Open the optional Snacks picker and import confirmed selections at the original extmark.
+-- Open selection-tools and import confirmed selections at the original extmark.
 ---@param opts? table insert and picker override tables.
 ---@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.
 ---@return table? picker Nil when picker construction fails.
@@ -410,10 +411,11 @@ function Runtime:pick(opts, callback)
     convert_timeout = self.options.convert_timeout,
     reference_root = self.options.root,
   }, opts.insert or {})
-  return self:dependency("picker").pick(insertion, opts.picker, function(ctx)
-    if not self.disposed then
-      return self:snacks_preview(ctx)
+  return self:dependency("selection").pick(insertion, opts.picker, function(request)
+    if self.disposed then
+      return nil, "Image runtime was disposed"
     end
+    return self:render(request)
   end, callback)
 end
 
