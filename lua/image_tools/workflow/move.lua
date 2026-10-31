@@ -268,14 +268,14 @@ function M.move(source, target, opts, callback)
         )
       end
     end
-  local active, preview, plan = true, nil, nil
+  local active, review, plan = true, nil, nil
   local function finish(err)
     if not active then
       return
     end
     active = false
-    if preview and vim.api.nvim_buf_is_valid(preview) then
-      pcall(vim.api.nvim_buf_delete, preview, { force = true })
+    if review then
+      review:close()
     end
     callback(err, not err and plan or nil)
   end
@@ -299,39 +299,18 @@ function M.move(source, target, opts, callback)
       apply()
       return
     end
-    local lines = {
-      "Move: " .. source,
-      "To:   " .. target,
-      "",
-      "Live buffers stay modified; unopened documents are saved.",
-      "Only recognized references in the scanned project are updated.",
-      "",
-    }
-    for _, change in ipairs(plan.changes) do
-      lines[#lines + 1] = "--- " .. change.path
-      local diff = vim.diff(
-        table.concat(plan.snapshots[change.path].lines, "\n") .. "\n",
-        table.concat(change.lines, "\n") .. "\n",
-        { result_type = "unified" }
-      )
-      vim.list_extend(lines, vim.split(diff, "\n", { plain = true }))
-    end
-    preview = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(preview, 0, -1, false, lines)
-    vim.bo[preview].filetype, vim.bo[preview].modifiable = "diff", false
-    vim.cmd("botright split")
-    vim.api.nvim_win_set_buf(0, preview)
-    vim.ui.select(
-      { "Apply move", "Cancel" },
-      { prompt = string.format("Move image and update %d document(s)?", #plan.changes) },
-      function(choice)
-        if choice == "Apply move" then
-          apply()
-        else
-          finish("Cancelled")
-        end
+    local ok, result = pcall(require("image_tools.workflow.selection").review, plan, function(confirmed)
+      if confirmed then
+        apply()
+      else
+        finish("Cancelled")
       end
-    )
+    end)
+    if ok then
+      review = result
+    else
+      finish(tostring(result))
+    end
   end)
   return function()
     if plan then

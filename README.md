@@ -94,8 +94,9 @@ Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `:ImageMove Figures/architecture.png` moves the local image selected under the
 cursor (with current-line fallback). The destination is relative to cwd; spaces
 are literal. This also renames images. Keep the original extension.
-The command scans the project, opens a diff of destination-only changes and asks
-whether to apply. Descriptions, titles, reference labels, HTML attributes and
+The command scans the project and opens selection-tools with one diff per changed
+document. Enter opens an explicit Apply move/Cancel choice; Escape abandons the
+plan without opening a review split or changing files. Descriptions, titles, reference labels, HTML attributes and
 LaTeX/Typst options are preserved. Shared Markdown definitions are updated once.
 LaTeX omitted extensions/graphicspath references become explicit paths.
 
@@ -965,12 +966,14 @@ process, although each worker still uses memory proportional to `max_bytes`.
 Cold hashes include process startup overhead; repeated unchanged candidates avoid
 rehashing. See [the import hashing benchmark](doc/performance.md#import-hashing-benchmark).
 
-`:ImageCheckAssets` opens a quickfix report of missing references and possibly
+`:ImageCheckAssets` opens a searchable selection-tools report, also retained in
+quickfix, of missing references and possibly
 unused image files in the current document's import directory. It supports
 Markdown, LaTeX and Typst literal references, with the same syntax exclusions and
 max_scan_lines limit as preview. A truncated scan is marked in the report.
 "Possibly unused" only means unused in this document: shared resources may be
 referenced elsewhere. Directory inspection is nonrecursive and excludes symlinks.
+Entries preview document locations or image assets; Enter jumps to the report location. `Ctrl-q` exports results to quickfix.
 No files are deleted. `check_assets(opts, callback)` returns a cancel function;
 the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
 `document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.

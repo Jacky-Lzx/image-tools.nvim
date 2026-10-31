@@ -187,6 +187,19 @@ end, 1))
 cancel()
 assert(not vim.api.nvim_buf_is_valid(held) and not completed, "Mid-scan cancellation releases the offline buffer")
 require("image_tools.document").enumerate = enumerate
+local review
+if vim.env.IMAGE_TOOLS_SELECTION_ROOT then
+  vim.opt.rtp:prepend(vim.env.IMAGE_TOOLS_SELECTION_ROOT)
+  local selection = require("selection_tools")
+  local open = selection.open
+  selection.open = function(options)
+    review = open(options)
+    return review
+  end
+else
+  -- This suite tests the scanner; the real chooser is covered by review.lua.
+  package.loaded["image_tools.workflow.selection"] = { assets = function() end }
+end
 local api = require("image_tools")
 api.setup({ auto_preview = false, insert = { root = root } })
 vim.cmd("ImageCheckAssets! " .. root)
@@ -196,6 +209,10 @@ assert(
   end, 1),
   "Project command populates quickfix"
 )
+if vim.env.IMAGE_TOOLS_SELECTION_ROOT then
+  assert(review and not review.closed, "Asset command opens selection-tools")
+  review:close()
+end
 vim.cmd("cclose")
 assert(uv.fs_stat(root .. "/Figures/unused.png"), "Project inspection never deletes assets")
 print("Project assets: shared references, offline/live documents, limits, symlinks, races and cancellation passed")

@@ -120,6 +120,7 @@ run_test workflow/move.lua
 run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
 run_test workflow/picker.lua # optional ordinary Snacks preview compatibility
+run_test workflow/review.lua # real diff review and asset chooser
 run_test workflow/selection.lua # optional real selection-tools chooser
 run_test workflow/selection_handoff.lua # delayed replacement/retained pixels
 

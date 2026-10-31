@@ -503,7 +503,8 @@ are rehashed. Concurrent requests share one worker until the last subscriber
 cancels. File bytes/encoding/hashing stay outside the editor process. Each
 worker still holds bounded file data; cold hashes include process startup.
 
-`:ImageCheckAssets` opens a quickfix report of missing references and possibly
+`:ImageCheckAssets` opens a selection-tools browser over its quickfix report of
+missing references and possibly
 unused image files in the current document's import directory. It supports
 Markdown, LaTeX and Typst literal references, with the same syntax exclusions and
 max_scan_lines limit as preview. A truncated scan is marked in the report.
@@ -613,7 +614,8 @@ IMAGE MOVES                                               *image-tools-move*
 :ImageMove destination                                      *:ImageMove*
 Move/rename the selected local image and update recognized project references.
 Destination is relative to cwd; spaces are literal. Preserve the extension.
-A diff opens before application; choose Apply move or Cancel. Descriptions,
+Selection-tools previews one diff per changed document. Enter opens an explicit
+Apply move/Cancel choice; Escape cancels without changes. Descriptions,
 titles, labels and document options survive. Shared definitions are changed once.
 API: move(source, destination, opts, callback), returning cancellation. Options:
 project_root (nearest .git or document directory by default), confirm=false to

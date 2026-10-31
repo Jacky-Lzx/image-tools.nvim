@@ -39,6 +39,99 @@ local function preview(render)
   end
 end
 
+-- Review per-document diffs in the picker, then explicitly confirm the full plan.
+-- The returned handle owns both picker stages; closing it never applies the plan.
+function M.review(plan, callback)
+  local selection = require("selection_tools")
+  local active, picker = true, nil
+  local function finish(apply)
+    if not active then
+      return
+    end
+    active = false
+    callback(apply)
+  end
+  local items = {}
+  for _, change in ipairs(plan.changes) do
+    local diff = vim.diff(
+      table.concat(plan.snapshots[change.path].lines, "\n") .. "\n",
+      table.concat(change.lines, "\n") .. "\n",
+      { result_type = "unified" }
+    )
+    items[#items + 1] =
+      { text = change.path, lines = vim.split("--- " .. change.path .. "\n" .. diff, "\n", { plain = true }) }
+  end
+  if #items == 0 then
+    items[1] = { text = "Image move (no document edits)", lines = {} }
+  end
+  local header = {
+    "Move: " .. plan.source,
+    "To:   " .. plan.target,
+    "",
+    "Live buffers stay modified; unopened documents are saved.",
+    "Only recognized references in the scanned project are updated.",
+    "",
+  }
+  picker = selection.open({
+    prompt = "Review image move · Enter to confirm · Esc to cancel",
+    items = items,
+    multi = false,
+    resume = false,
+    format_item = function(item)
+      return item.text
+    end,
+    preview = { enabled = true },
+    previewer = function(ctx)
+      local lines = vim.list_extend(vim.deepcopy(header), ctx.item.lines)
+      ctx.set_lines(lines, "diff", "Image move")
+    end,
+    on_choice = function(item)
+      if not active then
+        return
+      end
+      if not item then
+        finish(false)
+        return
+      end
+      -- Keep confirmation in the same UI framework without owning a split.
+      picker = selection.select({ "Apply move", "Cancel" }, {
+        prompt = string.format("Move image and update %d document(s)?", #plan.changes),
+        resume = false,
+      }, function(choice)
+        finish(choice == "Apply move")
+      end)
+    end,
+  })
+  return {
+    close = function()
+      if not active then
+        return
+      end
+      active = false
+      if picker and not picker.closed then
+        picker:close()
+      end
+    end,
+  }
+end
+
+-- Reuse the native quickfix report/index contract and supply image previews.
+function M.assets(render)
+  return require("selection_tools").qflist({
+    preview = {
+      enabled = true,
+      providers = {
+        function(ctx)
+          if not ctx.path or not require("image_tools.media.formats").supported(ctx.path) then
+            return false
+          end
+          return preview(render)(ctx)
+        end,
+      },
+    },
+  })
+end
+
 ---@param insertion ImageToolsInsertOptions
 ---@param opts? table selection-tools files() options; ft optionally restricts formats.
 ---@param render fun(request: ImageToolsEmbeddedRequest): ImageToolsEmbeddedView?, string?

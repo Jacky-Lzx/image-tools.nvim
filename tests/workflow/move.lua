@@ -96,21 +96,28 @@ write("Figures/final.png", { "do not overwrite" })
 local collision, collision_err = plan()
 assert(not collision and collision_err:find("already exists"))
 uv.fs_unlink(target)
-local select, choose = vim.ui.select
-vim.ui.select = function(_, _, callback)
-  choose = callback
+if vim.env.IMAGE_TOOLS_SELECTION_ROOT then
+  vim.opt.rtp:prepend(vim.env.IMAGE_TOOLS_SELECTION_ROOT)
+  local selection = require("selection_tools")
+  local open, picker = selection.open, nil
+  selection.open = function(options)
+    picker = open(options)
+    return picker
+  end
+  local completed, cancelled
+  move.move(source, target, opts, function(e)
+    completed, cancelled = true, e
+  end)
+  assert(vim.wait(5000, function()
+    return picker ~= nil
+  end, 1))
+  assert(uv.fs_stat(source) and not uv.fs_stat(target), "Diff UI precedes mutation")
+  picker:close()
+  assert(completed and cancelled == "Cancelled")
+  selection.open = open
+else
+  print("move review: skipped (set IMAGE_TOOLS_SELECTION_ROOT)")
 end
-local completed, cancelled
-move.move(source, target, opts, function(e)
-  completed, cancelled = true, e
-end)
-assert(vim.wait(5000, function()
-  return choose ~= nil
-end, 1))
-assert(uv.fs_stat(source) and not uv.fs_stat(target), "Diff UI precedes mutation")
-choose("Cancel")
-assert(completed and cancelled == "Cancelled")
-vim.ui.select = select
 assert(uv.fs_stat(source) and not uv.fs_stat(target))
 assert(#vim.fn.glob(root .. "/**/*.image-tools-*", false, true) == 0, "No transaction files remain")
 print(

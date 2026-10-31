@@ -171,7 +171,15 @@ function M.register(runtime)
           { title = "Image assets: " .. (result.project_root or result.document), items = items }
         )
         if #items > 0 then
-          vim.cmd("copen")
+          local ok, message = pcall(require("image_tools.workflow.selection").assets, function(request)
+            if runtime.disposed then
+              return nil, "Image runtime was disposed"
+            end
+            return runtime:render(request)
+          end)
+          if not ok then
+            report(false, tostring(message))
+          end
         else
           vim.notify("No image asset issues found")
         end
