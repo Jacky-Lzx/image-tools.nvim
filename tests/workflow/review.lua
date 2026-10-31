@@ -100,6 +100,17 @@ assert(closed == 1 and #assets.matches == 3, "Warning rows survive and release i
 assets:close()
 assert(#vim.fn.getqflist() == 3, "Cancelling preserves the native quickfix report")
 assets = ui.assets(function()
+  return nil, "conversion unavailable"
+end)
+assets:move(1)
+assert(
+  vim.wait(1000, function()
+    return vim.api.nvim_buf_get_lines(assets.preview_buf, 0, 1, false)[1] == "Image preview: conversion unavailable"
+  end, 1),
+  "An image error must not fall through to the binary file preview"
+)
+assets:close()
+assets = ui.assets(function()
   error("Not an image")
 end)
 assets:confirm()
