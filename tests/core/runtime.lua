@@ -65,16 +65,6 @@ local dependencies = {
       return instance
     end,
   },
-  picker = {
-    preview = function(ctx)
-      local renderer = { destroys = 0 }
-      function renderer:destroy()
-        self.destroys = self.destroys + 1
-      end
-      ctx.picker._image_tools_preview = renderer
-      renderers[#renderers + 1] = renderer
-    end,
-  },
   document = {
     supported = function()
       return true
@@ -97,8 +87,14 @@ eq(
   { "/private/tmp/first/fixture.png", "/private/tmp/second/fixture.png" },
   "Each runtime uses its own configuration and preview"
 )
-a:snacks_preview({ picker = {} })
-b:snacks_preview({ picker = {} })
+for _, runtime in ipairs({ a, b }) do
+  local renderer = { destroys = 0 }
+  function renderer:destroy()
+    self.destroys = self.destroys + 1
+  end
+  runtime.renderers[renderer] = true
+  renderers[#renderers + 1] = renderer
+end
 a.options.auto_preview = false
 eq(b.options.auto_preview, true, "Config mutation is isolated")
 a.options.auto_preview = true
@@ -114,7 +110,7 @@ local old_command = registered.ImagePreview
 local old_callback = vim.api.nvim_get_autocmds({ group = "image_tools", event = "CursorMoved" })[1].callback
 a:schedule_refresh()
 a:destroy()
-eq({ renderers[1].destroys, renderers[2].destroys }, { 1, 0 }, "Destroy releases only owned picker renderers")
+eq({ renderers[1].destroys, renderers[2].destroys }, { 1, 0 }, "Destroy releases only owned embedded renderers")
 eq(vim.fn.exists("#image_tools"), 0, "Destroy removes runtime autocmds")
 eq(vim.fn.exists(":ImagePreview"), 0, "Destroy removes runtime commands")
 eq({ previews[1].destroys, buffers[1].destroys }, { 1, 1 }, "Destroy releases owned preview and buffers")
@@ -143,7 +139,7 @@ end)
 eq(previews[2].opens, opens_b + 1, "Refresh requests are coalesced")
 vim.api.nvim_del_user_command("ImagePage")
 b:destroy()
-eq(renderers[2].destroys, 1, "Replacement releases its own picker renderer")
+eq(renderers[2].destroys, 1, "Replacement releases its own embedded renderer")
 eq(vim.fn.exists("#image_tools"), 0, "Destroy tolerates externally removed command")
 vim.api.nvim_create_user_command = create
 

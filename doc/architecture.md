@@ -74,7 +74,6 @@ lua/image_tools/
     naming.lua             date/function filename rules
     clipboard.lua          shared clipboard validation/conversion/import
     clipboard_backend.lua  platform readers and bounded binary output
-    picker.lua             existing Snacks preview compatibility
     selection.lua          selection-tools image import chooser
 ```
 
@@ -134,7 +133,6 @@ tests/
     clipboard_backend.lua    platform reader protocols, bounds and cancellation
     content.lua              binary hashes, revisions, cache and worker cancellation
     clipboard.lua            simulated clipboard commands
-    picker.lua               optional real Snacks preview compatibility
     selection.lua            optional real selection-tools chooser
   tui/
     run.py                   PTY runner and Kitty protocol responder
@@ -181,7 +179,7 @@ before acquiring a response handler or timer.
 
 ## Render Sessions
 
-Floating previews, inline virtual lines, file canvases and Snacks renderers supply their own
+Floating previews, inline virtual lines, file canvases and embedded renderers supply their own
 authority, viewport, window policy and error presentation. `render/session`
 owns the common prepare/placement sequence and releases both handles on close,
 stale completion, or drawing failure. It also releases handles returned after a

@@ -112,7 +112,6 @@ insert(paths, opts, cb) Import/reference one path or a batch; returns cancellati
                        With nil paths, prompt for a file.
 paste(opts, cb)         Paste a clipboard image; returns cancellation.
 pick(opts, cb)          Open selection-tools; returns a picker or nil on failure.
-snacks_preview(ctx)    Custom Snacks image previewer with regular file fallback.
 open(path)             Open an image/PDF file buffer; returns ok, error.
 page(n)                Select a PDF page; reject out-of-range values.
 next_page(delta)       Move by delta (default 1); clamp to the first/last page.
@@ -288,11 +287,7 @@ Processing-enabled copy pickers also offer convertible source formats. Resize
 reuses uploaded pixels; changing/closing selections releases only their views.
 Set IMAGE_TOOLS_SELECTION_ROOT for real chooser integration and TUI tests.
 
-For regular file pickers/explorer, configure Snacks picker.preview as:
->
-  function(ctx) require("image_tools").snacks_preview(ctx) end
-<
-Keep Snacks.image disabled. Non-image entries use the regular Snacks file preview.
+Other preview hosts may use the public render() API. There is no Snacks adapter.
 
 LATEX                                                     *image-tools-latex*
 
@@ -438,7 +433,7 @@ Setup replacement and explicit clearing free all shared terminal pixels.
 DEVELOPMENT                                               *image-tools-development*
 
 GitHub Actions runs formatting, basic and complete integration jobs. Tool/parser
-and Snacks pins live in tests/ci/versions.sh; install-fixtures.sh builds disposable
+pins live in tests/ci/versions.sh; install-fixtures.sh builds disposable
 integration fixtures, and preflight.lua rejects missing promised dependencies.
 Logs record actual environment versions. See doc/testing.md for local reproduction
 and a real Kitty rendering acceptance guide. CI's PTY responder proves protocol
@@ -456,7 +451,7 @@ Redirected output, unset/dumb TERM, or NO_COLOR disables colors.
 
 The suite requires Neovim and magick with Ghostscript for PDF conversion.
 IMAGE_TOOLS_PARSER_ROOT enables dedicated latex/typst parser suites;
-IMAGE_TOOLS_SNACKS_ROOT enables Snacks integration. Compiler checks run only when
+IMAGE_TOOLS_SELECTION_ROOT enables picker, move review and asset UI checks. Compiler checks run only when
 pdflatex/typst are available; Python 3 enables Unix PTY tests with a simulated
 Kitty responder. Successful runs can contain skips; check the reported coverage.
 RGB checks accept semicolon/colon SGR and verify actual image/placement colors;

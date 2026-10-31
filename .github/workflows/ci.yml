@@ -78,7 +78,6 @@ jobs:
         run: |
           sh tests/ci/install-fixtures.sh "$RUNNER_TEMP/image-tools-fixtures"
           echo "IMAGE_TOOLS_PARSER_ROOT=$RUNNER_TEMP/image-tools-fixtures/runtime" >> "$GITHUB_ENV"
-          echo "IMAGE_TOOLS_SNACKS_ROOT=$RUNNER_TEMP/image-tools-fixtures/snacks.nvim" >> "$GITHUB_ENV"
       - name: Record environment
         run: |
           mkdir -p artifacts

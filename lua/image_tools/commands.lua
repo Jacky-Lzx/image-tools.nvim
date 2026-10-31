@@ -205,7 +205,7 @@ function M.register(runtime)
 
   command("ImagePick", function()
     runtime:pick()
-  end, { desc = "Choose images with an independent Snacks picker preview", force = true })
+  end, { desc = "Choose images with selection-tools and image previews", force = true })
 
   command("ImagePaste", function()
     runtime:paste()

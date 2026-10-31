@@ -10,7 +10,7 @@
 --   dependencies take priority.
 --
 -- Ownership:
---   Own handlers, preview authority, pending reference selection and picker
+--   Own handlers, preview authority, pending reference selection and embedded
 --   renderers. Disposal disables callbacks before delegating resource cleanup
 --   to services.
 
@@ -21,7 +21,6 @@ local dependency_modules = {
   disk_cache = "image_tools.media.disk_cache",
   insert = "image_tools.workflow.insert",
   clipboard = "image_tools.workflow.clipboard",
-  picker = "image_tools.workflow.picker",
   selection = "image_tools.workflow.selection",
 }
 
@@ -58,7 +57,7 @@ local dependency_modules = {
 ---@field disposed boolean Guard that disables callbacks before teardown.
 ---@field preview? ImageToolsPreview Created on the first accepted floating preview.
 ---@field buffers ImageToolsBuffers File-buffer controller.
----@field renderers table<table, boolean> Weak-key set of picker and embedded renderers.
+---@field renderers table<table, boolean> Weak-key set of embedded renderers.
 ---@field group? integer Runtime autocmd group installed at start.
 ---@field commands? string[] Registered command names removed at destruction.
 ---@field refresh_pending? boolean Coalesced scheduled refresh.
@@ -261,7 +260,7 @@ function Runtime:close()
   end
 end
 
--- Invalidate reference work, pause file canvases, destroy picker renderers and clear shared
+-- Invalidate reference work, pause file canvases, destroy embedded renderers and clear shared
 -- terminal pixels.
 ---@return nil
 function Runtime:clear_cache()
@@ -359,18 +358,6 @@ function Runtime:paste(opts, callback)
     reference_root = self.options.root,
   }, opts or {})
   return self:dependency("clipboard").paste(insertion, callback)
-end
-
--- Provide the custom Snacks preview callback, with ordinary file preview fallback.
----@param ctx table Snacks preview context.
----@return nil
-function Runtime:snacks_preview(ctx)
-  local result = self:dependency("picker").preview(ctx, self.options, self.dependencies)
-  local renderer = ctx.picker._image_tools_preview
-  if renderer then
-    self.renderers[renderer] = true
-  end
-  return result
 end
 
 -- Open selection-tools and import confirmed selections at the original extmark.

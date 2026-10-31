@@ -84,7 +84,7 @@ remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
-`paste(opts, callback)`, `pick(opts, callback)`, `snacks_preview(ctx)`,
+`paste(opts, callback)`, `pick(opts, callback)`,
 `register_adapter(filetype, definition)`, `unregister_adapter(filetype)`,
 `open(path)`, `page(n)`, `next_page(delta)`, `reload()`, `zoom(value)`, `pan(x, y)`, `check_assets(opts, callback)`,
 `move(source, destination, opts, callback)`, `localize(opts, callback)`, `toggle_inline()`, `info()`.
@@ -402,7 +402,7 @@ Reference previews follow the syntax recognized by the document adapter.
 
 Enable `inline = { enabled = true }`, or use `:ImageInlineToggle` /
 `toggle_inline()`. The default is disabled. Independent image/PDF buffers and
-Snacks previews continue to use their own viewers.
+embedded previews continue to use their own viewers.
 
 Standalone Markdown images display below their source line, including reference
 images and local wikilinks. Only whitespace may surround the reference. Block
@@ -487,7 +487,7 @@ with spaces and Unicode, and a three-page PDF with distinct pages for paging.
 The assets are bundled; regeneration is optional.
 
 GitHub Actions runs formatting checks plus basic and complete integration jobs.
-The integration job pins Neovim, Tree-sitter parsers/CLI and Snacks, requires its
+The integration job pins Neovim and Tree-sitter parsers/CLI, requires its
 dependencies before suites can skip them, and retains environment/test logs.
 See [automated validation and real Kitty acceptance](doc/testing.md) for pinned
 fixture reproduction, coverage boundaries and manual rendering steps.
@@ -517,7 +517,7 @@ The commented groups in `tests/run.sh` cover:
 
 1. Public API, preview windows, cursor/reference lifecycle and health diagnostics.
 2. Image conversion, caches, queues, terminal transfer and rendering resources.
-3. Insertion, simulated clipboard commands, optional selection-tools chooser and Snacks preview compatibility.
+3. Insertion, simulated clipboard commands, optional selection-tools chooser, move review and asset reports.
 4. Document format dispatch, scanner caches and Tree-sitter queries/fallback.
 5. Optional real-parser asynchronous, incremental and multiline LaTeX checks.
 6. LaTeX/Typst syntax and paths, optional real compilation, image buffers and bounds.
@@ -536,7 +536,6 @@ are required for the suite. Optional coverage is enabled as follows:
 
 - `IMAGE_TOOLS_PARSER_ROOT`: runtime directory containing both `parser/latex.*`
   and `parser/typst.*`; enables real-parser suites and additional lifecycle cases.
-- `IMAGE_TOOLS_SNACKS_ROOT`: Snacks checkout; enables preview compatibility checks.
 - `IMAGE_TOOLS_SELECTION_ROOT`: selection-tools checkout; enables chooser and chooser TUI integration checks.
 - `IMAGE_TOOLS_LAZY_ROOT`: lazy.nvim checkout; tests the installation spec's loading triggers.
 - `pdflatex` / `typst`: enable real compilation in the corresponding document tests.
@@ -704,17 +703,9 @@ require("image_tools").pick({
 })
 ```
 
-### Existing Snacks preview panes
-
-For ordinary Snacks file pickers and the explorer, set `picker.preview =
-function(ctx) require("image_tools").snacks_preview(ctx) end` in Snacks opts.
-Non-image items retain Snacks' file preview; custom source-specific previewers
-remain source-specific. Keep Snacks.image disabled. The independent previewer
-never calls Snacks.image for supported images. No monkey patches are installed.
-
-Set `IMAGE_TOOLS_SELECTION_ROOT` to a selection-tools checkout for chooser
-window/finder/confirmation/cancellation and TUI tests. `IMAGE_TOOLS_SNACKS_ROOT`
-continues to enable the independent Snacks preview compatibility tests.
+Set `IMAGE_TOOLS_SELECTION_ROOT` to a selection-tools checkout for chooser,
+diff review, resource report and TUI tests. Image-tools has no Snacks adapter;
+other preview hosts can use the public `render()` API.
 
 ## LaTeX
 

@@ -48,13 +48,13 @@ are available through `tests/bench/upload.lua`; see [performance](performance.md
 | --- | --- |
 | Format (Ubuntu 24.04) | Pinned StyLua over implementation/tests, shell syntax and whitespace |
 | Basic (macOS 15) | Required headless suites and Python PTY protocol scenarios |
-| Integration (macOS 15) | The same suite plus pinned real LaTeX/Typst parsers, real Snacks preview compatibility windows, LaTeX/Typst compilation and SVG/PDF tools |
+| Integration (macOS 15) | The same suite plus pinned real LaTeX/Typst parsers, LaTeX/Typst compilation and SVG/PDF tools |
 
 GitHub Actions are pinned by commit. `tests/ci/versions.sh` pins Neovim, StyLua,
-the Tree-sitter CLI, both parser revisions and Snacks. The integration installer
+the Tree-sitter CLI, both parser revisions. The integration installer
 generates ABI 15 parsers and builds them with the runner's C/C++ compiler. No
 external plugins are vendored into this repository. `tests/ci/preflight.lua`
-requires both parsers, Snacks and integration executables before running suites,
+requires both parsers and integration executables before running suites,
 so a missing promised dependency fails the job instead of silently skipping it.
 
 Media tools and compilers come from Homebrew on the hosted macOS runner, whose
@@ -87,7 +87,6 @@ npm install --prefix /tmp/image-tools-tree-sitter "tree-sitter-cli@$TREE_SITTER_
 export PATH="/tmp/image-tools-tree-sitter/node_modules/.bin:$PATH"
 sh tests/ci/install-fixtures.sh /tmp/image-tools-ci-fixtures
 export IMAGE_TOOLS_PARSER_ROOT=/tmp/image-tools-ci-fixtures/runtime
-export IMAGE_TOOLS_SNACKS_ROOT=/tmp/image-tools-ci-fixtures/snacks.nvim
 nvim --headless -u NONE -i NONE --noplugin -l tests/ci/preflight.lua
 sh tests/run.sh
 ```
@@ -126,7 +125,7 @@ nvim -u NONE -i NONE --noplugin \
    error/stage. Close/clear the preview and confirm there are no leftover hints,
    placeholders or images. Run `:ImagePreviewClearCache`, then reopen an image.
 5. Repeat the preview checks with `transport="file"` and `transport="direct"`
-   in setup. If using Snacks, repeat image selection, confirmation, cancellation
+   in setup. Repeat image selection, confirmation, cancellation
    and picker resizing in the actual configured picker.
 
 Report the checks actually performed and any failures. Protocol-test success
@@ -220,5 +219,4 @@ running `sh tests/run.sh` to include the real image chooser and chooser PTY
 scenario. These cover format filtering, shared embedded rendering, resizing,
 multi-selection, extmark-targeted import, existing-asset reuse, processing and
 cancellation. The fixture installer does not fetch this development checkout.
-`IMAGE_TOOLS_SNACKS_ROOT` continues to test existing Snacks preview compatibility.
 Both protocol responders test acknowledgements/placeholders, not physical pixels.

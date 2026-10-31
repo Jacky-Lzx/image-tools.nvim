@@ -1,5 +1,5 @@
 #!/bin/sh
-# Build pinned parsers and fetch Snacks into an explicitly supplied disposable directory.
+# Build pinned parsers into an explicitly supplied disposable directory.
 set -eu
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/../.." && pwd)
 . "$root/tests/ci/versions.sh"
@@ -32,7 +32,6 @@ checkout() {
 }
 checkout https://github.com/latex-lsp/tree-sitter-latex.git "$LATEX_REVISION" "$fixture_root/latex"
 checkout https://github.com/uben0/tree-sitter-typst.git "$TYPST_REVISION" "$fixture_root/typst"
-checkout https://github.com/folke/snacks.nvim.git "$SNACKS_REVISION" "$fixture_root/snacks.nvim"
 mkdir -p "$fixture_root/runtime/parser"
 for language in latex typst; do
   (
@@ -50,4 +49,4 @@ for language in latex typst; do
     fi
   )
 done
-printf 'IMAGE_TOOLS_PARSER_ROOT=%s/runtime\nIMAGE_TOOLS_SNACKS_ROOT=%s/snacks.nvim\n' "$fixture_root" "$fixture_root"
+printf 'IMAGE_TOOLS_PARSER_ROOT=%s/runtime\n' "$fixture_root"

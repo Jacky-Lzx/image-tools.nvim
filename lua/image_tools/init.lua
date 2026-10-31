@@ -144,13 +144,6 @@ function M.paste(opts, callback)
   return runtime():paste(opts, callback)
 end
 
--- Provide the custom Snacks preview callback, with ordinary file preview fallback.
----@param ctx table Snacks preview context.
----@return nil
-function M.snacks_preview(ctx)
-  return runtime():snacks_preview(ctx)
-end
-
 -- Open the optional selection-tools picker and import at the original extmark.
 ---@param opts? table insert and picker override tables.
 ---@param callback? ImageToolsInsertCallback Reports import results or unconfirmed cancellation.

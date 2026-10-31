@@ -2,7 +2,7 @@
 # Run with: sh tests/run.sh.
 # Groups run in order; the first failure stops the run.
 # Required: Neovim and ImageMagick (magick), with Ghostscript for PDF conversion.
-# Optional: python3, LaTeX/Typst compilers, Tree-sitter parsers and a Snacks checkout.
+# Optional: python3, LaTeX/Typst compilers, Tree-sitter parsers and a selection-tools checkout.
 set -eu
 
 # Color only status labels on interactive terminals. Keep redirected logs plain,
@@ -103,7 +103,7 @@ run_test render/handoff.lua
 
 # 3. Image insertion, clipboard adapters and picker integration.
 # workflow/clipboard.lua uses fake commands without accessing the system clipboard.
-# workflow/{picker,selection}.lua check their optional picker checkout roots.
+# workflow/{selection,review}.lua check the optional selection-tools checkout.
 # manual/clipboard_native.lua requires a prepared system clipboard and runs separately.
 run_test workflow/insert.lua
 run_test workflow/template.lua
@@ -119,7 +119,6 @@ run_test workflow/asset_project.lua
 run_test workflow/move.lua
 run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
-run_test workflow/picker.lua # optional ordinary Snacks preview compatibility
 run_test workflow/review.lua # real diff review and asset chooser
 run_test workflow/selection.lua # optional real selection-tools chooser
 run_test workflow/selection_handoff.lua # delayed replacement/retained pixels
