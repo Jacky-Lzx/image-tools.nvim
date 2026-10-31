@@ -337,36 +337,12 @@ function Runtime:insert(paths, opts, callback)
   if paths then
     return insertion.files(type(paths) == "string" and { paths } or paths, opts, callback)
   end
-  local context = opts.context or insertion.capture(opts)
-  opts.context = context
-  local cancelled, cancel_import = false, nil
-  -- Cancel the file prompt/import without redirecting its captured document context.
-  ---@return nil
-  local function cancel()
-    if cancelled then
-      return
-    end
-    cancelled = true
-    if cancel_import then
-      cancel_import()
-    else
-      insertion.release(context)
+  local picker = self:pick({ insert = opts, picker = { prompt = "Import images" } }, callback)
+  return function()
+    if picker and not picker.closed then
+      picker:close()
     end
   end
-  vim.ui.input({ prompt = "Image file: ", completion = "file" }, function(path)
-    if cancelled then
-      return
-    end
-    if not path or path == "" then
-      cancel()
-      if callback then
-        callback("Cancelled")
-      end
-      return
-    end
-    cancel_import = insertion.files({ path }, opts, callback)
-  end)
-  return cancel
 end
 
 -- Start a clipboard import using a captured document context.

@@ -283,7 +283,7 @@ Local image wikilinks (`![[path.png|label]]`) resolve literal document-relative 
 vault-wide filename lookup and heading/block targets are not supported.
 File insertion is independent of image-insert.nvim. `:ImageInsert [path]` copies an
 image into `Figures/` beside the saved document, then inserts a relative Markdown
-link. With no path it prompts for a file. `:ImageInsert! [path]` references the
+link. With no path it opens selection-tools file search with image previews and multi-selection. `:ImageInsert! [path]` references the
 source without copying. `insert(path_or_paths, opts, callback)` also accepts a batch.
 Files already inside the configured image directory or its subdirectories are
 referenced directly, including picker selections in copy mode. They keep their

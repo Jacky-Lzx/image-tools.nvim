@@ -187,6 +187,39 @@ check(
   "Cancellation releases source context once"
 )
 package.loaded["image_tools.media"] = media
+-- insert(nil) uses the same searchable import UI; its API still returns cancel().
+local cwd = vim.fn.getcwd()
+vim.cmd.cd(tmp .. "/images")
+local selection_api = require("selection_tools")
+local files, opened = selection_api.files, nil
+selection_api.files = function(options)
+  opened = files(options)
+  return opened
+end
+local original = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+local import_context = insertion.capture()
+local import_error, import_calls = nil, 0
+local cancel_import = image.insert(nil, { mode = "reference", context = import_context }, function(e)
+  import_error, import_calls = e, import_calls + 1
+end)
+ready(opened)
+check(opened.opts.prompt == "Import images" and #opened.matches == 2, "No-path import uses image file search")
+cancel_import()
+cancel_import()
+check(opened.closed and import_error == "Cancelled" and import_calls == 1, "Import cancellation stays idempotent")
+check(
+  import_context.mark == nil and vim.deep_equal(vim.api.nvim_buf_get_lines(buf, 0, -1, false), original),
+  "Cancelled import releases capture without edits"
+)
+done, err, paths = false, nil, nil
+image.insert(nil, { mode = "reference" }, result)
+ready(opened)
+opened:confirm()
+check(vim.wait(3000, function()
+  return done
+end, 2) and not err and #paths == 1, "No-path import confirms through the existing transaction")
+selection_api.files = files
+vim.cmd.cd(cwd)
 -- Failed construction/dependency lookup also releases insertion authority.
 context = insertion.capture()
 local old, preload = package.loaded.selection_tools, package.preload.selection_tools
