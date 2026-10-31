@@ -85,8 +85,6 @@ end
 function M.clear_cache()
   if instance then
     instance:clear_cache()
-  elseif package.loaded["image_tools.workflow.picker"] then
-    require("image_tools.workflow.picker").clear_all()
   end
 end
 
