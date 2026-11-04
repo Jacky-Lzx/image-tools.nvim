@@ -146,7 +146,14 @@ function M.new(request, options, dependencies)
   })
   vim.api.nvim_create_autocmd({ "VimResized", "WinResized", "WinScrolled" }, {
     group = self.group,
-    callback = function()
+    callback = function(event)
+      if
+        event.event ~= "VimResized"
+        and tonumber(event.match) ~= self.owner_win
+        and not vim.tbl_contains(vim.v.event.windows or {}, self.owner_win)
+      then
+        return
+      end
       vim.schedule(function()
         if not self.closed then
           self:resize()

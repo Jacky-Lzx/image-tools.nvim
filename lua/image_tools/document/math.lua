@@ -232,7 +232,9 @@ end
 function M.find(buf, row, col, opts)
   local kind = require("image_tools.document.formats").kind(vim.bo[buf].filetype)
   local limits = opts.math or defaults.math
-  if limits.enabled == false or kind ~= "tex" and kind ~= "markdown" then
+  -- LaTeX document formulas are owned by tex-tools. Markdown keeps its existing
+  -- scanner/compiler and does not acquire a dependency on that plugin.
+  if limits.enabled == false or kind ~= "markdown" then
     return
   end
   -- Ordinary text needs only a bounded local read, not a cold prefix scan.

@@ -26,7 +26,7 @@ local function formula(buf, row, col, settings)
   end
   return nil, err
 end
-for _, ft in ipairs({ "markdown", "tex", "latex", "plaintex" }) do
+for _, ft in ipairs({ "markdown" }) do
   for _, source in ipairs({ [[$x^2 + y^2$]], [[$$\frac{a}{b}$$]], [[\(\alpha+1\)]], [=[\[\sum_i x_i\]]=] }) do
     local buf = buffer(ft, { "前缀 " .. source .. " suffix" })
     local ref = assert(formula(buf, 1, #"前缀 "))
@@ -81,22 +81,10 @@ for _, row in ipairs({ 1, 2, 3, 4, 6, 7, 8, 12 }) do
 end
 check(formula(md, 5).formula == "$visible$", "Skip inline code")
 check(formula(md, 10).start_row == 9 and formula(md, 10).end_row == 11, "Multiline dollars")
-local tex = buffer("tex", {
-  "% $comment$",
-  "\\verb|$code$| $visible$",
-  "\\begin{minted}{tex}",
-  "$hidden$",
-  "\\end{minted}",
-  "\\[ a % ignored \\]",
-  "+ b \\]",
-  "\\$escaped",
-  "outside",
-})
-for _, row in ipairs({ 1, 3, 4, 5, 8, 9 }) do
-  check(not formula(tex, row), "TeX excluded row " .. row)
+for _, ft in ipairs({ "tex", "latex", "plaintex" }) do
+  local tex = buffer(ft, { "$x$", "\\begin{equation}", "x^2", "\\end{equation}" })
+  check(not formula(tex, 1) and not formula(tex, 3), "LaTeX formula ownership is delegated to tex-tools")
 end
-check(formula(tex, 2).formula == "$visible$", "TeX inline verbatim")
-check(formula(tex, 6).end_row == 7, "TeX comment cannot close formula")
 local multiple = buffer("markdown", { [[$a$ and $b$]], "outside" })
 check(formula(multiple, 1, 8).formula == "$b$", "Cursor selects second formula")
 check(formula(multiple, 1).formula == "$a$", "Line selects first formula")
@@ -111,7 +99,7 @@ path = document.at_cursor(mixed, 1, 10, opts)
 check(path and not path:find("image-tools-math:", 1, true), "Image under cursor wins")
 local limited = config.resolve({ math = { max_lines = 2, max_bytes = 20 } })
 check(not formula(md, 10, nil, limited), "Line budget")
-check(not formula(buffer("tex", { "$" .. string.rep("x", 21) .. "$" }), 1, nil, limited), "Byte budget")
+check(not formula(buffer("markdown", { "$" .. string.rep("x", 21) .. "$" }), 1, nil, limited), "Byte budget")
 check(not formula(md, 10, nil, config.resolve({ max_scan_lines = 10 })), "Lookahead scan ceiling")
 local edit = buffer("markdown", { "$$", "x^2", "$$" })
 local first = formula(edit, 2).path

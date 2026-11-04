@@ -118,11 +118,14 @@ references for cursor-preview testing.
 
 ## Formula previews
 
-Open [math.md](math.md) or [math.tex](math.tex) to try inline/display formulas,
+Open [math.md](math.md) to try inline/display formulas,
 fractions, roots, matrices and aligned equations. Install latex, dvipng and the
 amsmath/amssymb packages. Move across formula rows, edit the body and leave its
 range to check update/cleanup. The background should be transparent, and code or
 comment examples should not preview. Use `:ImageInfo` for errors and dimensions.
+
+For [math.tex](math.tex), enable `formula_preview` in tex-tools.nvim and use
+`:TexToolsFormulaPreview` / `:TexToolsFormulaInfo`.
 
 ## Inline display
 

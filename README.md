@@ -67,7 +67,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 
 - `:ImagePreview /absolute/or/relative/image.png` opens a file.
   Spaces are accepted literally; do not surround the path with shell quotes.
-- `:ImagePreview` previews the image reference or Markdown/LaTeX formula under the
+- `:ImagePreview` previews the image reference or Markdown formula under the
   cursor, falling back to the first image/formula covering the current line.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
@@ -142,7 +142,7 @@ this delay. Set `auto_preview_delay = 0` for immediate automatic preparation.
 
 Leaving the selected reference's row range closes the previous preview and
 previews the new row if it contains an image. Markdown and Typst references cover
-one row for images; LaTeX image references and Markdown/LaTeX formulas can cover several. Replacing or removing the reference
+one row for images; LaTeX image references and Markdown formulas can cover several. Replacing or removing the reference
 updates or closes the preview. Window/buffer switching, resizing, scrolling,
 colorscheme changes, suspend and exit clean the previous preview; automatic
 preview refreshes the current line after layout changes. Stale asynchronous
@@ -793,19 +793,18 @@ context and omitted extensions (PDF/PNG/JPG/JPEG) are resolved. Resolution uses
 directory. No VimTeX dependency is added.
 Tree-sitter determines command locations and excluded contexts; literal argument
 decoding remains shared with the Lua scanner for starred and `\detokenize` forms
-that LaTeX grammars do not consistently represent. Formula lookup uses a separate
+that LaTeX grammars do not consistently represent. Markdown formula lookup uses a separate
 bounded Lua scanner, independently of `treesitter`.
 
-## Formulas in LaTeX and Markdown
+## Formulas in Markdown
 
 Move onto a formula or run `:ImagePreview` / `hover()` to show a floating formula
-preview. Both document types support `$...$`, `$$...$$`, `\(...\)` and `\[...\]`,
+preview. Markdown supports `$...$`, `$$...$$`, `\(...\)` and `\[...\]`,
 including multiline expressions. Supported environments are `math`, `displaymath`,
 `equation`, `align`, `alignat`, `gather`, `multline`, `flalign` and `eqnarray`, with
 starred variants where LaTeX provides them. Nested `aligned`, `cases`, matrices
 and other math content inside these delimiters are passed through to LaTeX.
 
-LaTeX comments, `\verb` and verbatim/listing/comment environments are skipped.
 Markdown fenced/indented code, matched backtick code spans, HTML comments and
 `<code>`/`<pre>` contents are skipped. Backtick spans can cross lines within a
 paragraph and `max_scan_lines`; unmatched runs remain literal text.
@@ -851,7 +850,10 @@ preview. Set `math = { density = 540 }` or `720` for additional sampling; larger
 rasters use more conversion/transfer memory and remain subject to PNG limits.
 Changing density selects a new cache entry automatically.
 
-Try [examples/math.md](examples/math.md) and [examples/math.tex](examples/math.tex).
+Try [examples/math.md](examples/math.md). LaTeX document formulas are detected and
+compiled by tex-tools.nvim; enable its `formula_preview` option and use
+`:TexToolsFormulaPreview` / `:TexToolsFormulaInfo`. Image-tools continues to
+handle LaTeX image references and provides the shared image display API.
 
 Insertion uses the same default figure template as image-insert.nvim; load
 `graphicx` in your document:

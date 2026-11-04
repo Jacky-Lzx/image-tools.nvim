@@ -106,6 +106,16 @@ check(
   "Close restores window and preserves host resources"
 )
 check(tools.status().terminal_cache.placements == 1 and not second.closed, "Closing one view preserves the other")
+local logical = assert(tools.render({
+  path = "/tmp/shared.png",
+  buf = a,
+  win = aw,
+  display_size = { width = 80, height = 50 },
+  upscale = false,
+}))
+ready(logical)
+check(logical.width == 8 and logical.height == 3, "Embedded images respect logical size independently of raster DPI")
+logical:close()
 local old_grid = vim.api.nvim_buf_get_lines(b, 0, -1, false)
 check(#old_grid > 0, "Second view retains its grid")
 tools.clear_cache()

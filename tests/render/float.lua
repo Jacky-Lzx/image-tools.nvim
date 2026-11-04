@@ -58,6 +58,12 @@ check(
 check(vim.api.nvim_win_get_config(win).col == 97, "External floats share right padding")
 check(vim.api.nvim_win_get_config(win).title[1][1] == " Formula ", "External title reaches the float")
 check(vim.api.nvim_get_current_win() == owner, "External floats never steal focus")
+local pending_before = #pending
+vim.api.nvim_exec_autocmds("WinResized", { pattern = tostring(win) })
+vim.wait(1, function()
+  return false
+end)
+check(#pending == pending_before, "A float's own resize event does not restart its rendering")
 local uploads = tools.status().terminal_cache.uploads
 view:resize()
 pending[#pending]()

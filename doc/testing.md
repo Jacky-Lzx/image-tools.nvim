@@ -152,12 +152,14 @@ manual reload, automatic delay and stale-result rejection. `tests/media/math.lua
 checks keys, dependency errors, shared workers, leases and cancellation; when
 latex/dvipng are installed it also compiles real inline/display/aligned formulas
 and verifies transparency. TUI formula scenarios exercise actual TeX output
-through file and direct Kitty transports, including shared Markdown/LaTeX pixels.
+through file and direct Kitty transports, including repeated Markdown pixel reuse.
 Resolution checks compare real 180/360-DPI outputs, confirm higher pixel counts
 and stable logical display dimensions, and verify that the float uses the logical
 size while diagnostics and upload retain the full raster dimensions.
 
-For visible acceptance, open `examples/math.md` and `examples/math.tex` in Kitty.
+For visible acceptance, open `examples/math.md` in Kitty. LaTeX formula
+acceptance now belongs to tex-tools.nvim; use its formula preview commands
+with `examples/math.tex`.
 Check readable fractions, roots, matrices and aligned rows on a transparent
 background. Move inside and outside a multiline formula, edit its body, remove
 a delimiter, change the colorscheme and run `:ImageReload` / `:ImageInfo`. Verify
@@ -231,3 +233,15 @@ scenario. These cover format filtering, shared embedded rendering, resizing,
 multi-selection, extmark-targeted import, existing-asset reuse, processing and
 cancellation. The fixture installer does not fetch this development checkout.
 Both protocol responders test acknowledgements/placeholders, not physical pixels.
+
+## tex-tools formula integration
+
+Set `IMAGE_TOOLS_TEX_ROOT` to the sibling tex-tools.nvim checkout to add its
+real formula PTY scenarios to `tests/tui/run.py` / `tests/run.sh`. Also provide
+`IMAGE_TOOLS_PARSER_ROOT` or `TEX_TOOLS_TEST_PARSER` for the latex parser.
+The tex-tools scenario covers public float API calls, real compilation, logical
+DPI sizing, unchanged source, continuous Insert-mode typing, stale/incomplete
+formula cleanup, splits, PNG/cache reuse with image references, and optional
+real ui-tools scrollbar bounds. File/direct uploads are checked separately.
+Tex-tools owns formula detection/compilation for LaTeX buffers; the image-tools
+Markdown scanner/compiler and inline rendering remain independently tested.

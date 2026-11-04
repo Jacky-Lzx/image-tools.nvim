@@ -65,11 +65,11 @@ local function poll()
       step = 2
     elseif step == 2 and win then
       assert(image.status().terminal_cache.uploads == 1, "Returning retransmitted formula")
-      document("tex")
+      image.close()
       image.hover()
       step = 3
     elseif step == 3 and win then
-      assert(image.status().terminal_cache.uploads == 1, "Identical Markdown/LaTeX formulas did not share pixels")
+      assert(image.status().terminal_cache.uploads == 1, "Repeated Markdown formulas did not share pixels")
       results.math, results.lifecycle, results.shared = true, true, true
       results.cache = image.status().terminal_cache
       image.close()

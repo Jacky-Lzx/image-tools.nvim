@@ -51,7 +51,7 @@ def test_rgb_colors():
     print("image-tools TUI: RGB SGR matching regressions passed")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False, tex=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixtures/fixture.png").read_bytes()
@@ -80,6 +80,8 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/cursor.lua")]
         if math:
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/math.lua")]
+        if tex:
+            command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(Path(env["IMAGE_TOOLS_TEX_ROOT"]) / "tests/formula_tui.lua")]
         if latex:
             command = ["nvim", "-u", "NONE", "-i", "NONE", "--noplugin", "-c", "luafile " + str(root / "tests/tui/latex.lua")]
         if buffer:
@@ -207,7 +209,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             else:
                 assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
-            assert len(uploads) == (3 if buffer else 2 if cursor or reject_file or evict or inline_math else 1), uploads
+            assert len(uploads) == (3 if buffer else 2 if tex or cursor or reject_file or evict or inline_math else 1), uploads
             assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result
             if picker or buffer or latex or math or inline:
                 assert result["cache"]["hits"] >= 1, result
@@ -232,7 +234,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("tex-tools formulas " if tex else "inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -267,5 +269,8 @@ if shutil.which("latex") and shutil.which("dvipng"):
     run_case("direct", math=True)
     run_case("auto", inline=True, inline_math=True)
     run_case("direct", inline=True, inline_math=True)
+    if os.environ.get("IMAGE_TOOLS_TEX_ROOT"):
+        run_case("auto", math=True, tex=True)
+        run_case("direct", math=True, tex=True)
 else:
     print("image-tools TUI: formula cases skipped (latex/dvipng unavailable)")

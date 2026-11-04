@@ -74,7 +74,7 @@ room for the preview and its border.
 
 COMMANDS                                                   *:ImagePreview*
 
-:ImagePreview [path]    Preview a file, image reference or Markdown/LaTeX formula.
+:ImagePreview [path]    Preview a file, image reference or Markdown formula.
                        Outside references, preview the first covering item.
                        File paths are literal: spaces work without quotes.
                        Explicit relative paths use cwd; Markdown paths use
@@ -144,7 +144,7 @@ the first image on the row is used. Errors in a selected destination do not
 fall back to another image. Moving to another image changes the preview;
 movement within the same reference, Insert mode and edits that preserve its
 source keep the window and pending conversion. Markdown/Typst references cover
-one row for images; LaTeX image references and Markdown/LaTeX formulas may
+one row for images; LaTeX image references and Markdown formulas may
 cover several. Leaving that row range closes the
 preview and entering another image row starts a new one.
 
@@ -348,11 +348,10 @@ file buffers support paging. ImageMagick must have Ghostscript support.
 
 FORMULAS                                                  *image-tools-math*
 
-LaTeX (tex/latex/plaintex) and Markdown support $...$, $$...$$, \(...\), \[...\]
+Markdown supports $...$, $$...$$, \(...\), \[...\]
 and math/displaymath/equation/align/alignat/gather/multline/flalign/eqnarray
 environments, including valid starred variants. Complete expressions may span
-lines. LaTeX comments, \verb and verbatim/listing/comment environments are skipped;
-Markdown code blocks, matched backtick spans, HTML comments and <code>/<pre>
+lines. Markdown code blocks, matched backtick spans, HTML comments and <code>/<pre>
 contents are skipped. Backtick spans can cross lines within a paragraph and
 max_scan_lines; unmatched runs remain literal text. Single
 Markdown dollars require non-whitespace inside each delimiter; the closing dollar
@@ -383,7 +382,9 @@ conversion and terminal pixels. :ImageCacheClear removes unused formula PNGs.
 Missing tools and invalid TeX appear in :ImageInfo or manual :ImagePreview;
 :checkhealth image_tools checks both configured executables.
 
-See examples/math.md and examples/math.tex for interactive examples.
+See examples/math.md for interactive examples. LaTeX document formulas belong
+to tex-tools.nvim: enable formula_preview and use :TexToolsFormulaPreview and
+:TexToolsFormulaInfo. LaTeX image references remain supported here.
 
 TYPST                                                     *image-tools-typst*
 
