@@ -104,6 +104,16 @@ function Runtime:render(request)
   return view, err
 end
 
+-- External image producers retain selection/file authority; layout is shared
+-- with native previews and all floats use the runtime's terminal pixel pool.
+function Runtime:float(request)
+  local view, err = require("image_tools.render.float").new(request, self.options, self.dependencies)
+  if view then
+    self.renderers[view] = true
+  end
+  return view, err
+end
+
 -- Construct the floating controller only for an actual preview request.
 ---@return ImageToolsPreview preview
 function Runtime:ensure_preview()

@@ -115,6 +115,12 @@ function M.render(request)
   return runtime():render(request)
 end
 
+-- Display a producer-owned local image in an independently managed float.
+-- Returns a close()/resize() handle; on_close releases the producer's file lease.
+function M.float(request)
+  return runtime():float(request)
+end
+
 -- Start a floating preview of an explicit path resolved relative to cwd.
 ---@param path string Image path.
 ---@param opts? ImageToolsPreviewOptions Notification/reference authority options.

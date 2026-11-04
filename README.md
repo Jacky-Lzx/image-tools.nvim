@@ -651,6 +651,30 @@ batch leaves no inserted text or partial imported resources.
 
 ### Embed images in another plugin's pane
 
+External producers can display a generated local image in an independent float:
+
+```lua
+local view, err = require("image_tools").float({
+  path = generated_png,
+  title = " Formula ",
+  display_size = { width = 180, height = 80 }, -- logical pixels; raster may be higher DPI
+  is_valid = function() return selection_is_current end,
+  on_error = function(message) show_error(message) end,
+  on_close = function() release_generated_file() end,
+})
+-- view:close() releases the float; view:resize() refreshes its layout.
+-- view:status() reports window, stage, closed and error.
+```
+
+The caller retains the source file until `on_close`. Image-tools owns the float,
+uploads and placements. Layout inherits `position`, `right_padding`, limits and
+border from setup; the request may override these settings. Selection authority
+comes from `is_valid`, so cursor movement within a formula or unrelated edits
+need not recreate the view. Owner leave/closure, resizing and runtime cleanup
+are handled by image-tools. Producer callbacks must not throw.
+
+`render(request)` also accepts `display_size` for logical sizing in a borrowed pane.
+
 `supports(path)` checks image/PDF extensions without initializing services.
 `render(request)` borrows an existing `nofile` buffer/window and returns a view
 (or `nil, error` when the target/format/terminal is unsupported):

@@ -126,6 +126,9 @@ function M:close()
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     vim.api.nvim_buf_delete(state.buf, { force = true })
   end
+  if state.on_close then
+    state.on_close()
+  end
 end
 
 -- Close the view and clear its transfer manager; shared pools retain other managers until Runtime
@@ -173,6 +176,7 @@ function M:open(path, options)
     reference = options.reference or false,
     reference_range = options.reference_range,
     formula = options._formula,
+    on_close = options._external and options._external.on_close,
   }
   state.changedtick = vim.api.nvim_buf_get_changedtick(state.owner_buf)
   ---@cast state ImageToolsPreviewState
@@ -204,9 +208,13 @@ function M:open(path, options)
         and vim.api.nvim_buf_is_valid(state.owner_buf)
         and vim.api.nvim_get_current_win() == state.owner_win
         and vim.api.nvim_get_current_buf() == state.owner_buf
-        and vim.api.nvim_buf_get_changedtick(state.owner_buf) == state.changedtick
-        and on_reference_row(state)
-        and (not state.reference or vim.api.nvim_win_get_cursor(state.owner_win)[2] == state.cursor[2])
+        and (
+          options._external and options._external.is_valid()
+          or not options._external
+            and vim.api.nvim_buf_get_changedtick(state.owner_buf) == state.changedtick
+            and on_reference_row(state)
+            and (not state.reference or vim.api.nvim_win_get_cursor(state.owner_win)[2] == state.cursor[2])
+        )
     end,
     -- A late result may close only its own state, never a newer replacement request.
     ---@return nil
@@ -220,8 +228,11 @@ function M:open(path, options)
     ---@return nil
     error = function(err)
       self:record_error(path, err, state.render.error_stage, state)
+      if options._external and options._external.on_error then
+        options._external.on_error(err)
+      end
       self:close()
-      if not options.silent then
+      if not options._external and not options.silent then
         vim.notify(err, vim.log.levels.ERROR, { title = "image-tools" })
       end
     end,
@@ -233,7 +244,7 @@ function M:open(path, options)
       state.image_width, state.image_height = image.width, image.height
       state.source_bytes, state.source_format = image.source_bytes, image.source_format
       return require("image_tools.render.geometry").fit(
-        image.display_size or image,
+        options.display_size or image.display_size or image,
         terminal.cell_size(self.opts.cell_size),
         math.max(1, math.min(self.opts.max_width, protocol.max_cells, right_edge(self.opts) - SCREEN_MARGIN_CELLS)),
         math.max(
@@ -263,7 +274,7 @@ function M:open(path, options)
         border = self.opts.border,
         focusable = false,
         zindex = PREVIEW_ZINDEX,
-        title = state.formula and " Formula " or " " .. vim.fs.basename(path) .. " ",
+        title = options.title or (state.formula and " Formula " or " " .. vim.fs.basename(path) .. " "),
         title_pos = "center",
       }
       if self.opts.position == "bottom_right" then

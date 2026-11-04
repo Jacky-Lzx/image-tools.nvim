@@ -99,6 +99,7 @@ run_test terminal/stream.lua
 run_test terminal/pixel_pool.lua
 run_test render/session.lua
 run_test render/preview_bounds.lua
+run_test render/float.lua
 run_test render/view.lua
 run_test render/handoff.lua
 

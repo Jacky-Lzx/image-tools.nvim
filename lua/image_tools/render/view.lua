@@ -7,6 +7,7 @@
 ---@field page? integer PDF page override.
 ---@field previous? ImageToolsEmbeddedView Retained view of this same pane.
 ---@field upscale? boolean Fit small images to the pane; default true.
+---@field display_size? ImageToolsImageSize Logical dimensions independent of raster sampling density.
 ---@field is_valid? fun(): boolean Host generation/selection authority.
 ---@field paint? fun(draw: fun(): boolean): boolean? Synchronous host drawing transaction.
 ---@field on_error? fun(error: string) Asynchronous failure callback.
@@ -224,7 +225,7 @@ function View:_start()
     size = function(image)
       self.view_width, self.view_height = self:viewport()
       return require("image_tools.render.geometry").fit(
-        image,
+        self.request.display_size or image,
         terminal.cell_size(self.options.cell_size),
         math.min(self.view_width, protocol.max_cells),
         math.min(self.view_height, protocol.max_cells),
@@ -288,6 +289,14 @@ end
 function M.new(request, options, dependencies)
   if type(request) ~= "table" or type(request.path) ~= "string" or request.path == "" then
     return nil, "render requires a path, scratch buffer and window"
+  end
+  if request.display_size then
+    for _, name in ipairs({ "width", "height" }) do
+      local value = type(request.display_size) == "table" and request.display_size[name]
+      if type(value) ~= "number" or value ~= value or value <= 0 or value >= math.huge then
+        return nil, "display_size must contain positive finite width and height"
+      end
+    end
   end
   for _, name in ipairs({ "is_valid", "paint", "on_error" }) do
     if request[name] ~= nil and type(request[name]) ~= "function" then

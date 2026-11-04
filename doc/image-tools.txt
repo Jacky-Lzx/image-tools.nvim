@@ -594,7 +594,19 @@ PDF delegate.
 EMBEDDED RENDERING                                  *image-tools-render*
 
 image_tools.supports(path) checks supported extensions without setup.
-image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?})
+image_tools.float({path,display_size?,title?,is_valid?,on_error?,on_close?})
+    Display a producer-owned local image in an independent nonfocusable float.
+    Returns a handle with close(), resize() and status(), or nil,error. status()
+    reports window, stage, closed and error. The producer keeps
+    the image file available until on_close(). is_valid() controls selection
+    authority; unrelated source edits and movement need not close the float.
+    display_size={width,height} specifies positive finite logical pixel sizes,
+    independent of raster resolution. Layout inherits setup; position,
+    right_padding, max_width, max_height and border may be overridden per call.
+    Owner leave/closure and runtime cleanup release the handle. Image-tools
+    handles resizing and scrollbar space. Callbacks must not throw.
+
+image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?,display_size?})
 returns view or nil,error. buf must be a caller-owned nofile scratch buffer
 already displayed in win. The renderer creates no windows or picker callbacks.
 view:retain() freezes a ready grid/lease, or cancels a pending request and returns
