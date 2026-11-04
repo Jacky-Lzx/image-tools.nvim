@@ -176,6 +176,7 @@ require("image_tools").setup({
   pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
   pdf_density = 144,
   position = "cursor", -- "cursor" or "bottom_right"
+  right_padding = 0, -- minimum right-side space in terminal columns
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500, -- milliseconds to wait for a graphics acknowledgement
   terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
@@ -203,6 +204,15 @@ Set `position = "bottom_right"` to anchor the preview to the editor's bottom-rig
 status line.
 The position is independent of the cursor and split layout.
 The default `"cursor"` places it near the cursor.
+When the loaded `ui-tools.nvim` scrollbar is enabled, image and formula previews
+reserve its rightmost column, including the preview border. This space stays
+reserved while the scrollbar is temporarily hidden or waiting to refresh.
+Set `right_padding = 2`, for example, to leave at least two columns to the right
+of image/formula previews for another scrollbar or other UI elements. It applies
+to both positions and includes automatic scrollbar space: the larger reservation
+wins, rather than adding them together. The default is `0`; values must be
+non-negative integers. In very narrow editors the padding shrinks to keep room
+for the preview and its border.
 
 `buffer.formats` defaults to `png`, `jpg`, `jpeg`, `webp`, `avif`, `heic`, `gif`,
 `bmp`, `tif`, `tiff` and `pdf`. SVG is available through explicit opening, but is

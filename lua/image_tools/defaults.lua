@@ -62,6 +62,7 @@ return {
     exclude_dirs = { ".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "build", ".cache" },
   },
   position = "cursor", -- "cursor" or "bottom_right"
+  right_padding = 0, -- minimum right-side space in terminal columns; includes automatic scrollbar space
   transport = "auto", -- "auto", "file" or "direct"
   terminal_timeout = 1500,
   terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },

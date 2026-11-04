@@ -17,6 +17,17 @@ Startup timings are available through `tests/bench/startup.lua`; see
 [performance](performance.md). A passing loading test does not establish visible
 terminal rendering.
 
+`tests/render/preview_bounds.lua` checks image/formula sizing and placement with
+the ui-tools scrollbar unloaded, disabled or enabled before its first refresh,
+including cursor/corner placement, borders, narrow editors and splits. Set
+`IMAGE_TOOLS_UI_ROOT` to a real `ui-tools.nvim` checkout to also exercise its
+scrollbar in the image/formula PTY scenarios. These check resolved float borders
+against the actual scrollbar window using the configured scrollbar appearance.
+The bounds suite also covers explicit right padding, its interaction with
+automatic scrollbar space, invalid values and padding larger than the editor.
+Set `IMAGE_TOOLS_TEST_RIGHT_PADDING=3` to check explicit padding in the
+image/formula PTY scenarios as well.
+
 `tests/workflow/insert_mode.lua` runs through Neovim's main event loop so it can
 verify actual Insert mode and queued typing after file insertion and simulated
 clipboard paste. It covers all placement strategies, UTF-8 prefixes, existing

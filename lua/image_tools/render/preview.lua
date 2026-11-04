@@ -48,6 +48,17 @@ local PREVIEW_ZINDEX = 50
 local LASTSTATUS = { MULTIPLE_WINDOWS = 1, ALWAYS = 2, GLOBAL = 3 }
 local loading_ns = vim.api.nvim_create_namespace("image_tools.preview_loading")
 
+-- ui-tools draws a one-column scrollbar above previews (zindex 60). Reserve
+-- its lane while enabled, including before its deferred refresh creates a bar
+-- or when all lines fit, so image/formula previews never jump into that lane.
+-- Inspect only loaded modules: previewing must not load an optional UI plugin.
+local function right_edge(opts)
+  local scrollbar = package.loaded["ui_tools.scrollbar"]
+  local padding = math.max(opts.right_padding or 0, scrollbar and scrollbar.enabled and 1 or 0)
+  -- Keep room for at least one image column and its border after resizing.
+  return math.max(math.min(vim.o.columns, BORDER_CELLS + 1), vim.o.columns - padding)
+end
+
 -- Loading hints belong to the request and must disappear on every completion path.
 local function clear_loading(state)
   if state.loading_timer then
@@ -224,7 +235,7 @@ function M:open(path, options)
       return require("image_tools.render.geometry").fit(
         image.display_size or image,
         terminal.cell_size(self.opts.cell_size),
-        math.max(1, math.min(self.opts.max_width, protocol.max_cells, vim.o.columns - SCREEN_MARGIN_CELLS)),
+        math.max(1, math.min(self.opts.max_width, protocol.max_cells, right_edge(self.opts) - SCREEN_MARGIN_CELLS)),
         math.max(
           1,
           math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - SCREEN_MARGIN_CELLS)
@@ -261,11 +272,11 @@ function M:open(path, options)
           or (vim.o.laststatus == LASTSTATUS.MULTIPLE_WINDOWS and vim.fn.winnr("$") > 1)
         window.anchor = "SE"
         window.row = math.max(0, vim.o.lines - vim.o.cmdheight - (statusline and 1 or 0))
-        window.col = vim.o.columns
+        window.col = right_edge(self.opts)
       else
         local position = vim.fn.screenpos(state.owner_win, state.cursor[1], state.cursor[2] + 1)
         window.row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - BORDER_CELLS))
-        window.col = math.max(0, math.min(position.col, vim.o.columns - width - BORDER_CELLS))
+        window.col = math.max(0, math.min(position.col, right_edge(self.opts) - width - BORDER_CELLS))
       end
       state.win = vim.api.nvim_open_win(state.buf, false, window)
       vim.wo[state.win].wrap = false

@@ -28,6 +28,7 @@
 ---@field insert ImageToolsInsertOptions Defaults merged into individual import operations.
 ---@field assets table Project inspection entry/size budgets and excluded directory names.
 ---@field position "cursor"|"bottom_right" Floating preview anchor policy.
+---@field right_padding integer Minimum right-side space in terminal columns, including automatic scrollbar space.
 ---@field transport "auto"|"file"|"direct" Upload transport policy.
 ---@field terminal_timeout integer Milliseconds allowed for each upload/placement acknowledgement.
 ---@field terminal_cache {max_images: integer, max_bytes: integer} Retention limits; bytes estimate decoded RGBA.
@@ -102,7 +103,7 @@ function M.resolve(opts)
       or type(options.math.foreground) == "string" and options.math.foreground:match("^#%x%x%x%x%x%x$"),
     "math.foreground must be auto or #RRGGBB"
   )
-  for _, name in ipairs({ "auto_preview_delay", "preview_loading_delay" }) do
+  for _, name in ipairs({ "auto_preview_delay", "preview_loading_delay", "right_padding" }) do
     assert(
       type(options[name]) == "number" and options[name] >= 0 and options[name] % 1 == 0,
       name .. " must be a non-negative integer"

@@ -12,6 +12,7 @@ image.setup({
   auto_preview = true,
   auto_preview_delay = 0,
   position = "bottom_right",
+  right_padding = tonumber(vim.env.IMAGE_TOOLS_TEST_RIGHT_PADDING) or 0,
   cache = temporary .. "/cache",
   transport = vim.env.IMAGE_TOOLS_TEST_TRANSPORT or "auto",
 })
@@ -23,6 +24,13 @@ vim.api.nvim_buf_set_lines(0, 0, -1, false, {
   "plain text",
 })
 vim.api.nvim_win_set_cursor(0, { 1, 0 })
+local scrollbar
+if vim.env.IMAGE_TOOLS_UI_ROOT then
+  vim.opt.rtp:prepend(vim.env.IMAGE_TOOLS_UI_ROOT)
+  vim.api.nvim_buf_set_lines(0, -1, -1, false, vim.fn["repeat"]({ "scrollbar fixture" }, 100))
+  scrollbar = require("ui_tools.scrollbar")
+  scrollbar.setup({ handle = " ", blend = 100, cursor = true, cursor_char = "●" })
+end
 local results, first, second = {}, nil, nil
 local steps = {
   function()
@@ -30,7 +38,15 @@ local steps = {
     first = win
     results.geometry = { vim.api.nvim_win_get_width(win), vim.api.nvim_win_get_height(win) }
     local location = vim.api.nvim_win_get_position(win)
-    assert(location[2] + results.geometry[1] + 2 == vim.o.columns, "float is not at the right edge")
+    local padding = math.max(tonumber(vim.env.IMAGE_TOOLS_TEST_RIGHT_PADDING) or 0, scrollbar and 1 or 0)
+    assert(location[2] + results.geometry[1] + 2 == vim.o.columns - padding, "incorrect right edge")
+    if scrollbar then
+      local bar = assert(scrollbar.bars[vim.api.nvim_get_current_win()], "actual scrollbar missing")
+      assert(
+        location[2] + results.geometry[1] + 2 <= vim.api.nvim_win_get_position(bar.win)[2],
+        "actual scrollbar overlaps image preview border"
+      )
+    end
     assert(
       location[1] + results.geometry[2] + 2 == vim.o.lines - vim.o.cmdheight - 1,
       "float is not above the command and status lines"
