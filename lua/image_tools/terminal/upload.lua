@@ -26,14 +26,16 @@ local dependency_modules = {
 ---@field width integer Prepared PNG width in pixels.
 ---@field height integer Prepared PNG height in pixels.
 ---@field key? string Prepared PNG revision key; acquire derives a fallback when absent.
+---@field cache_key? string Geometry-scoped cache identity; does not change the source revision key.
 ---@field path? string Prepared PNG file; either path or data must be available for a new upload.
 ---@field data? string Complete PNG bytes for direct transmission; metadata-only preparation omits them.
 ---@field source? string Original image file path, before conversion.
 ---@field cache_source? string Logical source override, such as a PDF path with a page suffix.
 
 ---@class ImageToolsUploadEntry
----@field key string Prepared PNG revision key, or a hash of image path/data when image.key is absent.
+---@field key string Upload-cache identity, optionally scoped to placement geometry.
 ---@field id integer Kitty image id; a failed file upload may replace it before a direct retry.
+---@field pixel_key string Original prepared-pixel revision, independent of placement geometry.
 ---@field path? string Prepared PNG path for file transfer or a deferred read; absent for in-memory images.
 ---@field source? string Logical source identity for old-version eviction; PDF pages use path#page=N.
 ---@field bytes integer Estimated decoded RGBA size (width * height * 4), not compressed file size or measured GPU usage.
@@ -174,10 +176,21 @@ function M:status()
 end
 
 -- Inspect cache readiness without exposing entry storage to placement owners.
----@param key string Prepared-image revision key.
----@return boolean uploaded Whether this uploader has acknowledged pixels for the key.
-function M:cached(key)
-  return self.entries[key] ~= nil and self.entries[key].uploaded == true
+---@param key string Upload-cache identity.
+---@param pixel_key? string Also accept an idle upload of this pixel revision.
+---@return boolean uploaded Whether compatible acknowledged pixels are available.
+function M:cached(key, pixel_key)
+  if self.entries[key] and self.entries[key].uploaded then
+    return true
+  end
+  if pixel_key then
+    for _, entry in pairs(self.entries) do
+      if entry.pixel_key == pixel_key and entry.uploaded and not entry.pinned then
+        return true
+      end
+    end
+  end
+  return false
 end
 
 -- Acquire/pin pixels and deliver readiness, synchronously on an acknowledged cache hit.
@@ -186,7 +199,8 @@ end
 ---@return ImageToolsUploadCancel cancel Release the lease; pending delivery is suppressed and cacheable pixels may remain.
 function M:acquire(image, callback)
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
-  local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
+  local pixel_key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
+  local key = image.cache_key or pixel_key
   local source = image.cache_source or image.source or image.path
 
   -- Drop obsolete versions of the same file, rather than filling the cache
@@ -200,12 +214,25 @@ function M:acquire(image, callback)
   end
 
   local entry = self.entries[key]
+  if not entry and image.cache_key then
+    -- A retired geometry has no visible consumers. Reuse its pixels/ID for a
+    -- resize, but never retarget an image that another live view still uses.
+    for previous, candidate in pairs(self.entries) do
+      if candidate.pixel_key == pixel_key and candidate.uploaded and not candidate.pinned then
+        self.entries[previous] = nil
+        candidate.key, candidate.source = key, source
+        self.entries[key], entry = candidate, candidate
+        break
+      end
+    end
+  end
   local cached = entry and entry.uploaded
   if not entry then
     local limits = self.opts.terminal_cache or defaults.terminal_cache
     local bytes = image.width * image.height * RGBA_BYTES_PER_PIXEL -- Conservative decoded RGBA estimate.
     entry = {
       key = key,
+      pixel_key = pixel_key,
       id = allocate_id(),
       path = image.path,
       source = source,

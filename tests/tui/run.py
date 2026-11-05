@@ -188,7 +188,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             if inline:
                 assert result["inline"] and result["scoped"] and result["lifecycle"] and result["source_preserved"], result
                 for placement in result["shared_placements"]:
-                    assert has_rgb_color(output, 58, placement), f"Inline placement underline color missing: {placement}"
+                    assert has_rgb_color(output, 38, placement), f"Inline foreground image selector missing: {placement}"
             elif math:
                 assert result["math"] and result["lifecycle"] and result["shared"], result
             elif cursor:
@@ -198,9 +198,9 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             elif buffer:
                 assert result["buffer"] and result["lifecycle"] and result["statusline"] and result["shared"], result
                 for placement in result["shared_placements"]:
-                    observed = [match[1] for match in sgr_pattern.finditer(output) if b"58" in match[1]]
-                    assert has_rgb_color(output, 58, placement), (
-                        "TUI did not emit independent placement as underline color: "
+                    observed = [match[1] for match in sgr_pattern.finditer(output) if b"38" in match[1]]
+                    assert has_rgb_color(output, 38, placement), (
+                        "TUI did not emit the independent foreground image selector: "
                         + f"placement={placement}, query_answered={underline_query_answered}, "
                         + f"observed SGR={observed[-20:]!r}"
                     )
@@ -209,8 +209,8 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             else:
                 assert result["geometry"] == [20, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
-            assert len(uploads) == (3 if buffer else 2 if tex or cursor or reject_file or evict or inline_math else 1), uploads
-            assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result
+            assert len(uploads) == (4 if buffer else 3 if inline_math else 2 if inline or tex or cursor or reject_file or evict else 1), uploads
+            assert result["cache"]["uploads"] == len(uploads), result
             if picker or buffer or latex or math or inline:
                 assert result["cache"]["hits"] >= 1, result
             else:
@@ -230,6 +230,25 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 )
                 assert any(f.get(b"a") == b"p" and f.get(b"U") == b"1" and f.get(b"i") == fields[b"i"] for f, _ in commands)
             assert chr(0x10EEEE).encode() in output
+            # Check the actual TUI bytes at each placeholder, not just Lua highlights.
+            underline = False
+            tokens = re.compile(rb"\x1b\[([0-9;:]*)m|" + re.escape(chr(0x10EEEE).encode()))
+            for token in tokens.finditer(output):
+                if token[1] is None:
+                    assert not underline, "Placeholder text enables a visible underline"
+                    continue
+                parts = token[1].split(b";")
+                index = 0
+                while index < len(parts):
+                    part = parts[index]
+                    code = int(part.split(b":")[0] or b"0")
+                    if code in (38, 48, 58) and b":" not in part:
+                        index += 4 if index + 1 < len(parts) and parts[index + 1] == b"2" else 2
+                    elif code in (0, 24):
+                        underline = False
+                    elif code in (4, 21):
+                        underline = part != b"4:0"
+                    index += 1
             if reject_file:
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:

@@ -32,7 +32,7 @@ local PLACEHOLDER_HIGHLIGHT_PRIORITY = 1000
 function M.virtual(state, prefix, entry, width, height, protocol)
   state.id, state.placement_id, state.width, state.height = entry.id, entry.placement_id, width, height
   state.highlight = prefix .. entry.id .. "_" .. (entry.placement_id or 0)
-  vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
+  vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id))
   local lines = {}
   for _, line in ipairs(protocol.grid(width, height)) do
     lines[#lines + 1] = { { line, state.highlight } }
@@ -55,7 +55,7 @@ function M.draw(state, namespace, prefix, entry, width, height, protocol, set_li
   state.id, state.placement_id = entry.id, entry.placement_id
   state.width, state.height = width, height
   state.highlight = prefix .. entry.id .. "_" .. (entry.placement_id or 0)
-  vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id, entry.placement_id))
+  vim.api.nvim_set_hl(0, state.highlight, protocol.highlight(entry.id))
   local lines = protocol.grid(width, height)
   for _ = height + 1, rows or height do
     lines[#lines + 1] = ""

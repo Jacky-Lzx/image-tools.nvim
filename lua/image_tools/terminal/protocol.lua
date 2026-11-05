@@ -7,7 +7,7 @@
 -- Architecture:
 --   Build file/direct uploads, virtual placements, hide/delete commands and
 --   placeholder grids for terminal services and renderers. Foreground selects
---   the image id; underline color selects placement.
+--   a geometry-scoped image id; no visible text decoration is enabled.
 --
 -- Ownership:
 --   Keep static coordinate data only. Perform no terminal writes and allocate
@@ -126,20 +126,13 @@ function M.delete(id)
   return M.command({ a = "d", d = "I", i = id, q = kitty.REPLY_NONE })
 end
 
--- Kitty selects a virtual placement from the underline color (Neovim sp).
--- Neovim's TUI emits sp only with an underline attribute enabled:
--- https://github.com/neovim/neovim/blob/v0.12.6/src/nvim/tui/tui.c
--- Encode the image id as foreground RGB and placement id as underline RGB with underline enabled.
+-- Foreground selects a geometry-scoped image. Every virtual placement for that
+-- image has identical dimensions/crop, so Kitty may safely select any of them.
+-- Do not enable underline to transmit a placement selector: Kitty draws it.
 ---@param id integer Nonzero 24-bit image id.
----@param placement? integer Optional nonzero 24-bit placement id.
 ---@return table highlight Neovim highlight attributes.
-function M.highlight(id, placement)
-  return {
-    fg = string.format("#%06x", id),
-    sp = placement and string.format("#%06x", placement) or nil,
-    nocombine = true,
-    underline = placement ~= nil,
-  }
+function M.highlight(id)
+  return { fg = string.format("#%06x", id), nocombine = true }
 end
 
 -- Build placeholder rows with explicit row/column diacritics for correct clipping.

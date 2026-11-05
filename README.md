@@ -962,11 +962,15 @@ keeps its slot until the process exits. Cache hits and PNG reads bypass the queu
 each priority class and the current process budget.
 Reconfiguration updates that budget; running workers retain their slots until exit.
 
-Terminal pixel data is shared by inline views, floating previews, picker previews and file
-buffers within one plugin runtime. Each view has a separate Kitty virtual
-placement id, encoded in the placeholder underline color, so differently sized
-splits reuse one upload. Closing a view releases its placement; other active
-placements keep the pixels pinned. Inactive pixels use the shared `terminal_cache`
+Terminal pixel data is pooled across inline, floating, picker and file-buffer views.
+Placeholders encode only the image ID in foreground color; no underline or
+special-color selector is emitted, avoiding visible lines in Kitty. Each uploaded
+image is scoped to one placement geometry (columns, rows and source crop).
+Matching geometry shares an upload; simultaneously different sizes/crops use
+independent image IDs. Per-view placement IDs remain internal lifecycle handles.
+An inactive upload of the same pixels can be safely retargeted for a resize
+without retransmission. Closing a view releases its placement; other active
+placements keep their pixels pinned. Inactive pixels use the shared `terminal_cache`
 LRU limits. Setup replacement, suspension and explicit cache clearing release
 the runtime's shared data. Explicit clearing also pauses file-buffer canvases
 until buffer/tab entry, resume, `:ImageOpen`, or `:ImageReload` refreshes them.
@@ -1082,3 +1086,9 @@ and `:ImageInfo` show the most recent floating-preview failure, including its pa
 `error` and `error_stage`, with `last_error = true`. This diagnostic retains no
 image resources and survives closing a preview; repeated setup resets it.
 `info()` returns `(nil, error)` when neither an active viewer nor a retained failure exists.
+
+Opt-in native Kitty acceptance: `python3 tests/manual/kitty_placeholders.py`.
+This opens a dedicated test window, checks actual screenshot pixels for
+placeholder underlines, independent sizes, resize reuse and close cleanup,
+then closes the test window. Set `IMAGE_TOOLS_KITTY` / `IMAGE_TOOLS_KITTEN` for
+custom executable paths; `IMAGE_TOOLS_KITTY_ARTIFACTS` retains screenshots/state.

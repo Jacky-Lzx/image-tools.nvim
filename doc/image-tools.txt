@@ -465,8 +465,8 @@ IMAGE_TOOLS_PARSER_ROOT enables dedicated latex/typst parser suites;
 IMAGE_TOOLS_SELECTION_ROOT enables picker, move review and asset UI checks. Compiler checks run only when
 pdflatex/typst are available; Python 3 enables Unix PTY tests with a simulated
 Kitty responder. Successful runs can contain skips; check the reported coverage.
-RGB checks accept semicolon/colon SGR and verify actual image/placement colors;
-extended underline support may come from terminfo or a replied capability probe.
+RGB checks accept semicolon/colon SGR and verify foreground image selection.
+Placeholders emit no underline decoration or special-color placement selector.
 Visible pixels still need a real Kitty check. tests/manual/clipboard_native.lua
 is a separate opt-in test with a prepared system clipboard; the runner uses
 fake clipboard tools and an explicit suite list that excludes manual tests.

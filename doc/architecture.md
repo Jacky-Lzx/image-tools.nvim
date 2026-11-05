@@ -164,7 +164,12 @@ a private pool. Within `terminal/`, the dependency direction is `transfer ->
 pixel_pool -> upload -> stream -> init / protocol`. `upload` handles pixel transmission,
 fallback, versioning and LRU storage; it never creates or hides placements.
 `pixel_pool` owns reference counts, independent placement ids and bounded
-placement retry. It consults the uploader's `cached()` method rather than its
+placement retry. Upload identities include destination cells and source crop:
+equal geometries share pixels, while different active geometries use separate
+image ids. Placeholder text selects only the foreground image id, never an
+underline color or decoration. The uploader may retarget an unpinned copy of
+the same pixel revision for a resize, preserving active views and avoiding a
+new upload. It consults the uploader's `cached()` method rather than its
 entry table. Clearing a shared transfer releases only its leases; clearing a
 standalone transfer also frees its private pool. Clearing the pool frees all
 owned terminal pixels.
@@ -194,8 +199,8 @@ redraw. Reconciliation skips closed folds, caps candidates per window and drops
 offscreen views. `topfill` retains an anchor immediately above the viewport when
 some of its virtual image rows still show. Each entry owns a normal session and
 independent Kitty placement, while Runtime's lazy pixel pool shares uploads.
-Virtual-line chunks use the same explicit row/column diacritics and foreground/
-underline colors as render buffers. They do not write document bytes. Inline
+Virtual-line chunks use the same explicit row/column diacritics and foreground
+image selectors as render buffers, without underlines. They do not write document bytes. Inline
 view identity includes buffer/name/tick and viewport geometry; asynchronous
 callbacks recheck tab, viewport and fold authority before drawing. Neovim's
 experimental `nvim__ns_set` scopes different split layouts independently.

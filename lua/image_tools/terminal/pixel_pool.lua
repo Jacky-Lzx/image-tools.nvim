@@ -1,11 +1,11 @@
 -- Module: image_tools.terminal.pixel_pool
 --
 -- Purpose:
---   Share uploaded pixels while allocating an independent placement for each
---   view.
+--   Share compatible uploaded pixels while allocating an independent placement
+--   lease for each view and isolating different sizes/crops.
 --
 -- Architecture:
---   Compose an uploader and per-view managers. Coalesce pixel ownership,
+--   Compose an uploader and per-view managers. Key ownership by pixels/geometry,
 --   acknowledge placements and retry lost pixels only when the requester is the
 --   sole owner, protecting other views.
 --
@@ -159,11 +159,25 @@ function Handle:acquire(image, width, height, callback, retried, crop, timing)
   local upload_started = vim.uv.hrtime()
   local pool, uploader = self.pool, self.pool.uploader
   local terminal, protocol = pool:dependency("terminal"), pool:dependency("protocol")
-  local key = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
+  local pixels = image.key or vim.fn.sha256((image.path or "") .. (image.data or ""))
+  local geometry = table.concat({
+    width,
+    height,
+    crop and crop.x or "",
+    crop and crop.y or "",
+    crop and crop.width or "",
+    crop and crop.height or "",
+  }, ":")
+  local key = pixels .. "\0" .. geometry
+  local source = image.cache_source or image.source or image.path
+  local upload_image = vim.tbl_extend("force", {}, image, {
+    cache_key = key,
+    cache_source = source and (source .. "\0" .. geometry) or nil,
+  })
   local state = pool.states[key]
   local fresh = not state
   if fresh then
-    state = { consumers = {}, reused = uploader:cached(key) }
+    state = { consumers = {}, reused = uploader:cached(key, pixels) }
     pool.states[key] = state
   end
   local consumer = { active = true, placement = next_placement(), shared = not fresh }
@@ -273,7 +287,7 @@ function Handle:acquire(image, width, height, callback, retried, crop, timing)
     end
   end
   if fresh then
-    local cancellation = uploader:acquire(image, function(err, entry)
+    local cancellation = uploader:acquire(upload_image, function(err, entry)
       state.pixel = entry
       for waiting in pairs(vim.tbl_extend("force", {}, state.consumers)) do
         waiting.ready(err)

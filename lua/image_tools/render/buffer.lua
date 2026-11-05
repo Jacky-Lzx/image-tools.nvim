@@ -623,11 +623,7 @@ function M:setup()
       for _, view in pairs(self.views) do
         local state = view.canvas.state
         if state and state.id then
-          vim.api.nvim_set_hl(
-            0,
-            state.highlight,
-            require("image_tools.terminal.protocol").highlight(state.id, state.placement_id)
-          )
+          vim.api.nvim_set_hl(0, state.highlight, require("image_tools.terminal.protocol").highlight(state.id))
         end
       end
     end,

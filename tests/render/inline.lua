@@ -109,7 +109,6 @@ assert(vim.deep_equal(lines, vim.api.nvim_buf_get_lines(buf, 0, -1, false)), "So
 local owner = vim.api.nvim_get_current_win()
 local initial = view(owner)
 local first = assert(at(initial, 1))
-local original_id = first.id
 assert(first.width == 16 and first.height == 5)
 local marks = vim.api.nvim_buf_get_extmarks(buf, initial.ns, 0, -1, { details = true })
 assert(#marks == 3 and #marks[1][4].virt_lines == 5)
@@ -133,7 +132,7 @@ local other = view(split)
 local other_first = assert(at(other, 1))
 first = assert(at(view(owner), 1))
 assert(first.width == 16 and other_first.width == 10)
-assert(first.id == other_first.id and first.placement_id ~= other_first.placement_id)
+assert(first.id ~= other_first.id and first.placement_id ~= other_first.placement_id)
 assert(view(owner).ns ~= other.ns)
 assert(vim.deep_equal(vim.api.nvim__ns_get(other.ns).wins, { split }))
 vim.wo[split].wrap = true
@@ -148,8 +147,10 @@ wait_for(function()
   return runtime.inline:status().ready == 6
 end, "Disabling wrapping restores visible block formulas")
 assert(
-  runtime:terminal_status().uploads == 1,
-  "Splits and placements share uploaded pixels: " .. vim.inspect(runtime:terminal_status()) .. vim.inspect(requested)
+  runtime:terminal_status().uploads == 3,
+  "Three distinct image/formula geometries use independent foreground selectors: "
+    .. vim.inspect(runtime:terminal_status())
+    .. vim.inspect(requested)
 )
 vim.api.nvim_win_close(split, true)
 runtime.inline:sync()
@@ -169,6 +170,7 @@ vim.cmd.redraw()
 wait_for(function()
   return runtime.inline:status().ready == 3
 end, "Opening folds restores inline images")
+local visible_id = at(view(owner), 1).id
 -- Partial scrolling preserves the anchor above topline while topfill is visible.
 vim.api.nvim_win_set_cursor(owner, { 1, 0 })
 vim.cmd("normal! zt")
@@ -177,7 +179,7 @@ vim.cmd.redraw()
 local partial = vim.fn.winsaveview()
 assert(partial.topline == 2 and partial.topfill > 0, vim.inspect(partial))
 runtime.inline:sync()
-assert(at(view(owner), 1).id == original_id, "Partially scrolled virtual lines retain their image")
+assert(at(view(owner), 1).id == visible_id, "Partially scrolled virtual lines retain their image")
 vim.api.nvim_win_set_cursor(owner, { 70, 0 })
 vim.cmd("normal! zt")
 runtime.inline:sync()
@@ -192,13 +194,14 @@ wait_for(function()
   local entry = at(view(owner), 70)
   return entry and entry.mark and entry.id ~= far_id
 end, "Source revisions invalidate cached pixels")
+local retained_uploads = runtime:terminal_status().uploads
 vim.api.nvim_win_set_cursor(owner, { 1, 0 })
 vim.cmd("normal! zt")
 runtime.inline:sync()
 wait_for(function()
   return runtime.inline:status().ready == 3
 end, "Return to earlier images")
-assert(at(view(owner), 1).id == original_id, "Returning reuses retained pixels")
+assert(runtime:terminal_status().uploads == retained_uploads, "Returning reuses retained pixels")
 -- Hidden tabs release placements; the same pixels are reusable on return.
 local tab = vim.api.nvim_get_current_tabpage()
 vim.cmd.tabnew()
@@ -209,7 +212,7 @@ runtime.inline:sync()
 wait_for(function()
   return runtime.inline:status().ready == 3
 end, "Returning to a tab restores its visible inline views")
-assert(at(view(owner), 1).id == original_id)
+assert(runtime:terminal_status().uploads == retained_uploads, "Returning to a tab reuses retained pixels")
 vim.wo[owner].number, vim.wo[owner].signcolumn, vim.wo[owner].foldcolumn = true, "yes", "2"
 runtime.inline:sync()
 wait_for(function()

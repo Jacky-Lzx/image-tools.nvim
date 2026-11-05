@@ -64,20 +64,23 @@ local pool, commands = harness()
 local a, b = pool:manager(), pool:manager()
 local first, release_a = acquire(a)
 local second, release_b = acquire(b, 32, 10)
-check(first.id == second.id and first.placement_id ~= second.placement_id, "Same pixels, independent placements")
-check(pool:status().uploads == 1 and pool:status().placements == 2, "Two owners share one upload")
-check(commands[2].c == "16" and commands[3].c == "32", "Each view retains independent dimensions")
+check(
+  first.id ~= second.id and first.placement_id ~= second.placement_id,
+  "Different geometries have independent image selectors"
+)
+check(pool:status().uploads == 2 and pool:status().placements == 2, "Different geometries cannot select each other")
+check(commands[2].c == "16" and commands[4].c == "32", "Each view retains independent dimensions")
 a:clear()
-check(commands[4].d == "i" and tonumber(commands[4].p) == first.placement_id, "Closing first only hides its placement")
-check(pool:status().images == 1 and pool:status().placements == 1, "Other view remains pinned")
+check(commands[5].d == "i" and tonumber(commands[5].p) == first.placement_id, "Closing first only hides its placement")
+check(pool:status().images == 2 and pool:status().placements == 1, "Other view remains pinned")
 local third, release_c = acquire(a)
-check(third.id == second.id and pool:status().uploads == 1, "Returning view reuses active pixels")
+check(third.id == first.id and pool:status().uploads == 2, "Returning view reuses active pixels")
 release_c()
 release_b()
 release_a()
-check(pool:status().placements == 0 and pool:status().images == 1, "Last close retains bounded inactive cache")
+check(pool:status().placements == 0 and pool:status().images == 2, "Last close retains bounded inactive cache")
 local warm, release_warm = acquire(a)
-check(warm.id == first.id and pool:status().uploads == 1, "Warm reopening needs only a placement request")
+check(warm.id == first.id and pool:status().uploads == 2, "Warm reopening needs only a placement request")
 release_warm()
 pool:clear()
 check(pool:status().images == 0 and commands[#commands].d == "I", "Runtime clear frees shared pixels")
@@ -90,7 +93,7 @@ local invoked_a, invoked_b = 0, 0
 release_a = a:acquire(image, 16, 5, function()
   invoked_a = invoked_a + 1
 end)
-release_b = b:acquire(image, 32, 10, function(err)
+release_b = b:acquire(image, 16, 5, function(err)
   assert(not err, err)
   invoked_b = invoked_b + 1
 end)
@@ -130,7 +133,7 @@ a, b = pool:manager(), pool:manager()
 first, release_a = acquire(a)
 reject()
 local failure
-b:acquire(image, 32, 10, function(err)
+b:acquire(image, 16, 5, function(err)
   failure = err
 end)
 check(
@@ -139,6 +142,38 @@ check(
 )
 check(pool:status().placements == 1 and pool:status().images == 1, "Placement failure only releases failing consumer")
 release_a()
+pool:clear()
+-- Retarget only idle copies; pinned geometries must keep stable image selectors.
+pool, commands = harness()
+a, b = pool:manager(), pool:manager()
+first, release_a = acquire(a)
+second, release_b = acquire(b, 32, 10)
+release_b()
+local resized, release_resized = acquire(b, 40, 12)
+check(
+  resized.id == second.id and resized.id ~= first.id and pool:status().uploads == 2,
+  "Resize borrows an idle upload without changing another live geometry"
+)
+local same, release_same = acquire(pool:manager(), 40, 12)
+check(
+  same.id == resized.id and same.placement_id ~= resized.placement_id and pool:status().uploads == 2,
+  "Equal geometries share pixels while retaining independent lifecycle leases"
+)
+local crop_entry
+local release_crop = pool:manager():acquire(image, 40, 12, function(err, entry)
+  assert(not err, err)
+  crop_entry = entry
+end, nil, { x = 1, y = 2, width = 80, height = 50 })
+check(crop_entry.id ~= resized.id and pool:status().uploads == 3, "Different source crops have independent selectors")
+local attrs = require("image_tools.terminal.protocol").highlight(first.id)
+check(
+  attrs.fg and attrs.sp == nil and not attrs.underline and not attrs.undercurl,
+  "Placeholders encode foreground only, without visible decoration"
+)
+release_a()
+release_resized()
+release_same()
+release_crop()
 pool:clear()
 -- Active pixels may exceed cache budget; another view must not evict them.
 pool, commands = harness({ terminal_cache = { max_images = 1 } })

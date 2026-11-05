@@ -40,8 +40,8 @@ local steps = {
     local other = vim.api.nvim_get_current_win()
     assert(other ~= win and status.views[win].window and status.views[other].window, "Shared split canvases missing")
     assert(
-      status.views[win].cache.uploads == 1 and status.views[win].cache.placements == 2,
-      "Split duplicated terminal pixels"
+      status.views[win].cache.uploads == 2 and status.views[win].cache.placements == 2,
+      "Different split geometries did not get independent images"
     )
     local function color(owner)
       local buf = vim.api.nvim_win_get_buf(status.views[owner].window)
@@ -55,8 +55,11 @@ local steps = {
       return vim.api.nvim_get_hl(0, { name = mark[4].hl_group })
     end
     local first, second = color(win), color(other)
-    assert(first.fg == second.fg and first.sp ~= second.sp, "Split placement ids are not independent")
-    results.shared_placements = { first.sp, second.sp }
+    assert(
+      first.fg ~= second.fg and first.sp == nil and second.sp == nil and not first.underline and not second.underline,
+      "Split foreground selectors are not isolated"
+    )
+    results.shared_placements = { first.fg, second.fg }
     results.shared = true
     vim.api.nvim_win_close(other, true)
     assert(image.status().buffer.views[win].window, "Closing split removed remaining canvas")
@@ -82,7 +85,7 @@ local steps = {
     within_owner()
     results.statusline = true
     assert(
-      status.views[win].cache.uploads == 3 and status.views[win].cache.hits >= 1,
+      status.views[win].cache.uploads == 4 and status.views[win].cache.hits >= 1,
       "PDF paging did not reuse uploaded pixels"
     )
     results.cache = status.views[win].cache

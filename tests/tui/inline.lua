@@ -36,7 +36,8 @@ local function marks()
         if mark[4].virt_lines then
           local hl = mark[4].virt_lines[1][1][2]
           local attrs = vim.api.nvim_get_hl(0, { name = hl })
-          found[#found + 1] = { win = scoped[1], row = mark[2] + 1, placement = attrs.sp }
+          assert(attrs.sp == nil and not attrs.underline, "Inline placeholder has visible decoration")
+          found[#found + 1] = { win = scoped[1], row = mark[2] + 1, placement = attrs.fg }
         end
       end
     end
@@ -56,7 +57,7 @@ local function poll()
       end
       vim.cmd.vsplit()
       split = vim.api.nvim_get_current_win()
-      vim.api.nvim_win_set_width(split, 25)
+      vim.api.nvim_win_set_width(split, 10)
       step = 2
     elseif step == 2 and inline.ready == expected * 2 then
       local scoped = marks()
@@ -67,7 +68,10 @@ local function poll()
         placements[#placements + 1] = mark.placement
       end
       assert(per_window[owner] == expected and per_window[split] == expected)
-      assert(status.terminal_cache.uploads == expected, "Splits reuse image and formula pixels")
+      assert(
+        status.terminal_cache.uploads == (formula and 3 or 2),
+        "Different split geometries use independent image selectors"
+      )
       vim.api.nvim_win_close(split, true)
       step = 3
     elseif step == 3 and inline.windows == 1 and inline.ready == expected then

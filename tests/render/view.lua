@@ -112,7 +112,10 @@ check(tools.status().terminal_cache.uploads == 1, "Resizing uses a shared upload
 local b, bw = pane()
 local second = assert(tools.render({ path = "/tmp/shared.png", buf = b, win = bw }))
 ready(second)
-check(second.id == first.id and second.placement_id ~= first.placement_id, "Two panes own independent placements")
+check(
+  second.id ~= first.id and second.placement_id ~= first.placement_id,
+  "Different pane sizes use independent foreground selectors"
+)
 local cancelled_before = cancelled_preparations
 first:close()
 first:close()

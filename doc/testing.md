@@ -216,11 +216,16 @@ Headless tab tests keep Neovim's actual screen dimensions: overriding `columns`
 without an attached UI can overrun the tabline grid even with no plugin loaded.
 The HTTPS fixture also exercises inline URLs and verifies release of cache leases.
 
-`tests/tui/inline.lua`, launched by the Python TUI runner, checks actual foreground
-and underline colors for window-scoped virtual lines, file/direct transfers,
+`tests/tui/inline.lua`, launched by the Python TUI runner, checks foreground
+image selectors with no underline decoration, window-scoped virtual lines, file/direct transfers,
 split/fold/partial-scroll behavior, unchanged text and exit cleanup. Additional
 cases compile real block formulas when latex/dvipng are available. These prove
-the Neovim screen/protocol path; Kitty visible-pixel acceptance remains manual.
+the Neovim screen/protocol path. Run `python3 tests/manual/kitty_placeholders.py`
+for opt-in native Kitty screenshot acceptance. It creates its own OS window,
+checks solid image regions for decoration artifacts across different geometries,
+tests resize reuse and independent close/cleanup, then closes that window.
+`IMAGE_TOOLS_KITTY` / `IMAGE_TOOLS_KITTEN` select executable paths;
+`IMAGE_TOOLS_KITTY_ARTIFACTS` retains screenshots and state for inspection.
 
 For manual acceptance open `examples/inline.md` with `inline.enabled=true` in
 Kitty. Check image/formula clarity, transparency, narrower splits, gutters/wrap,

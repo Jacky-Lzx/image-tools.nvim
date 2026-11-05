@@ -123,8 +123,8 @@ check(ready({ win, second }), "Same image can preview in both splits")
 local status = image.status().buffer
 check(status.views[win].window ~= status.views[second].window, "Each split has its own placement")
 check(
-  status.views[second].cache.uploads == 1 and status.views[second].cache.placements == 2,
-  "Two actual Neovim split canvases share one terminal upload"
+  status.views[second].cache.uploads == 2 and status.views[second].cache.placements == 2,
+  "Different split geometries have independent terminal images"
 )
 -- Zoom and pan belong to one window and reuse native PNG pixels.
 local other_frame = status.views[win].window
@@ -157,7 +157,7 @@ check(
     and placement_command:find(",w=" .. panned.crop.width .. ",", 1, true),
   "Placement protocol carries the selected pixel crop"
 )
-check(panned.cache.uploads == 1, "PNG zoom and pan reuse the uploaded pixels")
+check(panned.cache.uploads == 2, "PNG zoom and pan retarget idle pixels without changing the other split")
 check(not image.zoom(0) and not image.zoom(0 / 0) and not image.pan(math.huge, 0), "Invalid view controls rejected")
 check(image.zoom("native") and ready(second), "Native pixel scale")
 check(image.zoom("fit") and ready(second), "Restore fit")
@@ -175,8 +175,12 @@ local function canvas_color(owner)
 end
 local color_a, color_b = canvas_color(win), canvas_color(second)
 check(
-  color_a.fg == color_b.fg and color_a.sp ~= color_b.sp,
-  "Split highlight colors select independent virtual placements"
+  color_a.fg ~= color_b.fg
+    and color_a.sp == nil
+    and color_b.sp == nil
+    and not color_a.underline
+    and not color_b.underline,
+  "Different split/crop geometries select images through foreground without underlines"
 )
 local before = status.views[second].cache.uploads
 vim.api.nvim_win_set_width(second, 20)
