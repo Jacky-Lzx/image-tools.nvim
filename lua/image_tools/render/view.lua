@@ -8,6 +8,7 @@
 ---@field previous? ImageToolsEmbeddedView Retained view of this same pane.
 ---@field upscale? boolean Fit small images to the pane; default true.
 ---@field render_scale? number Converted-raster detail multiplier in [1, 8]; independent of pane size.
+---@field fit_pixels? boolean Fit PDF rasterization to viewport pixels instead of fixed DPI.
 ---@field display_size? ImageToolsImageSize Logical dimensions independent of raster sampling density.
 ---@field is_valid? fun(): boolean Host generation/selection authority.
 ---@field paint? fun(draw: fun(): boolean): boolean? Synchronous host drawing transaction.
@@ -198,6 +199,20 @@ function View:fail(err)
     vim.bo[self.buf].modified, vim.bo[self.buf].modifiable = modified, writable
   end
 end
+-- Quantized targets avoid distinct conversions for every small geometry change.
+function View:target_pixels()
+  if not self.request.fit_pixels or not self.path:lower():match("%.pdf$") then
+    return
+  end
+  local width, height = self:viewport()
+  local cell = self:dependency("terminal").cell_size(self.options.cell_size)
+  local scale = self.request.render_scale or self.options.render_scale or 1
+  local maximum = self:dependency("protocol").max_cells
+  return require("image_tools.media.raster_size").limit({
+    width = math.ceil(math.min(width, maximum) * cell.width * scale / 64) * 64,
+    height = math.ceil(math.min(height, maximum) * cell.height * scale / 64) * 64,
+  }, self.options)
+end
 function View:_start()
   if not self:current() then
     self:close()
@@ -208,9 +223,16 @@ function View:_start()
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   self.session = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   local session = self.session
+  local target = self:target_pixels()
+  if target then
+    local previous = self.raster_size or target
+    local width, height = math.max(target.width, previous.width), math.max(target.height, previous.height)
+    self.raster_size = width * height <= self.options.max_pixels and { width = width, height = height } or target
+  end
   local options = vim.tbl_extend("force", {}, self.options, {
     page = self.request.page or self.options.page,
     render_scale = self.request.render_scale or self.options.render_scale,
+    _raster_size = self.raster_size,
   })
   session:start(self.path, options, {
     current = function()
@@ -261,6 +283,14 @@ function View:_start()
           vim.cmd.redraw()
           previous:close()
         end
+        -- A resize during preparation must not leave a low-detail frame enlarged.
+        if target then
+          vim.schedule(function()
+            if self.session == session and self:current() then
+              self:resize()
+            end
+          end)
+        end
       end
     end,
   })
@@ -281,7 +311,10 @@ function View:resize()
     return
   end
   local width, height = self:viewport()
-  if width == self.view_width and height == self.view_height then
+  local target = self:target_pixels()
+  local needs_pixels = target
+    and (not self.raster_size or target.width > self.raster_size.width or target.height > self.raster_size.height)
+  if width == self.view_width and height == self.view_height and not needs_pixels then
     return
   end
   -- Pending preparation will size against the latest geometry on completion.
@@ -315,6 +348,9 @@ function M.new(request, options, dependencies)
     if type(scale) ~= "number" or scale ~= scale or scale < 1 or scale > 8 then
       return nil, "render_scale must be a finite number between 1 and 8"
     end
+  end
+  if request.fit_pixels ~= nil and type(request.fit_pixels) ~= "boolean" then
+    return nil, "fit_pixels must be boolean"
   end
   if request.upscale ~= nil and type(request.upscale) ~= "boolean" then
     return nil, "upscale must be boolean"

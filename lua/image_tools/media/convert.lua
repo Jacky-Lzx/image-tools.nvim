@@ -55,6 +55,11 @@ function M.prepare(path, opts, callback, metadata_only)
   )
   local output_width, output_height = math.floor(limits.MAX_WIDTH * scale), math.floor(limits.MAX_HEIGHT * scale)
   local density = math.max(1, math.floor((opts.pdf_density or defaults.pdf_density) * scale))
+  local fitted = extension == "pdf" and opts._raster_size ~= nil
+  if fitted then
+    local size = require("image_tools.media.raster_size").limit(opts._raster_size, opts)
+    output_width, output_height, density = size.width, size.height, 72
+  end
   local cancelled, process, cache_release, process_timing = false, nil, nil, nil
   -- Deliver a result if active and release the worker disk lease after the callback.
   ---@param err? string Conversion/read error.
@@ -98,114 +103,137 @@ function M.prepare(path, opts, callback, metadata_only)
       done("Image file exceeds max_bytes")
       return
     end
-    local key = vim.fn.sha256(
-      version.key(path, stat)
-        .. ":"
-        .. (use_rsvg and svg_renderer or opts.magick)
-        .. ":viewport-v3:"
-        .. output_width
-        .. "x"
-        .. output_height
-        .. ":"
-        .. (extension == "pdf" and (page .. ":" .. density) or "")
-    )
-    local output = opts.cache .. "/" .. key .. ".png"
-    -- Read an existing pinned cache result or run a converter into an unpublished temporary PNG.
-    ---@return nil
-    local function load()
-      if uv.fs_stat(output) then
-        png.read(output, opts, done, metadata_only)
-        return
-      end
-      vim.fn.mkdir(opts.cache, "p")
-      local temporary = output .. "." .. tostring(uv.hrtime()) .. ".tmp.png"
-      local command
-      if use_rsvg then
-        command = {
-          svg_renderer,
-          "--format=png",
-          "--width=" .. output_width,
-          "--height=" .. output_height,
-          "--keep-aspect-ratio",
-          "--output",
-          temporary,
-          path,
-        }
-      else
-        command = {
-          opts.magick,
-          "-limit",
-          "memory",
-          limits.MAGICK_MEMORY,
-          "-limit",
-          "map",
-          limits.MAGICK_MAP,
-          "-limit",
-          "disk",
-          limits.MAGICK_DISK,
-        }
-        if extension == "pdf" then
-          vim.list_extend(command, { "-density", tostring(density) })
+    local function convert()
+      local key = vim.fn.sha256(
+        version.key(path, stat)
+          .. ":"
+          .. (use_rsvg and svg_renderer or opts.magick)
+          .. (fitted and ":pixel-fit-v1:" or ":viewport-v3:")
+          .. output_width
+          .. "x"
+          .. output_height
+          .. ":"
+          .. (extension == "pdf" and (page .. ":" .. density) or "")
+      )
+      local output = opts.cache .. "/" .. key .. ".png"
+      -- Read an existing pinned cache result or run a converter into an unpublished temporary PNG.
+      ---@return nil
+      local function load()
+        if uv.fs_stat(output) then
+          png.read(output, opts, done, metadata_only)
+          return
         end
-        vim.list_extend(command, {
-          (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
-          "-auto-orient",
-          "-resize",
-          output_width .. "x" .. output_height .. ">",
-          "png:" .. temporary,
-        })
-      end
+        vim.fn.mkdir(opts.cache, "p")
+        local temporary = output .. "." .. tostring(uv.hrtime()) .. ".tmp.png"
+        local command
+        if use_rsvg then
+          command = {
+            svg_renderer,
+            "--format=png",
+            "--width=" .. output_width,
+            "--height=" .. output_height,
+            "--keep-aspect-ratio",
+            "--output",
+            temporary,
+            path,
+          }
+        else
+          command = {
+            opts.magick,
+            "-limit",
+            "memory",
+            limits.MAGICK_MEMORY,
+            "-limit",
+            "map",
+            limits.MAGICK_MAP,
+            "-limit",
+            "disk",
+            limits.MAGICK_DISK,
+          }
+          if extension == "pdf" then
+            vim.list_extend(command, { "-density", tostring(density) })
+          end
+          vim.list_extend(command, {
+            (extension == "svg" and "MSVG:" or "") .. path .. "[" .. (extension == "pdf" and page - 1 or 0) .. "]",
+            "-auto-orient",
+            "-resize",
+            output_width .. "x" .. output_height .. ">",
+            "png:" .. temporary,
+          })
+        end
 
-      process = require("image_tools.media.conversion_queue").run(
-        command,
-        { text = true, timeout = opts.convert_timeout },
-        function(result)
-          process_timing = result.timing
-          vim.schedule(function()
-            process = nil
-            if cancelled or result.code ~= 0 then
-              uv.fs_unlink(temporary)
-              if not cancelled then
-                done("Image conversion failed: " .. vim.trim(result.stderr or ""))
-              end
-              return
-            end
-            png.read(temporary, opts, function(err, image)
-              if cancelled then
+        process = require("image_tools.media.conversion_queue").run(
+          command,
+          { text = true, timeout = opts.convert_timeout },
+          function(result)
+            process_timing = result.timing
+            vim.schedule(function()
+              process = nil
+              if cancelled or result.code ~= 0 then
                 uv.fs_unlink(temporary)
+                if not cancelled then
+                  done("Image conversion failed: " .. vim.trim(result.stderr or ""))
+                end
                 return
               end
-              local after = uv.fs_stat(path)
-              if not err and (not after or version.key(path, after) ~= version.key(path, stat)) then
-                err = "Image source changed during conversion; retry the preview"
-              end
-              if not err then
-                local renamed, rename_err = uv.fs_rename(temporary, output)
-                if not renamed then
-                  err = rename_err
-                else
-                  image.path = output
-                  require("image_tools.media.disk_cache").published(opts, output)
-                  local final_stat = uv.fs_stat(output)
-                  if final_stat then
-                    image.key = version.key(output, final_stat)
+              png.read(temporary, opts, function(err, image)
+                if cancelled then
+                  uv.fs_unlink(temporary)
+                  return
+                end
+                local after = uv.fs_stat(path)
+                if not err and (not after or version.key(path, after) ~= version.key(path, stat)) then
+                  err = "Image source changed during conversion; retry the preview"
+                end
+                if not err then
+                  local renamed, rename_err = uv.fs_rename(temporary, output)
+                  if not renamed then
+                    err = rename_err
                   else
-                    err = "Converted image disappeared before caching"
+                    image.path = output
+                    require("image_tools.media.disk_cache").published(opts, output)
+                    local final_stat = uv.fs_stat(output)
+                    if final_stat then
+                      image.key = version.key(output, final_stat)
+                    else
+                      err = "Converted image disappeared before caching"
+                    end
                   end
                 end
-              end
-              uv.fs_unlink(temporary)
-              done(err, image)
-            end, metadata_only)
-          end)
-        end
-      )
-    end
-    cache_release = require("image_tools.media.disk_cache").acquire(opts, output, function()
-      if not cancelled then
-        load()
+                uv.fs_unlink(temporary)
+                done(err, image)
+              end, metadata_only)
+            end)
+          end
+        )
       end
-    end)
+      cache_release = require("image_tools.media.disk_cache").acquire(opts, output, function()
+        if not cancelled then
+          load()
+        end
+      end)
+    end
+    if fitted then
+      process = require("image_tools.media.pdf").page_size(path, opts, function(err, size)
+        process = nil
+        if cancelled then
+          return
+        end
+        if err then
+          done(err)
+          return
+        end
+        local after = uv.fs_stat(path)
+        if not after or version.key(path, after) ~= version.key(path, stat) then
+          done("Image source changed during metadata lookup; retry the preview")
+          return
+        end
+        density = math.max(1, math.ceil(72 * math.min(output_width / size.width, output_height / size.height)))
+        convert()
+      end)
+    else
+      convert()
+    end
   end)
   return function()
     cancelled = true

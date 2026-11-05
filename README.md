@@ -710,6 +710,14 @@ number from 1 to 8). Scale 2 raises the default output box from 1920×1080 to
 pane size. Validation limits still apply; native PNGs are unchanged. The setting
 is scoped to this view, survives resizing and has a separate conversion/cache
 identity. Other views keep their configured detail.
+For PDFs, `fit_pixels=true` instead rasterizes vectors to the pane's pixel box,
+using measured terminal cell pixels (or configured `cell_size`) multiplied by
+`render_scale`. This avoids enlarging a small cropped PDF after fixed-DPI
+rasterization. Targets are rounded to 64-pixel buckets and respect configured
+pixel/dimension limits. Adaptive PDF previews require `pdfinfo` (Poppler) to
+measure the selected page, including its rotation. Shrinking reuses pixels;
+growing the pane upgrades detail when needed, including a resize during preparation. `pdf_density` applies only
+to fixed-DPI rendering. Native images and other views retain their policy.
 Optional `paint(draw)` must synchronously execute `draw()` on the main
 thread, including both buffer lines and extmarks, and may return false to reject
 a stale transaction. This supports hosts whose normal line writer is asynchronous.

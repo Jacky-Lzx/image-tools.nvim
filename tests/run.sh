@@ -91,6 +91,7 @@ run_test core/health.lua
 # real conversions, so headless execution also covers integration behavior.
 run_test media/disk_cache.lua
 run_test media/conversion.lua
+run_test media/pdf_fit.lua
 run_test media/prepare.lua
 run_test media/math.lua # formula workers; optional real latex/dvipng compilation
 run_test media/conversion_queue.lua

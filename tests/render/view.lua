@@ -30,13 +30,19 @@ local image = {
   prepare = function(path, options, callback)
     preparations[#preparations + 1] = options
     local scale = options.render_scale or 1
+    local raster = options._raster_size
+    local width, height = 160 * scale, 100 * scale
+    if raster then
+      local fit = math.min(raster.width / 160, raster.height / 100)
+      width, height = math.floor(160 * fit), math.floor(100 * fit)
+    end
     local function deliver()
       callback(nil, {
-        key = path .. ":" .. scale,
+        key = path .. ":" .. scale .. ":" .. width .. "x" .. height,
         source = path,
         path = path,
-        width = 160 * scale,
-        height = 100 * scale,
+        width = width,
+        height = height,
         data = "pixels",
       })
     end
@@ -144,6 +150,59 @@ local normal = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw
 ready(normal)
 check(preparations[#preparations].render_scale == nil, "Detail does not leak into later views")
 normal:close()
+local adaptive =
+  assert(tools.render({ path = "/tmp/adaptive.pdf", buf = a, win = aw, render_scale = 2, fit_pixels = true }))
+ready(adaptive)
+check(
+  adaptive.raster_size.width == 1600 and adaptive.raster_size.height == 1216,
+  "Viewport pixels and sampling determine a quantized PDF target"
+)
+local pixel_id, uploads = adaptive.id, tools.status().terminal_cache.uploads
+vim.api.nvim_win_set_config(aw, { width = 60, height = 20 })
+adaptive:resize()
+ready(adaptive)
+check(
+  adaptive.id == pixel_id and tools.status().terminal_cache.uploads == uploads,
+  "Shrinking an adaptive PDF reuses existing terminal pixels"
+)
+vim.api.nvim_win_set_config(aw, { width = 120, height = 40 })
+adaptive:resize()
+ready(adaptive)
+check(
+  adaptive.raster_size.width >= 2400
+    and adaptive.raster_size.height >= 1600
+    and tools.status().terminal_cache.uploads == uploads + 1,
+  "Growing an adaptive PDF upgrades its raster"
+)
+adaptive:close()
+hold, callbacks = true, {}
+local growing = assert(tools.render({ path = "/tmp/growing.pdf", buf = a, win = aw, fit_pixels = true }))
+check(
+  vim.wait(1000, function()
+    return #callbacks == 1
+  end, 1),
+  "Adaptive preparation can remain pending"
+)
+local old_target = growing.raster_size.width
+vim.api.nvim_win_set_config(aw, { width = 150, height = 50 })
+growing:resize()
+callbacks[1]()
+check(
+  vim.wait(1000, function()
+    return #callbacks == 2
+  end, 1),
+  "Growth during preparation starts a detail upgrade"
+)
+check(growing.raster_size.width > old_target, "Pending PDF upgrades to latest viewport pixels")
+callbacks[2]()
+ready(growing)
+growing:close()
+hold, callbacks = false, {}
+local invalid_fit, fit_error = tools.render({ path = "/tmp/shared.pdf", buf = b, win = bw, fit_pixels = "yes" })
+check(
+  not invalid_fit and fit_error:find("fit_pixels", 1, true) and not second.closed,
+  "Invalid pixel-fit requests preserve the current view"
+)
 for _, scale in ipairs({ 0, -1, 9, math.huge, -math.huge, 0 / 0, "2", {} }) do
   local rejected, message = tools.render({ path = "/tmp/detail.pdf", buf = b, win = bw, render_scale = scale })
   check(

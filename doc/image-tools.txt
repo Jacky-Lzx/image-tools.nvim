@@ -607,7 +607,7 @@ image_tools.float({path,display_size?,title?,is_valid?,on_error?,on_close?})
     Owner leave/closure and runtime cleanup release the handle. Image-tools
     handles resizing and scrollbar space. Callbacks must not throw.
 
-image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?,display_size?,render_scale?})
+image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?,display_size?,render_scale?,fit_pixels?})
 returns view or nil,error. buf must be a caller-owned nofile scratch buffer
 already displayed in win. The renderer creates no windows or picker callbacks.
 view:retain() freezes a ready grid/lease, or cancels a pending request and returns
@@ -628,6 +628,14 @@ view and retained on resize. Scale 2 raises the default converted output box to
 3840x2160 and PDF density to 288 DPI without enlarging the fitted pane. Source
 aspect ratio and configured pixel/dimension limits still apply. Native PNGs are
 unchanged; conversions at different scales have independent cache identities.
+For PDFs, fit_pixels=true replaces fixed DPI with viewport pixel rasterization.
+Measured terminal cell pixels (or configured cell_size) are multiplied by
+render_scale. Targets are rounded to 64-pixel buckets and constrained by pixel
+and dimension limits. Shrinking reuses existing pixels; growing upgrades them,
+including growth during preparation. pdf_density applies to fixed-DPI mode.
+Pixel-fit targets have separate cache identities from fixed-DPI conversions.
+Pixel-fit mode requires pdfinfo (Poppler) for selected-page dimensions/rotation;
+metadata is cached by source version and page, with cancellation guards.
 
 
 vim:tw=78:ts=8:noet:ft=help:norl:
