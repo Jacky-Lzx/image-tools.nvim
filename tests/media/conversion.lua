@@ -165,6 +165,60 @@ await(function()
   return completed == 2
 end)
 check(launches == before + 2, "Different validation limits are not merged")
+-- Detail changes both DPI and output bounds, with independent cached pixels.
+local a4 = tmp .. "/a4.pdf"
+local created = original({
+  "magick",
+  vim.env.IMAGE_TOOLS_ROOT .. "/tests/fixtures/fixture.png",
+  "-resize",
+  "595x842!",
+  "-units",
+  "PixelsPerInch",
+  "-density",
+  "72",
+  a4,
+}):wait()
+check(created.code == 0, "Create an A4-sized real PDF")
+opts = options("detail")
+local detail_images = {}
+completed = 0
+before = launches
+for scale = 1, 2 do
+  I.prepare(a4, vim.tbl_extend("force", opts, { render_scale = scale }), function(err, image)
+    check(not err, err)
+    detail_images[scale] = image
+    completed = completed + 1
+  end)
+end
+await(function()
+  return completed == 2
+end)
+local low, high = detail_images[1], detail_images[2]
+check(low.height == 1080 and high.height == 2160, "PDF output cap doubles with detail")
+check(math.abs(high.width - low.width * 2) <= 1, "PDF detail preserves aspect ratio")
+check(
+  low.path ~= high.path and low.key ~= high.key and launches == before + 2,
+  "Different detail levels produce independent conversions"
+)
+local cached
+before = launches
+I.prepare(a4, vim.tbl_extend("force", opts, { render_scale = 2 }), function(err, image)
+  check(not err, err)
+  cached = image
+end)
+await(function()
+  return cached ~= nil
+end)
+check(cached.path == high.path and launches == before, "Higher-detail PDF reuses cached pixels")
+local capped
+I.prepare(a4, vim.tbl_extend("force", opts, { render_scale = 2, max_dimension = 1920 }), function(err, image)
+  check(not err, err)
+  capped = image
+end)
+await(function()
+  return capped ~= nil
+end)
+check(capped.height == 1080, "Configured validation limits still cap detail")
 -- A changing source cannot publish a conversion under its old version key.
 opts = options("source-change")
 completed = 0

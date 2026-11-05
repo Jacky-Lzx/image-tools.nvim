@@ -704,7 +704,13 @@ if replacement is abandoned. Retained views never repaint stale selections.
 The host owns the scratch buffer, window and focus; image-tools owns preparation,
 placeholder highlights and placement leases. Drawing preserves buffer flags and
 fits the pane after gutters, with `upscale=true` by default. `page` selects a PDF
-page. Optional `paint(draw)` must synchronously execute `draw()` on the main
+page. `render_scale` optionally multiplies converted-raster detail (a finite
+number from 1 to 8). Scale 2 raises the default output box from 1920×1080 to
+3840×2160 and PDF rasterization from 144 to 288 DPI, while preserving the fitted
+pane size. Validation limits still apply; native PNGs are unchanged. The setting
+is scoped to this view, survives resizing and has a separate conversion/cache
+identity. Other views keep their configured detail.
+Optional `paint(draw)` must synchronously execute `draw()` on the main
 thread, including both buffer lines and extmarks, and may return false to reject
 a stale transaction. This supports hosts whose normal line writer is asynchronous.
 

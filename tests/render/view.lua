@@ -25,10 +25,20 @@ local terminal = {
     return function() end
   end,
 }
+local preparations = {}
 local image = {
-  prepare = function(path, _, callback)
+  prepare = function(path, options, callback)
+    preparations[#preparations + 1] = options
+    local scale = options.render_scale or 1
     local function deliver()
-      callback(nil, { key = path, source = path, path = path, width = 160, height = 100, data = "pixels" })
+      callback(nil, {
+        key = path .. ":" .. scale,
+        source = path,
+        path = path,
+        width = 160 * scale,
+        height = 100 * scale,
+        data = "pixels",
+      })
     end
     if hold then
       callbacks[#callbacks + 1] = deliver
@@ -116,6 +126,31 @@ local logical = assert(tools.render({
 ready(logical)
 check(logical.width == 8 and logical.height == 3, "Embedded images respect logical size independently of raster DPI")
 logical:close()
+local pdf = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw }))
+ready(pdf)
+local width, height = pdf.width, pdf.height
+check(preparations[#preparations].render_scale == nil, "Default detail is unchanged")
+pdf:close()
+local detailed = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw, render_scale = 2 }))
+ready(detailed)
+check(preparations[#preparations].render_scale == 2, "Per-view detail reaches preparation")
+check(detailed.width == width and detailed.height == height, "Higher detail keeps the fitted pane size")
+vim.api.nvim_win_set_config(aw, { width = 80, height = 30 })
+detailed:resize()
+ready(detailed)
+check(preparations[#preparations].render_scale == 2, "Resize retains per-view detail")
+detailed:close()
+local normal = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw }))
+ready(normal)
+check(preparations[#preparations].render_scale == nil, "Detail does not leak into later views")
+normal:close()
+for _, scale in ipairs({ 0, -1, 9, math.huge, -math.huge, 0 / 0, "2", {} }) do
+  local rejected, message = tools.render({ path = "/tmp/detail.pdf", buf = b, win = bw, render_scale = scale })
+  check(
+    not rejected and message:find("render_scale", 1, true) and not second.closed,
+    "Invalid detail leaves the existing view unchanged"
+  )
+end
 local old_grid = vim.api.nvim_buf_get_lines(b, 0, -1, false)
 check(#old_grid > 0, "Second view retains its grid")
 tools.clear_cache()

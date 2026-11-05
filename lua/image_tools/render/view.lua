@@ -7,6 +7,7 @@
 ---@field page? integer PDF page override.
 ---@field previous? ImageToolsEmbeddedView Retained view of this same pane.
 ---@field upscale? boolean Fit small images to the pane; default true.
+---@field render_scale? number Converted-raster detail multiplier in [1, 8]; independent of pane size.
 ---@field display_size? ImageToolsImageSize Logical dimensions independent of raster sampling density.
 ---@field is_valid? fun(): boolean Host generation/selection authority.
 ---@field paint? fun(draw: fun(): boolean): boolean? Synchronous host drawing transaction.
@@ -207,7 +208,10 @@ function View:_start()
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   self.session = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   local session = self.session
-  local options = vim.tbl_extend("force", {}, self.options, { page = self.request.page or self.options.page })
+  local options = vim.tbl_extend("force", {}, self.options, {
+    page = self.request.page or self.options.page,
+    render_scale = self.request.render_scale or self.options.render_scale,
+  })
   session:start(self.path, options, {
     current = function()
       return self.session == session and self:current()
@@ -305,6 +309,12 @@ function M.new(request, options, dependencies)
   end
   if request.page ~= nil and (type(request.page) ~= "number" or request.page < 1 or request.page % 1 ~= 0) then
     return nil, "page must be a positive integer"
+  end
+  if request.render_scale ~= nil then
+    local scale = request.render_scale
+    if type(scale) ~= "number" or scale ~= scale or scale < 1 or scale > 8 then
+      return nil, "render_scale must be a finite number between 1 and 8"
+    end
   end
   if request.upscale ~= nil and type(request.upscale) ~= "boolean" then
     return nil, "upscale must be boolean"
