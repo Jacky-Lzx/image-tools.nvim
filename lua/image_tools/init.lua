@@ -49,10 +49,12 @@ end
 ---@return ImageToolsRuntime instance
 local function runtime()
   if not instance then
-    M.setup()
+    M.setup(require("image_tools.bootstrap").options())
   end
   return instance
 end
+
+M._runtime = runtime
 
 -- Validate and construct before replacing the active Runtime; clean up a partially failed start.
 ---@param opts? table Configuration overrides copied by config.resolve.
@@ -70,6 +72,11 @@ function M.setup(opts)
     instance = nil
     error(err, 0)
   end
+  local bootstrap = package.loaded["image_tools.bootstrap"]
+  if bootstrap then
+    bootstrap.configured()
+  end
+  vim.api.nvim_exec_autocmds("User", { pattern = "ImageToolsReady", modeline = false })
 end
 
 -- Close only the floating preview; safe before setup and when already closed.

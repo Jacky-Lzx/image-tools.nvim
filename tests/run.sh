@@ -70,6 +70,7 @@ run_test() {
 }
 
 # 1. Core API, preview lifecycle and diagnostics.
+run_test core/bootstrap.lua
 run_test core/startup.lua # setup and cleanup retain deferred services
 if [ -n "${IMAGE_TOOLS_LAZY_ROOT:-}" ]; then
   run_test core/lazy.lua

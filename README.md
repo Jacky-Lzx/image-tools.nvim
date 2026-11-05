@@ -1092,3 +1092,18 @@ This opens a dedicated test window, checks actual screenshot pixels for
 placeholder underlines, independent sizes, resize reuse and close cleanup,
 then closes the test window. Set `IMAGE_TOOLS_KITTY` / `IMAGE_TOOLS_KITTEN` for
 custom executable paths; `IMAGE_TOOLS_KITTY_ARTIFACTS` retains screenshots/state.
+
+### Plugin-owned deferred startup
+
+For managers that only install and mount runtime paths, call
+`require("image_tools.bootstrap").setup(opts)` during startup. This lightweight
+entry registers native commands, binary-file interception, and bounded reference
+hints without loading the rendering Runtime. The plugin initializes its own
+services on the first image command, matching buffer, detected reference, or
+public API request. Pending options also apply to direct `require("image_tools")`
+API calls, including formula preview consumers. `image_tools.setup(opts)` retains
+its eager configuration behavior. `bootstrap.enabled()` reads automatic preview
+state without initializing services; `bootstrap.toggle()` toggles it.
+
+`User ImageToolsReady` fires after a Runtime starts successfully, so integrations
+can reapply personal command aliases after plugin initialization.
