@@ -266,15 +266,25 @@ function M:open(path, options)
       vim.bo[state.buf].bufhidden = "wipe"
       vim.bo[state.buf].swapfile = false
       vim.bo[state.buf].filetype = "image_tools_preview"
+      local title = options.title or (state.formula and " Formula " or " " .. vim.fs.basename(path) .. " ")
+      -- The frame may need more columns than a small image. Keep the placement
+      -- at its fitted size and center it instead of stretching the pixels.
+      local window_width = width
+      if self.opts.border ~= "none" then
+        window_width = math.max(
+          width,
+          math.min(self.opts.max_width, right_edge(self.opts) - SCREEN_MARGIN_CELLS, vim.fn.strdisplaywidth(title))
+        )
+      end
       local window = {
         relative = "editor",
-        width = width,
+        width = window_width,
         height = height,
         style = "minimal",
         border = self.opts.border,
         focusable = false,
         zindex = PREVIEW_ZINDEX,
-        title = options.title or (state.formula and " Formula " or " " .. vim.fs.basename(path) .. " "),
+        title = title,
         title_pos = "center",
       }
       if self.opts.position == "bottom_right" then
@@ -287,7 +297,7 @@ function M:open(path, options)
       else
         local position = vim.fn.screenpos(state.owner_win, state.cursor[1], state.cursor[2] + 1)
         window.row = math.max(0, math.min(position.row, vim.o.lines - vim.o.cmdheight - height - BORDER_CELLS))
-        window.col = math.max(0, math.min(position.col, right_edge(self.opts) - width - BORDER_CELLS))
+        window.col = math.max(0, math.min(position.col, right_edge(self.opts) - window_width - BORDER_CELLS))
       end
       state.win = vim.api.nvim_open_win(state.buf, false, window)
       vim.wo[state.win].wrap = false
@@ -302,7 +312,14 @@ function M:open(path, options)
         entry,
         width,
         height,
-        protocol
+        protocol,
+        function(lines)
+          local padding = string.rep(" ", math.floor((window_width - width) / 2))
+          for row, line in ipairs(lines) do
+            lines[row] = padding .. line
+          end
+          vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, lines)
+        end
       )
       vim.bo[state.buf].modifiable = false
       vim.bo[state.buf].modified = false

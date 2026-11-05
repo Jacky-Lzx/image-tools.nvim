@@ -207,7 +207,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             elif picker:
                 assert result["picker"] and result["inserted"], result
             else:
-                assert result["geometry"] == [16, 5] and result["position"] == "bottom_right", result
+                assert result["geometry"] == [20, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
             assert len(uploads) == (3 if buffer else 2 if tex or cursor or reject_file or evict or inline_math else 1), uploads
             assert result["cache"]["uploads"] == (3 if buffer else len(uploads)), result

@@ -673,6 +673,10 @@ comes from `is_valid`, so cursor movement within a formula or unrelated edits
 need not recreate the view. Owner leave/closure, resizing and runtime cleanup
 are handled by image-tools. Producer callbacks must not throw.
 
+Bordered previews widen to fit their title within `max_width` and the available
+screen space. Small images keep their fitted size and are centered horizontally;
+titles are truncated only when those limits leave insufficient space.
+
 `render(request)` also accepts `display_size` for logical sizing in a borrowed pane.
 
 `supports(path)` checks image/PDF extensions without initializing services.

@@ -25,6 +25,8 @@ scrollbar in the image/formula PTY scenarios. These check resolved float borders
 against the actual scrollbar window using the configured scrollbar appearance.
 The bounds suite also covers explicit right padding, its interaction with
 automatic scrollbar space, invalid values and padding larger than the editor.
+Short-image cases check title width in display cells, horizontal centering without
+image upscaling, borderless previews and title clipping at width/screen limits.
 Set `IMAGE_TOOLS_TEST_RIGHT_PADDING=3` to check explicit padding in the
 image/formula PTY scenarios as well.
 
@@ -153,6 +155,7 @@ checks keys, dependency errors, shared workers, leases and cancellation; when
 latex/dvipng are installed it also compiles real inline/display/aligned formulas
 and verifies transparency. TUI formula scenarios exercise actual TeX output
 through file and direct Kitty transports, including repeated Markdown pixel reuse.
+Short formulas also check the actual Neovim title row for the complete ` Formula ` title.
 Resolution checks compare real 180/360-DPI outputs, confirm higher pixel counts
 and stable logical display dimensions, and verify that the float uses the logical
 size while diagnostics and upload retain the full raster dimensions.

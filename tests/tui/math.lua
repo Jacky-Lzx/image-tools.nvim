@@ -13,7 +13,7 @@ local function document(ft)
   vim.cmd("enew!")
   vim.api.nvim_buf_set_name(0, temporary .. "/formula." .. ft)
   vim.bo.filetype = ft
-  vim.api.nvim_buf_set_lines(0, 0, -1, false, { "$$", "\\frac{a}{b} + \\sqrt{x}", "$$", "outside" })
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, { "$$", "g(x)", "$$", "outside" })
   if scrollbar then
     vim.api.nvim_buf_set_lines(0, -1, -1, false, vim.fn["repeat"]({ "scrollbar fixture" }, 100))
     scrollbar.setup({ handle = " ", blend = 100, cursor = true, cursor_char = "●" })
@@ -55,6 +55,13 @@ local function poll()
     end
     if step == 1 and win then
       assert(image.info().format == "math" and image.info().ready)
+      vim.cmd("redraw")
+      local position = vim.api.nvim_win_get_position(win)
+      local border = ""
+      for col = 1, vim.api.nvim_win_get_width(win) + 2 do
+        border = border .. vim.fn.screenstring(position[1] + 1, position[2] + col)
+      end
+      assert(border:find(" Formula ", 1, true), "Short formula title was truncated: " .. border)
       first = win
       move(1)
       move(3)

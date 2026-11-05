@@ -87,6 +87,50 @@ render("bottom_right", false, false, "rounded", 1)
 vim.cmd.wincmd("p")
 render("bottom_right", true, false, "rounded", 1)
 package.loaded["ui_tools.scrollbar"] = nil
+-- Window/title geometry is independent of the image's Kitty placement size.
+for _, position in ipairs({ "bottom_right", "cursor" }) do
+  for _, case in ipairs({
+    { title = " Formula ", expected = 9 },
+    { title = " 公式预览 ", expected = 10 },
+    { title = " Formula ", limit = 6, expected = 6 },
+    { title = " Formula ", columns = 12, expected = 5 },
+    { title = " Formula ", border = "none", expected = 3 },
+    { title = "", expected = 3 },
+  }) do
+    vim.o.columns = case.columns or 100
+    prepared = {
+      path = "/tmp/short-formula.png",
+      key = "short-formula",
+      data = "pixels",
+      width = 120,
+      height = 80,
+      display_size = { width = 30, height = 20 },
+    }
+    local preview = Preview.new({
+      position = position,
+      right_padding = 3,
+      max_width = case.limit or 60,
+      max_height = 30,
+      border = case.border or "rounded",
+      preview_loading_delay = 0,
+    }, { terminal = terminal, image = image })
+    check(preview:open(prepared.path, { title = case.title }), "Short formula preview accepted")
+    local state = preview.state
+    local config = vim.api.nvim_win_get_config(state.win)
+    check(config.width == case.expected, "Title fits within width and screen limits using display cells")
+    check(state.width == 3 and state.height == 1, "Title padding never upscales the image placement")
+    local line = vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1]
+    local offset = math.floor((case.expected - 3) / 2)
+    check(line:match("^ *") == string.rep(" ", offset), "Small image is centered inside the wider frame")
+    check(vim.fn.strdisplaywidth(line) == offset + 3, "Padding preserves the placeholder grid width")
+    local outer = config.width + (case.border == "none" and 0 or 2)
+    local right = position == "bottom_right" and config.col or config.col + outer
+    check(right <= vim.o.columns - 3, "Title expansion respects right padding at both positions")
+    check(vim.api.nvim_get_current_win() == state.owner_win, "Title padding retains owner focus")
+    preview:destroy()
+  end
+end
+vim.o.columns = 100
 local resolve = require("image_tools.config").resolve
 check(resolve().right_padding == 0, "Right padding defaults to zero")
 check(resolve({ right_padding = 3 }).right_padding == 3, "Right padding accepts non-negative integers")
