@@ -70,6 +70,7 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
   Spaces are accepted literally; do not surround the path with shell quotes.
 - `:ImagePreview` previews the image reference or Markdown formula under the
   cursor, falling back to the first image/formula covering the current line.
+  Filetypes without an adapter can preview existing literal local image paths.
 - `:ImagePreviewClose` closes the preview and keeps uploaded pixels cached for reuse.
 - `:ImagePreviewClearCache` closes the preview and frees all this plugin's terminal images.
 - `:ImageCacheClear` deletes unused converted images from disk, preserving files in use.
@@ -157,6 +158,7 @@ release all retained terminal images and cancel pending requests.
 ```lua
 require("image_tools").setup({
   auto_preview = true,
+  path_preview = true, -- local path previews in filetypes without a document adapter
   auto_preview_delay = 100, -- milliseconds before preparing a new automatic selection; 0 is immediate
   preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
   treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
@@ -283,6 +285,36 @@ source bytes remain in memory during transfer; full-image Base64/protocol copies
 are avoided.
 
 ## Current scope
+
+### Generic local path previews
+
+Filetypes without a document adapter (including plain text and source code) can
+preview local image/PDF paths on the current line. The path under the cursor wins;
+outside paths, the first existing supported image is selected. Quoted paths
+(`"..."`, `'...'` or backticks) may contain spaces and parentheses. Bare paths
+end at whitespace or markup separators. Absolute paths and `~/` are supported;
+relative paths resolve against the saved document directory, or configured
+`root`/`resolve`. Shell variables and language string escapes are not evaluated.
+
+Only existing regular files with supported image extensions are selected. Media
+validation/conversion still determines whether they can be displayed. URLs are
+never fetched by this fallback. It inspects one line (at most 16 KiB), without
+understanding comments or code blocks. Existing adapters keep their syntax
+exclusions and do not fall back to this heuristic. Set `path_preview = false`
+to disable it. Generic lookup supplies previews only; insertion, asset inspection
+and reference rewriting still require a document adapter.
+For automatic previews in arbitrary filetypes, register
+`require("image_tools.bootstrap").setup(opts)` at startup (see deferred startup
+below). A lazy spec restricted to known `ft` values must first load the plugin
+before it can react to another filetype.
+
+External producers can set `b:image_tools_preview_owner` to their name while
+they own document previews. This suppresses image-tools' automatic lookup and
+pathless `hover()`/`:ImagePreview`; explicit paths, `float()` and `render()` remain
+available. Clear the variable when relinquishing ownership. tex-tools uses this
+contract to select LaTeX images/formulas and call the public display API.
+
+### Markdown references and insertion
 
 Markdown supports complete same-line `![alt](path)`, balanced parentheses,
 angle-bracket destinations, optional quoted titles, backslash escapes and

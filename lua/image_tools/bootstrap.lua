@@ -40,11 +40,20 @@ local function candidate(buf, first, last)
     or loaded()
     or not api.nvim_buf_is_valid(buf)
     or vim.bo[buf].buftype ~= ""
+    or vim.b[buf].image_tools_preview_owner
     or #vim.fn.win_findbuf(buf) == 0
   then
     return false
   end
   local hint = hints[vim.bo[buf].filetype]
+  if not hint and options.path_preview ~= false then
+    hint = require("image_tools.document.generic").hint
+    if not first then
+      local win = vim.fn.win_findbuf(buf)[1]
+      first = api.nvim_win_get_cursor(win)[1] - 1
+      last = first + 1
+    end
+  end
   if not hint then
     return false
   end
@@ -76,7 +85,7 @@ local function request(buf)
 end
 
 local function watch(buf)
-  if not automatic or loaded() or not api.nvim_buf_is_loaded(buf) or not hints[vim.bo[buf].filetype] then
+  if not automatic or loaded() or not api.nvim_buf_is_loaded(buf) then
     return
   end
   if not watched[buf] then
@@ -161,6 +170,14 @@ function M.setup(opts)
     group = group,
     callback = function(event)
       watch(event.buf)
+    end,
+  })
+  api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+    group = group,
+    callback = function(event)
+      if not hints[vim.bo[event.buf].filetype] and candidate(event.buf) then
+        request(event.buf)
+      end
     end,
   })
   -- Install native command definitions against a resolver. Registration itself

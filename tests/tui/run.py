@@ -51,7 +51,7 @@ def test_rgb_colors():
     print("image-tools TUI: RGB SGR matching regressions passed")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False, tex=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False, tex=False, generic=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixtures/fixture.png").read_bytes()
@@ -73,6 +73,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
             NVIM_LOG_FILE=str(temporary / "nvim.log"),
             IMAGE_TOOLS_INLINE_MATH="1" if inline_math else "0",
             IMAGE_TOOLS_PICKER_PDF="1" if picker_pdf else "0",
+            IMAGE_TOOLS_GENERIC_TEST="1" if generic else "0",
         )
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
@@ -264,7 +265,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("tex-tools formulas " if tex else "inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "PDF picker " if picker_pdf else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("tex-tools previews " if tex else "generic paths " if generic else "inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "PDF picker " if picker_pdf else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -292,6 +293,8 @@ run_case("auto", buffer=True)
 run_case("auto", latex=True)
 
 run_case("auto", cursor=True)
+run_case("auto", cursor=True, generic=True)
+run_case("direct", cursor=True, generic=True)
 
 run_case("auto", inline=True)
 run_case("direct", inline=True)

@@ -228,5 +228,17 @@ vim.api.nvim_exec_autocmds("CursorHold", {})
 eq(#requests, before + 3, "Removal is detected on idle")
 stale.callback(nil, fixture)
 eq(api.status().window, nil, "Old reload cannot revive a replaced preview")
+-- An external producer can claim document selection without disabling display APIs.
+local before_owner = #requests
+vim.b.image_tools_preview_owner = "external-preview"
+vim.api.nvim_exec_autocmds("CursorMoved", {})
+local accepted, ownership_error = api.hover()
+eq(accepted, false)
+eq(ownership_error:find("external-preview", 1, true) ~= nil, true)
+eq(#requests, before_owner, "Claimed buffers must not start document lookup")
+api.preview(source)
+eq(#requests, before_owner + 1, "Explicit image display remains available to producers")
+api.close()
+vim.b.image_tools_preview_owner = nil
 api.close()
 print("image-tools line lifecycle: " .. checks .. " assertions passed")

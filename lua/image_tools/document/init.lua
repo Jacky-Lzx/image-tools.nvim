@@ -77,6 +77,9 @@ local function find(buf, row, col, opts)
   local filetype = vim.bo[buf].filetype
   local format = formats.get(filetype)
   if not format then
+    if opts.path_preview ~= false then
+      return require("image_tools.document.generic").find(buf, row, col, opts)
+    end
     return nil, "Unsupported document filetype; register a document adapter to add image references"
   end
   if row > opts.max_scan_lines then

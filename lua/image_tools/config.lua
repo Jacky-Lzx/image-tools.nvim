@@ -14,6 +14,7 @@
 
 ---@class ImageToolsOptions
 ---@field auto_preview boolean Enable automatic reference previews.
+---@field path_preview boolean Preview literal local paths in filetypes without an adapter.
 ---@field auto_preview_delay integer Delay before preparing a newly selected automatic reference; zero is immediate.
 ---@field preview_loading_delay integer Milliseconds before a loading hint; zero disables it.
 ---@field treesitter boolean Prefer native parsers; unavailable/failed parsing falls back to Lua.
@@ -66,6 +67,7 @@ function M.resolve(opts)
   options.cache = options.cache or (vim.fn.stdpath("cache") .. "/image-tools")
   assert(options.position == "cursor" or options.position == "bottom_right", "position must be cursor or bottom_right")
   assert(type(options.treesitter) == "boolean", "treesitter must be boolean")
+  assert(type(options.path_preview) == "boolean", "path_preview must be boolean")
   assert(type(options.inline.enabled) == "boolean", "inline.enabled must be boolean")
   for _, name in ipairs({ "max_width", "max_height", "max_images", "debounce" }) do
     assert(

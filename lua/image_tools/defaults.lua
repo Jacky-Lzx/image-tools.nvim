@@ -13,6 +13,7 @@
 
 return {
   auto_preview = true,
+  path_preview = true, -- literal local paths in filetypes without a document adapter
   auto_preview_delay = 100, -- milliseconds before preparing a newly selected automatic preview
   preview_loading_delay = 300, -- milliseconds; zero disables the loading hint
   treesitter = true,

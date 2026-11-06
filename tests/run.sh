@@ -131,6 +131,7 @@ run_test workflow/selection_handoff.lua # delayed replacement/retained pixels
 # queries/fallback. treesitter.lua always runs and reports skipped real-language
 # checks when the corresponding parsers are unavailable.
 run_test document/markdown.lua
+run_test document/generic.lua
 run_test document/inline.lua
 run_test document/math.lua
 run_test document/formats.lua

@@ -25,6 +25,7 @@ lua/image_tools/
   document/
     init.lua               document API
     formats.lua            filetype aliases and adapter dispatch
+    generic.lua            bounded current-line local paths for unregistered filetypes
     markdown.lua           Markdown syntax and insertion rules
     tex.lua                LaTeX resolution and insertion rules
     tex/reference.lua      bounded multiline decoding and reference ranges
@@ -230,6 +231,14 @@ the command and options captured when queued. Existing insertion operations reta
 their captured document/options. PNG reads and PDF metadata bypass this queue.
 
 ## Document Format Adapters
+
+Preview lookup uses `document/generic` when no adapter is registered and
+`path_preview` is enabled. It returns existing local paths and original byte
+ranges without adding a format to the registry. Asset enumeration and insertion
+therefore retain their explicit adapter boundary. Bootstrap recognizes extension
+hints on the current line and activates on cursor movement or edits. A nonempty
+`b:image_tools_preview_owner` delegates document selection to an external producer;
+generic floats and embedded views retain their normal resource lifecycle.
 
 `document/formats` centralizes filetype aliases and resolves the Markdown, LaTeX,
 Typst and HTML adapters plus public custom registrations. Definitions are copied;

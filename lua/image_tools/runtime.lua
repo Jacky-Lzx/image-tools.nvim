@@ -530,6 +530,10 @@ end
 ---@return string? error
 function Runtime:hover(opts)
   opts = opts or {}
+  if vim.b.image_tools_preview_owner then
+    self:close()
+    return false, "Document preview is owned by " .. tostring(vim.b.image_tools_preview_owner)
+  end
   if not opts.automatic then
     self:cancel_auto_preview()
   end
@@ -767,6 +771,10 @@ function Runtime:refresh()
   if self.disposed then
     return
   end
+  if vim.b.image_tools_preview_owner then
+    self:close()
+    return
+  end
   if self.pending_reference then
     if owns_pending(self.pending_reference) then
       return
@@ -794,7 +802,7 @@ function Runtime:refresh()
   end
   if self.options.auto_preview then
     local document = self.dependencies.document or require("image_tools.document.formats")
-    if document.supported(vim.bo.filetype) then
+    if vim.bo.buftype == "" and (document.supported(vim.bo.filetype) or self.options.path_preview) then
       self:hover({ silent = true, automatic = true })
     end
   end

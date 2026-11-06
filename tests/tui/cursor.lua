@@ -4,14 +4,24 @@ vim.o.termguicolors, vim.o.swapfile = true, false
 local image = require("image_tools")
 local first_path, second_path = temporary .. "/中文 image (1).png", temporary .. "/second.png"
 local text = "文字 ![first](<中文 image (1).png>) and ![second](second.png) suffix"
+local generic = vim.env.IMAGE_TOOLS_GENERIC_TEST == "1"
+if generic then
+  text = 'let images = ["中文 image (1).png", "second.png"]; // suffix'
+end
 local function column(path)
   return assert(text:find(path, 1, true)) - 1
 end
 vim.api.nvim_buf_set_name(0, temporary .. "/cursor.md")
-vim.bo.filetype = "markdown"
+vim.bo.filetype = generic and "rust" or "markdown"
 vim.api.nvim_buf_set_lines(0, 0, -1, false, { text, "plain text" })
 vim.api.nvim_win_set_cursor(0, { 1, column("second.png") })
-image.setup({ auto_preview = true, auto_preview_delay = 0, position = "bottom_right", cache = temporary .. "/cache" })
+local opts = { auto_preview = true, auto_preview_delay = 0, position = "bottom_right", cache = temporary .. "/cache" }
+opts.transport = vim.env.IMAGE_TOOLS_TEST_TRANSPORT
+if generic then
+  require("image_tools.bootstrap").setup(opts)
+else
+  image.setup(opts)
+end
 local window
 local steps = {
   function()
