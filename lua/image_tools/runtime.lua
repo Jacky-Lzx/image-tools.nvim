@@ -61,7 +61,7 @@ local dependency_modules = {
 ---@field buffers ImageToolsBuffers File-buffer controller.
 ---@field renderers table<table, boolean> Weak-key set of embedded renderers.
 ---@field group? integer Runtime autocmd group installed at start.
----@field commands? string[] Registered command names removed at destruction.
+---@field commands? function[] Command cleanup callbacks owned by this Runtime.
 ---@field refresh_pending? boolean Coalesced scheduled refresh.
 ---@field reference_request? ImageToolsReferenceRequest Last selection authority token.
 ---@field pending_reference? ImageToolsReferenceRequest Current authoritative pending parse.
@@ -204,8 +204,8 @@ function Runtime:destroy()
     vim.api.nvim_del_augroup_by_id(self.group)
     self.group = nil
   end
-  for _, name in ipairs(self.commands or {}) do
-    pcall(vim.api.nvim_del_user_command, name)
+  for _, cleanup in ipairs(self.commands or {}) do
+    cleanup()
   end
   self.commands = nil
 

@@ -26,8 +26,8 @@ function M.register(runtime)
   ---@param opts table Neovim user-command options.
   ---@return nil
   local function command(name, callback, opts)
-    vim.api.nvim_create_user_command(name, runtime:bind(callback), opts)
-    runtime.commands[#runtime.commands + 1] = name
+    local cleanup = require("image_tools.user_command").create(name, runtime:bind(callback), opts)
+    runtime.commands[#runtime.commands + 1] = cleanup
   end
 
   -- Notify only failed command operations; successful requests may still complete asynchronously.
