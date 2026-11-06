@@ -5,6 +5,7 @@ local M = {}
 local api = vim.api
 local automatic, markdown_math, activate, group
 local options = {}
+local generation, proxy_commands = 0, {}
 local watched = {}
 local pending = {}
 local hints = {
@@ -74,9 +75,13 @@ local function request(buf)
     return
   end
   pending[buf] = true
+  local version = generation
   -- Buffer callbacks run under textlock. Recheck after scheduling so a deleted
   -- candidate, closed buffer or disabled automatic preview cannot activate us.
   vim.schedule(function()
+    if version ~= generation then
+      return
+    end
     pending[buf] = nil
     if candidate(buf) then
       activate()
@@ -89,8 +94,12 @@ local function watch(buf)
     return
   end
   if not watched[buf] then
+    local version = generation
     watched[buf] = api.nvim_buf_attach(buf, false, {
       on_lines = function(_, changed, _, first, _, last)
+        if version ~= generation then
+          return true
+        end
         if loaded() then
           watched[changed] = nil
           return true
@@ -101,6 +110,9 @@ local function watch(buf)
         end
       end,
       on_reload = function(_, changed)
+        if version ~= generation then
+          return true
+        end
         if loaded() then
           watched[changed] = nil
           return true
@@ -110,7 +122,9 @@ local function watch(buf)
         end
       end,
       on_detach = function(_, changed)
-        watched[changed] = nil
+        if version == generation then
+          watched[changed] = nil
+        end
       end,
     })
   end
@@ -145,6 +159,8 @@ function M.toggle()
   return automatic
 end
 function M.configured()
+  generation = generation + 1
+  watched, pending, proxy_commands = {}, {}, {}
   if group then
     api.nvim_del_augroup_by_id(group)
     group = nil
@@ -157,7 +173,21 @@ function M.ensure()
   end
   return image
 end
+function M.dispose()
+  local commands = proxy_commands
+  M.configured()
+  for _, cleanup in ipairs(commands) do
+    cleanup()
+  end
+  proxy_commands = {}
+  options = {}
+  automatic, markdown_math, activate = nil, nil, nil
+end
+
 function M.setup(opts)
+  assert(opts == nil or type(opts) == "table", "image-tools: setup expects a table")
+  require("image_tools.config").resolve(opts)
+  M.dispose()
   options = vim.deepcopy(opts or {})
   automatic, activate = options.auto_preview ~= false, M.ensure
   if loaded() then
@@ -203,6 +233,7 @@ function M.setup(opts)
     end,
   })
   require("image_tools.commands").register(proxy)
+  proxy_commands = proxy.commands
   local buffer = options.buffer or {}
   if buffer.enabled ~= false then
     local patterns = {}

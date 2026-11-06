@@ -70,6 +70,7 @@ run_test() {
 }
 
 # 1. Core API, preview lifecycle and diagnostics.
+run_test setup_contract.lua
 run_test command_ownership.lua
 run_test core/bootstrap.lua
 run_test core/startup.lua # setup and cleanup retain deferred services

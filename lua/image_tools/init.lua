@@ -60,6 +60,8 @@ M._runtime = runtime
 ---@param opts? table Configuration overrides copied by config.resolve.
 ---@return nil
 function M.setup(opts)
+  assert(opts == nil or type(opts) == "table", "image-tools.nvim: setup expects a table")
+  opts = vim.deepcopy(opts or {})
   local options = require("image_tools.config").resolve(opts)
   local replacement = require("image_tools.runtime").new(options)
   if instance then
@@ -77,6 +79,18 @@ function M.setup(opts)
     bootstrap.configured()
   end
   vim.api.nvim_exec_autocmds("User", { pattern = "ImageToolsReady", modeline = false })
+end
+
+-- Release the runtime and cold bootstrap without implicitly starting services.
+function M.dispose()
+  if instance then
+    instance:destroy()
+    instance = nil
+  end
+  local bootstrap = package.loaded["image_tools.bootstrap"]
+  if bootstrap then
+    bootstrap.dispose()
+  end
 end
 
 -- Close only the floating preview; safe before setup and when already closed.
