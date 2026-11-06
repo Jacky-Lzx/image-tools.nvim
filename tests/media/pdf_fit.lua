@@ -165,3 +165,57 @@ for _, release in ipairs(releases) do
   release()
 end
 print("adaptive PDF: " .. checks .. " assertions passed")
+
+-- External floats must reach the same pixel-fit preparation as embedded panes.
+vim.o.columns, vim.o.lines = 100, 40
+package.loaded["image_tools.terminal"] = {
+  supports = function()
+    return true
+  end,
+  cell_size = function()
+    return { width = 10, height = 20 }
+  end,
+  write = function() end,
+  request = function(_, _, _, receive)
+    receive(nil)
+    return function() end
+  end,
+}
+local tools = require("image_tools")
+tools.setup(vim.tbl_extend("force", options, { auto_preview = false }))
+local float = assert(tools.float({ path = source }))
+await(function()
+  return float:status().stage == "ready"
+end)
+check(
+  float.preview.state.image_width == 1216 and float.preview.state.image_height == 760,
+  "External PDF float prepares viewport-sized pixels instead of the 320x200 fixed-DPI raster"
+)
+local width, height =
+  vim.api.nvim_win_get_width(float.preview.state.win), vim.api.nvim_win_get_height(float.preview.state.win)
+float:close()
+float = assert(tools.float({ path = source, render_scale = 1 }))
+await(function()
+  return float:status().stage == "ready"
+end)
+check(
+  float.preview.state.image_width == 640 and float.preview.state.image_height == 400,
+  "Explicit sampling selects a separate raster"
+)
+check(
+  vim.api.nvim_win_get_width(float.preview.state.win) == width
+    and vim.api.nvim_win_get_height(float.preview.state.win) == height,
+  "Sampling changes sharpness without changing float geometry"
+)
+float:close()
+float = assert(tools.float({ path = source, fit_pixels = false }))
+await(function()
+  return float:status().stage == "ready"
+end)
+check(
+  float.preview.state.image_width == 320 and float.preview.state.image_height == 200,
+  "Explicit opt-out retains configured fixed DPI"
+)
+float:close()
+tools.clear_cache()
+print("PDF external float: viewport rasterization, sampling, geometry and opt-out passed")

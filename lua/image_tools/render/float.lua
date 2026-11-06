@@ -99,6 +99,8 @@ function M.new(request, options, dependencies)
   self.open_options = {
     silent = true,
     display_size = request.display_size,
+    fit_pixels = request.fit_pixels,
+    render_scale = request.render_scale,
     title = request.title,
     _external = {
       is_valid = function()

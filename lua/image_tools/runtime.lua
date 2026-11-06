@@ -25,6 +25,8 @@ local dependency_modules = {
 }
 
 ---@class ImageToolsPreviewOptions
+---@field fit_pixels? boolean Rasterize PDFs for the float viewport; defaults to true.
+---@field render_scale? number PDF viewport sampling factor in [1, 8], default 2.
 ---@field silent? boolean Suppress preview notifications.
 ---@field reference? boolean Internal flag for document-reference authority.
 ---@field reference_range? ImageToolsRange Internal selected reference coverage.

@@ -59,6 +59,12 @@ local function right_edge(opts)
   return math.max(math.min(vim.o.columns, BORDER_CELLS + 1), vim.o.columns - padding)
 end
 
+-- Share the same cell bounds between raster preparation and final placement.
+local function viewport(opts, protocol)
+  return math.max(1, math.min(opts.max_width, protocol.max_cells, right_edge(opts) - SCREEN_MARGIN_CELLS)),
+    math.max(1, math.min(opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - SCREEN_MARGIN_CELLS))
+end
+
 -- Loading hints belong to the request and must disappear on every completion path.
 local function clear_loading(state)
   if state.loading_timer then
@@ -156,6 +162,16 @@ end
 ---@return string? error Terminal support rejection.
 function M:open(path, options)
   options = options or {}
+  if options.fit_pixels ~= nil and type(options.fit_pixels) ~= "boolean" then
+    return false, "fit_pixels must be boolean"
+  end
+  local sampling = options.render_scale
+  if sampling == nil then
+    sampling = self.opts.render_scale or 2
+  end
+  if type(sampling) ~= "number" or sampling ~= sampling or sampling < 1 or sampling > 8 then
+    return false, "render_scale must be a finite number between 1 and 8"
+  end
   self:close()
   local terminal, protocol = self:dependency("terminal"), self:dependency("protocol")
   local supported, reason = terminal.supports(self.opts)
@@ -197,6 +213,22 @@ function M:open(path, options)
   local preparation = state.formula and vim.tbl_extend("force", self.opts, { _formula = state.formula }) or self.opts
   if options._remote_refresh then
     preparation = vim.tbl_extend("force", preparation, { _remote_refresh = true })
+  end
+  if options.render_scale ~= nil then
+    preparation = vim.tbl_extend("force", preparation, { render_scale = options.render_scale })
+  end
+  if not state.formula and path:lower():match("%.pdf$") and options.fit_pixels ~= false then
+    local width, height = viewport(self.opts, protocol)
+    preparation = vim.tbl_extend("force", preparation, {
+      render_scale = sampling,
+      _raster_size = require("image_tools.media.raster_size").viewport(
+        width,
+        height,
+        terminal.cell_size(self.opts.cell_size),
+        self.opts,
+        sampling
+      ),
+    })
   end
   state.render:start(path, preparation, {
     -- Validate generation, owner, text version and current selected cursor/range authority.
@@ -243,14 +275,12 @@ function M:open(path, options)
     size = function(image)
       state.image_width, state.image_height = image.width, image.height
       state.source_bytes, state.source_format = image.source_bytes, image.source_format
+      local width, height = viewport(self.opts, protocol)
       return require("image_tools.render.geometry").fit(
         options.display_size or image.display_size or image,
         terminal.cell_size(self.opts.cell_size),
-        math.max(1, math.min(self.opts.max_width, protocol.max_cells, right_edge(self.opts) - SCREEN_MARGIN_CELLS)),
-        math.max(
-          1,
-          math.min(self.opts.max_height, protocol.max_cells, vim.o.lines - vim.o.cmdheight - SCREEN_MARGIN_CELLS)
-        )
+        width,
+        height
       )
     end,
     -- Materialize placeholders only after the terminal acknowledges this independent placement.

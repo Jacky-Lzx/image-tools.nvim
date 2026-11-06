@@ -118,7 +118,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
                             assert data[:8] == b"\x89PNG\r\n\x1a\n", "buffer upload is not a PNG"
                         else:
                             assert data == fixture, "file transport did not reference the PNG fixture"
-                        if picker_pdf:
+                        if picker_pdf or latex:
                             raster_sizes.append(struct.unpack(">II", data[16:24]))
                         resident.add(identifier)
                         reply(identifier, b"OK", quiet)
@@ -144,11 +144,11 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
             fields, chunks = pending
             data = b"".join(chunks)
             decoded = base64.b64decode(data)
-            if math or inline_math or picker_pdf:
+            if math or inline_math or picker_pdf or latex:
                 assert decoded[:8] == b"\x89PNG\r\n\x1a\n", "formula upload is not a PNG"
             else:
                 assert decoded == fixture, "direct transport changed PNG bytes"
-            if picker_pdf:
+            if picker_pdf or latex:
                 raster_sizes.append(struct.unpack(">II", decoded[16:24]))
             uploads.append((fields, data))
             resident.add(fields[b"i"])
@@ -202,6 +202,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
                 assert result["cursor"] and result["lifecycle"], result
             elif latex:
                 assert result["latex"] and result["range_preserved"] and result["range_lifecycle"], result
+                assert raster_sizes and raster_sizes[0][0] >= 1200 and raster_sizes[0][1] >= 750, raster_sizes
             elif buffer:
                 assert result["buffer"] and result["lifecycle"] and result["statusline"] and result["shared"], result
                 for placement in result["shared_placements"]:
@@ -291,6 +292,7 @@ else:
 run_case("auto", buffer=True)
 
 run_case("auto", latex=True)
+run_case("direct", latex=True)
 
 run_case("auto", cursor=True)
 run_case("auto", cursor=True, generic=True)

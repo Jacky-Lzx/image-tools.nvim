@@ -13,8 +13,8 @@ Preview windows use Unicode placeholders so Neovim controls clipping and overlap
   bypasses terminal-name detection.
 - ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF and PDF.
   - Floating and picker PDF previews show the first page; file buffers support paging.
-    ImageMagick needs its Ghostscript delegate for PDF. File buffers and embedded
-    panes (including image pickers) also need Poppler's `pdfinfo`.
+    ImageMagick needs its Ghostscript delegate for PDF. Viewport-sized PDF
+    previews (floats, file buffers and embedded panes) also need Poppler's `pdfinfo`.
   - SVG uses `rsvg-convert` when available; otherwise it requires ImageMagick MSVG.
   - GIF previews show the first frame.
   - PNG preview does not require an external converter.
@@ -225,9 +225,9 @@ Conversion is asynchronous, bounded by a timeout, and cached by path, inode, siz
 Conversions and clipboard normalization take priority over queued import hashes,
 with FIFO ordering within each class. While hashes wait, at most three interactive
 jobs start before one hash job. Running processes keep their slots until exit.
-Converted previews normally fit within 1920x1080 at default zoom. PDF file buffers
-and embedded panes instead rasterize for their viewport pixels. Native PNGs
-retain their dimensions and are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
+Converted previews normally fit within 1920x1080 at default zoom. PDF floats,
+file buffers and embedded panes instead rasterize for their viewport pixels. Native PNGs
+retain their dimensions and are checked against `max_dimension`/`max_pixels`. Floating raster images do not upscale;
 picker and file-buffer images can upscale to fit their viewport. Originals are never modified.
 Converted disk images are managed asynchronously by `disk_cache` limits.
 Unused images are removed in access order; currently used images are protected
@@ -706,6 +706,18 @@ border from setup; the request may override these settings. Selection authority
 comes from `is_valid`, so cursor movement within a formula or unrelated edits
 need not recreate the view. Owner leave/closure, resizing and runtime cleanup
 are handled by image-tools. Producer callbacks must not throw.
+
+PDF floats, including LaTeX image previews and explicit `preview(path, opts)`,
+default to `fit_pixels = true`. They rasterize the first page for the available
+float viewport at 2× sampling, using terminal cell pixels or the configured
+fallback. Small cropped vector PDFs therefore do not start from a low-resolution
+fixed-DPI bitmap. Pass `render_scale` (1–8) to adjust sampling independently of
+display size, or `fit_pixels = false` to use configured `pdf_density` instead.
+Explicit `render_scale` also scales fixed-DPI conversion. Targets use 64-pixel
+buckets and obey pixel/dimension limits; resizing prepares the new target and
+cache identities include the raster dimensions. Raster images and pre-rendered
+formula PNGs keep their existing sizing policy. PDF floats can fill the available
+viewport even when the page's physical size is small.
 
 Bordered previews widen to fit their title within `max_width` and the available
 screen space. Small images keep their fitted size and are centered horizontally;

@@ -212,6 +212,13 @@ report consumer-specific upload/placement waits, including retry attempts.
 
 ## Media Preparation and Process Budget
 
+Floating PDF previews and external `float()` producers derive `_raster_size`
+from the same terminal-cell viewport used for placement. Default 2x sampling
+improves vector detail without changing logical geometry when sampling changes;
+`fit_pixels=false` retains fixed-DPI conversion. They share the bounded,
+quantized target helper and source/page/size-keyed converter cache with embedded
+views and file canvases. PNG formulas remain producer-sized raster images.
+
 `media/init` is the unified entry point. `media/png` reads and validates PNG data;
 `media/file_version` identifies source revisions; `media/formats` lists preview
 formats; `media/convert` constructs converters and publishes validated outputs.

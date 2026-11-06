@@ -1,13 +1,14 @@
 local root = assert(vim.env.IMAGE_TOOLS_ROOT)
 vim.opt.rtp:prepend(root)
 vim.o.columns, vim.o.lines = 100, 40
-local count, pending, closes = 0, {}, 0
+local count, pending, closes, preparation = 0, {}, 0, nil
 local function check(value, message)
   count = count + 1
   assert(value, message)
 end
 local image = {
-  prepare = function(path, _, callback)
+  prepare = function(path, opts, callback)
+    preparation = opts
     pending[#pending + 1] = function()
       callback(nil, { path = path, key = path, width = 360, height = 160, data = "pixels" })
     end
@@ -99,6 +100,30 @@ for _, size in ipairs({
 }) do
   local bad, err = tools.float({ path = "/tmp/generated-formula.png", display_size = size })
   check(not bad and err:find("display_size", 1, true), "Invalid logical sizes fail before allocating a view")
+end
+local pdf_view = assert(tools.float({ path = "/tmp/cropped.PDF" }))
+check(
+  vim.deep_equal(preparation._raster_size, { width = 1216, height = 1216 }),
+  "PDF floats prepare viewport pixels at twice the display sampling"
+)
+pdf_view:close()
+pdf_view = assert(tools.float({ path = "/tmp/cropped.pdf", render_scale = 1 }))
+check(
+  vim.deep_equal(preparation._raster_size, { width = 640, height = 640 }),
+  "Float sampling overrides reach the shared renderer"
+)
+pdf_view:close()
+pdf_view = assert(tools.float({ path = "/tmp/cropped.pdf", fit_pixels = false, render_scale = 3 }))
+check(not preparation._raster_size and preparation.render_scale == 3, "Fixed-DPI override reaches preparation")
+pdf_view:close()
+for _, request in ipairs({
+  { render_scale = 0 },
+  { render_scale = false },
+  { render_scale = math.huge },
+  { fit_pixels = 1 },
+}) do
+  local bad = tools.float(vim.tbl_extend("force", request, { path = "/tmp/cropped.pdf" }))
+  check(not bad, "Invalid raster policy is rejected")
 end
 local failure
 image.prepare = function(_, _, callback)
