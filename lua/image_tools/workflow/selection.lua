@@ -43,6 +43,7 @@ end
 -- The returned handle owns both picker stages; closing it never applies the plan.
 function M.review(plan, callback)
   local selection = require("selection_tools")
+  local has_diff, diff = pcall(require, "git_tools.diff")
   local active, picker = true, nil
   local function finish(apply)
     if not active then
@@ -53,13 +54,23 @@ function M.review(plan, callback)
   end
   local items = {}
   for _, change in ipairs(plan.changes) do
-    local diff = vim.diff(
-      table.concat(plan.snapshots[change.path].lines, "\n") .. "\n",
-      table.concat(change.lines, "\n") .. "\n",
-      { result_type = "unified" }
-    )
-    items[#items + 1] =
-      { text = change.path, lines = vim.split("--- " .. change.path .. "\n" .. diff, "\n", { plain = true }) }
+    local before = plan.snapshots[change.path].lines
+    local lines, sources
+    if has_diff then
+      lines, sources = diff.unified(before, change.lines, {
+        old_path = change.path,
+        ft = vim.filetype.match({ filename = change.path }),
+      })
+    else
+      local patch = (vim.text and vim.text.diff or vim.diff)(
+        table.concat(before, "\n") .. "\n",
+        table.concat(change.lines, "\n") .. "\n",
+        { result_type = "unified" }
+      )
+      lines = { "--- " .. change.path, "+++ " .. change.path }
+      vim.list_extend(lines, vim.split(patch, "\n", { trimempty = true }))
+    end
+    items[#items + 1] = { text = change.path, lines = lines, sources = sources }
   end
   if #items == 0 then
     items[1] = { text = "Image move (no document edits)", lines = {} }
@@ -83,6 +94,16 @@ function M.review(plan, callback)
     preview = { enabled = true },
     previewer = function(ctx)
       local lines = vim.list_extend(vim.deepcopy(header), ctx.item.lines)
+      if has_diff then
+        return diff.render(ctx, lines, {
+          backend = "native",
+          title = "Image move",
+          sources = ctx.item.sources,
+          native = { file_header = false },
+        }, function()
+          return active
+        end)
+      end
       ctx.set_lines(lines, "diff", "Image move")
     end,
     on_choice = function(item)

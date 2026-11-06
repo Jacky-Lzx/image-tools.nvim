@@ -1179,3 +1179,9 @@ services: scheduled refreshes and bootstrap watchers become stale, owned views,
 commands and timers are released, and pending setup options are forgotten. It
 is repeatable. New explicit API use starts from defaults. Both facade and cold
 bootstrap validate options before replacing a working configuration.
+
+Image-move review uses git-tools.nvim's public unified-diff and native renderer
+when available on runtimepath, including shared colors, wrapping and frame cleanup.
+It loads only the diff service when review opens. Without git-tools, a plain diff
+preview remains available. image-tools owns move validation, cancellation and rollback;
+selection-tools owns picker windows and confirmation.

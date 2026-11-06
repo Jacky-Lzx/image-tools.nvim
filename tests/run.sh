@@ -126,6 +126,9 @@ run_test workflow/move.lua
 run_test workflow/clipboard.lua
 run_test workflow/clipboard_backend.lua
 run_test workflow/review.lua # real diff review and asset chooser
+if [ -d "$root/../git-tools.nvim" ]; then
+  IMAGE_TOOLS_GIT_ROOT="$root/../git-tools.nvim" run_test workflow/review.lua
+fi
 run_test workflow/selection.lua # optional real selection-tools chooser
 run_test workflow/selection_handoff.lua # delayed replacement/retained pixels
 

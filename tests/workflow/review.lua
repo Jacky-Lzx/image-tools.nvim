@@ -4,6 +4,9 @@ if not vim.env.IMAGE_TOOLS_SELECTION_ROOT then
   return
 end
 vim.opt.rtp:prepend(vim.env.IMAGE_TOOLS_SELECTION_ROOT)
+if vim.env.IMAGE_TOOLS_GIT_ROOT then
+  vim.opt.rtp:prepend(vim.env.IMAGE_TOOLS_GIT_ROOT)
+end
 vim.o.columns, vim.o.lines = 150, 60
 local selection = require("selection_tools")
 local open, picker = selection.open, nil
@@ -28,11 +31,15 @@ local windows = #vim.api.nvim_list_wins()
 local function reviewed(p, needle)
   assert(
     vim.wait(1000, function()
-      return table.concat(vim.api.nvim_buf_get_lines(p.preview_buf, 0, -1, false), "\n"):find(needle, 1, true)
+      return table
+        .concat(vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(p.preview_win), 0, -1, false), "\n")
+        :find(needle, 1, true)
     end, 1),
     "Diff preview not painted"
   )
-  assert(vim.bo[p.preview_buf].filetype == "diff")
+  local frame = vim.api.nvim_win_get_buf(p.preview_win)
+  assert(vim.bo[frame].filetype == (vim.env.IMAGE_TOOLS_GIT_ROOT and "git-tools-diff" or "diff"))
+  assert(not package.loaded.git_tools, "Review must not initialize Git workflows")
 end
 local completed, applied, calls = false, nil, 0
 local function result(value)
@@ -41,9 +48,17 @@ end
 local review = ui.review(plan, result)
 assert(#picker.matches == 2 and not picker.opts.resume)
 reviewed(picker, "![a](old.png)")
+local first_frame = vim.api.nvim_win_get_buf(picker.preview_win)
 picker:move(1)
 reviewed(picker, "![b](old.png)")
+if vim.env.IMAGE_TOOLS_GIT_ROOT then
+  assert(not vim.api.nvim_buf_is_valid(first_frame), "Switching documents must release the old diff frame")
+end
+local final_frame = vim.api.nvim_win_get_buf(picker.preview_win)
 picker:confirm()
+if vim.env.IMAGE_TOOLS_GIT_ROOT then
+  assert(not vim.api.nvim_buf_is_valid(final_frame), "Confirmation must release the review frame")
+end
 assert(
   not completed and #picker.matches == 2 and picker:current() == "Apply move",
   "Review must precede explicit confirmation"
