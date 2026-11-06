@@ -99,4 +99,53 @@ check(canvas.transfer:status().uploads == 1, "Geometry changes reuse uploaded pi
 vim.api.nvim_win_set_height(owner, 1)
 render("one text row with winbar")
 canvas:destroy()
+-- Grow the owner while PDF preparation is pending. Completing the old request
+-- must schedule a higher-resolution frame even if no later resize event arrives.
+local callbacks, targets = {}, {}
+local delayed = Canvas.new(
+  options,
+  vim.tbl_extend("force", dependencies, {
+    image = {
+      prepare = function(path, opts, callback)
+        local target = assert(opts._raster_size, "PDF canvas needs viewport pixels by default")
+        targets[#targets + 1] = target
+        local scale = math.min(target.width / 160, target.height / 100)
+        local pixels = {
+          key = "pending:" .. #targets,
+          path = path,
+          data = "pixels",
+          width = math.floor(160 * scale),
+          height = math.floor(100 * scale),
+        }
+        callbacks[#callbacks + 1] = function()
+          callback(nil, pixels)
+        end
+        return function() end
+      end,
+    },
+  })
+)
+meta.path = root .. "/tests/fixtures/fixture.pdf"
+vim.api.nvim_win_set_height(owner, 4)
+delayed:open(meta, owner_buf, owner, function(err)
+  check(not err, err)
+end)
+check(#callbacks == 1, "PDF preparation is pending")
+vim.api.nvim_win_set_height(owner, 12)
+callbacks[1]()
+check(
+  vim.wait(3000, function()
+    return #callbacks == 2
+  end),
+  "Completing an undersized PDF starts a viewport detail upgrade"
+)
+check(targets[2].height > targets[1].height, "Pending resize requests more pixels")
+callbacks[2]()
+check(
+  vim.wait(3000, function()
+    return delayed.state and delayed.state.render.stage == "ready"
+  end),
+  "Upgraded PDF canvas becomes ready"
+)
+delayed:destroy()
 print("image-tools canvas bounds: " .. count .. " assertions passed")

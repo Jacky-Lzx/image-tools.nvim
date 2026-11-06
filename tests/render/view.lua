@@ -135,12 +135,13 @@ local logical = assert(tools.render({
 ready(logical)
 check(logical.width == 8 and logical.height == 3, "Embedded images respect logical size independently of raster DPI")
 logical:close()
-local pdf = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw }))
+local pdf = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw, fit_pixels = false }))
 ready(pdf)
 local width, height = pdf.width, pdf.height
 check(preparations[#preparations].render_scale == nil, "Default detail is unchanged")
 pdf:close()
-local detailed = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw, render_scale = 2 }))
+local detailed =
+  assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw, fit_pixels = false, render_scale = 2 }))
 ready(detailed)
 check(preparations[#preparations].render_scale == 2, "Per-view detail reaches preparation")
 check(detailed.width == width and detailed.height == height, "Higher detail keeps the fitted pane size")
@@ -149,16 +150,15 @@ detailed:resize()
 ready(detailed)
 check(preparations[#preparations].render_scale == 2, "Resize retains per-view detail")
 detailed:close()
-local normal = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw }))
+local normal = assert(tools.render({ path = "/tmp/detail.pdf", buf = a, win = aw, fit_pixels = false }))
 ready(normal)
 check(preparations[#preparations].render_scale == nil, "Detail does not leak into later views")
 normal:close()
-local adaptive =
-  assert(tools.render({ path = "/tmp/adaptive.pdf", buf = a, win = aw, render_scale = 2, fit_pixels = true }))
+local adaptive = assert(tools.render({ path = "/tmp/adaptive.pdf", buf = a, win = aw, render_scale = 2 }))
 ready(adaptive)
 check(
   adaptive.raster_size.width == 1600 and adaptive.raster_size.height == 1216,
-  "Viewport pixels and sampling determine a quantized PDF target"
+  "PDF views default to viewport pixels with independent sampling"
 )
 local pixel_id, uploads = adaptive.id, tools.status().terminal_cache.uploads
 vim.api.nvim_win_set_config(aw, { width = 60, height = 20 })
@@ -179,7 +179,7 @@ check(
 )
 adaptive:close()
 hold, callbacks = true, {}
-local growing = assert(tools.render({ path = "/tmp/growing.pdf", buf = a, win = aw, fit_pixels = true }))
+local growing = assert(tools.render({ path = "/tmp/growing.pdf", buf = a, win = aw }))
 check(
   vim.wait(1000, function()
     return #callbacks == 1

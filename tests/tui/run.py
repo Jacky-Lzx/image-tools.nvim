@@ -51,14 +51,14 @@ def test_rgb_colors():
     print("image-tools TUI: RGB SGR matching regressions passed")
 
 
-def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False, tex=False):
+def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=False, buffer=False, latex=False, cursor=False, math=False, inline=False, inline_math=False, tex=False):
     with tempfile.TemporaryDirectory(prefix="image-tools-tui-") as directory:
         temporary = Path(directory).resolve()
         fixture = (root / "tests/fixtures/fixture.png").read_bytes()
         shutil.copyfile(root / "tests/fixtures/fixture.png", temporary / "中文 image (1).png")
         if cursor:
             shutil.copyfile(root / "tests/fixtures/fixture.png", temporary / "second.png")
-        if buffer:
+        if buffer or picker_pdf:
             shutil.copyfile(root / "tests/fixtures/fixture.pdf", temporary / "pages.pdf")
         if latex:
             shutil.copyfile(root / "tests/fixtures/fixture.pdf", temporary / "SC_multiplier_accurate.pdf")
@@ -72,6 +72,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             XDG_CACHE_HOME=str(temporary / "cache"), XDG_STATE_HOME=str(temporary / "state"),
             NVIM_LOG_FILE=str(temporary / "nvim.log"),
             IMAGE_TOOLS_INLINE_MATH="1" if inline_math else "0",
+            IMAGE_TOOLS_PICKER_PDF="1" if picker_pdf else "0",
         )
         for name in ("TMUX", "ZELLIJ", "SSH_CONNECTION", "SSH_TTY"):
             env.pop(name, None)
@@ -92,6 +93,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
         os.close(slave)
         output, commands, uploads, resident = bytearray(), [], [], set()
         offset, pending, rejected, evicted = 0, None, False, False
+        raster_sizes = []
         underline_query_answered = False
 
         def reply(identifier, message, quiet, placement=None):
@@ -111,10 +113,12 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     else:
                         path = Path(base64.b64decode(payload).decode())
                         data = path.read_bytes()
-                        if buffer or latex or math or inline_math:
+                        if buffer or latex or math or inline_math or picker_pdf:
                             assert data[:8] == b"\x89PNG\r\n\x1a\n", "buffer upload is not a PNG"
                         else:
                             assert data == fixture, "file transport did not reference the PNG fixture"
+                        if picker_pdf:
+                            raster_sizes.append(struct.unpack(">II", data[16:24]))
                         resident.add(identifier)
                         reply(identifier, b"OK", quiet)
                 else:
@@ -139,10 +143,12 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
             fields, chunks = pending
             data = b"".join(chunks)
             decoded = base64.b64decode(data)
-            if math or inline_math:
+            if math or inline_math or picker_pdf:
                 assert decoded[:8] == b"\x89PNG\r\n\x1a\n", "formula upload is not a PNG"
             else:
                 assert decoded == fixture, "direct transport changed PNG bytes"
+            if picker_pdf:
+                raster_sizes.append(struct.unpack(">II", decoded[16:24]))
             uploads.append((fields, data))
             resident.add(fields[b"i"])
             reply(fields[b"i"], b"OK", fields.get(b"q"))
@@ -206,10 +212,15 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                     )
             elif picker:
                 assert result["picker"] and result["inserted"], result
+                if picker_pdf:
+                    assert len(raster_sizes) == 2, raster_sizes
+                    for actual, expected in zip(raster_sizes, (result["initial_pixels"], result["resized_pixels"])):
+                        assert actual[0] >= expected[0] and actual[1] >= expected[1], (actual, expected)
+                    assert raster_sizes[1][0] > raster_sizes[0][0], raster_sizes
             else:
                 assert result["geometry"] == [20, 5] and result["position"] == "bottom_right", result
                 assert result["same_line"] and result["image_line_transition"] and result["lifecycle"], result
-            assert len(uploads) == (4 if buffer else 3 if inline_math else 2 if inline or tex or cursor or reject_file or evict else 1), uploads
+            assert len(uploads) == (4 if buffer else 3 if inline_math else 2 if inline or tex or cursor or reject_file or evict or picker_pdf else 1), uploads
             assert result["cache"]["uploads"] == len(uploads), result
             if picker or buffer or latex or math or inline:
                 assert result["cache"]["hits"] >= 1, result
@@ -253,7 +264,7 @@ def run_case(mode, reject_file=False, evict=False, picker=False, buffer=False, l
                 assert uploads[0][0][b"t"] == b"f" and uploads[1][0][b"t"] == b"d"
             else:
                 assert all(f[b"t"] == (b"d" if mode == "direct" else b"f") for f, _ in uploads)
-            label = ("tex-tools formulas " if tex else "inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
+            label = ("tex-tools formulas " if tex else "inline math " if inline_math else "inline " if inline else "math " if math else "cursor " if cursor else "latex " if latex else "buffer " if buffer else "PDF picker " if picker_pdf else "picker " if picker else "") + mode + (" fallback" if reject_file else " eviction" if evict else "")
             print("image-tools TUI: " + label + ", replies, cache reuse, line lifecycle and cleanup passed")
         finally:
             if process.poll() is None:
@@ -271,6 +282,8 @@ run_case("auto", evict=True)
 
 if os.environ.get("IMAGE_TOOLS_SELECTION_ROOT"):
     run_case("auto", picker=True)
+    run_case("auto", picker=True, picker_pdf=True)
+    run_case("direct", picker=True, picker_pdf=True)
 else:
     print("[skip] selection chooser TUI: set IMAGE_TOOLS_SELECTION_ROOT")
 

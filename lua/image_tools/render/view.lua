@@ -8,7 +8,7 @@
 ---@field previous? ImageToolsEmbeddedView Retained view of this same pane.
 ---@field upscale? boolean Fit small images to the pane; default true.
 ---@field render_scale? number Converted-raster detail multiplier in [1, 8]; independent of pane size.
----@field fit_pixels? boolean Fit PDF rasterization to viewport pixels instead of fixed DPI.
+---@field fit_pixels? boolean Fit PDF rasterization to viewport pixels; default true, false uses fixed DPI.
 ---@field display_size? ImageToolsImageSize Logical dimensions independent of raster sampling density.
 ---@field is_valid? fun(): boolean Host generation/selection authority.
 ---@field paint? fun(draw: fun(): boolean): boolean? Synchronous host drawing transaction.
@@ -201,17 +201,20 @@ function View:fail(err)
 end
 -- Quantized targets avoid distinct conversions for every small geometry change.
 function View:target_pixels()
-  if not self.request.fit_pixels or not self.path:lower():match("%.pdf$") then
+  if self.request.fit_pixels == false or not self.path:lower():match("%.pdf$") then
     return
   end
   local width, height = self:viewport()
   local cell = self:dependency("terminal").cell_size(self.options.cell_size)
   local scale = self.request.render_scale or self.options.render_scale or 1
   local maximum = self:dependency("protocol").max_cells
-  return require("image_tools.media.raster_size").limit({
-    width = math.ceil(math.min(width, maximum) * cell.width * scale / 64) * 64,
-    height = math.ceil(math.min(height, maximum) * cell.height * scale / 64) * 64,
-  }, self.options)
+  return require("image_tools.media.raster_size").viewport(
+    math.min(width, maximum),
+    math.min(height, maximum),
+    cell,
+    self.options,
+    scale
+  )
 end
 function View:_start()
   if not self:current() then

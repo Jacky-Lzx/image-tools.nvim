@@ -164,6 +164,23 @@ function M:open(meta, owner_buf, owner_win, callback, viewport)
     callback(err)
   end
 
+  -- PDF points are not display pixels: a small vector figure at fixed DPI can
+  -- otherwise be enlarged several times to fill this window. Native mode keeps
+  -- the configured DPI as its explicit prepared-pixel scale.
+  local function target_pixels()
+    if not meta.path:lower():match("%.pdf$") or viewport.zoom == "native" then
+      return
+    end
+    local w, h = M.viewport(owner_win)
+    return require("image_tools.media.raster_size").viewport(
+      math.min(w, protocol.max_cells),
+      math.min(h, protocol.max_cells),
+      terminal.cell_size(self.opts.cell_size),
+      self.opts,
+      tonumber(viewport.zoom) or 1
+    )
+  end
+  state.raster_size = target_pixels()
   self.last_timings = nil
   state.render = require("image_tools.render.session").new(self:dependency("image"), self.transfer)
   state.render:start(
@@ -171,6 +188,7 @@ function M:open(meta, owner_buf, owner_win, callback, viewport)
     vim.tbl_extend("force", self.opts, {
       page = meta.page,
       render_scale = math.max(1, math.ceil(tonumber(viewport.zoom) or 1)),
+      _raster_size = state.raster_size,
     }),
     {
       current = current,
@@ -228,6 +246,19 @@ function M:open(meta, owner_buf, owner_win, callback, viewport)
         vim.wo[state.win].winblend, vim.wo[state.win].conceallevel = 0, 0
 
         callback(nil)
+        -- A window may grow while conversion or acknowledgement is pending.
+        -- Upgrade against the latest geometry instead of keeping enlarged pixels.
+        if state.raster_size then
+          vim.schedule(function()
+            if not current() then
+              return
+            end
+            local target = target_pixels()
+            if target.width > state.raster_size.width or target.height > state.raster_size.height then
+              self:open(meta, owner_buf, owner_win, callback, viewport)
+            end
+          end)
+        end
       end,
     }
   )

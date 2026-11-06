@@ -239,7 +239,13 @@ Set `IMAGE_TOOLS_SELECTION_ROOT=/absolute/path/to/selection-tools.nvim` when
 running `sh tests/run.sh` to include the real image chooser and chooser PTY
 scenario. These cover format filtering, shared embedded rendering, resizing,
 multi-selection, extmark-targeted import, existing-asset reuse, processing and
-cancellation. The fixture installer does not fetch this development checkout.
+cancellation. PDF picker PTY cases use both file/direct transports, decode the
+uploaded PNG dimensions and check sufficient viewport pixels before/after growth.
+PDF buffer cases verify pixel-fit resolution and paging; headless buffer checks
+also preserve fixed-DPI native mode. Embedded-view tests cover default PDF fitting,
+explicit fixed-DPI opt-out and growth during pending preparation. Media tests
+verify pixel/dimension budgets. The fixture installer does not fetch this
+development checkout.
 Both protocol responders test acknowledgements/placeholders, not physical pixels.
 
 ## tex-tools formula integration

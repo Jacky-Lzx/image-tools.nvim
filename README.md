@@ -13,7 +13,8 @@ Preview windows use Unicode placeholders so Neovim controls clipping and overlap
   bypasses terminal-name detection.
 - ImageMagick (`magick`) for JPG, WebP, AVIF, HEIC, GIF, BMP, TIFF and PDF.
   - Floating and picker PDF previews show the first page; file buffers support paging.
-    ImageMagick needs its Ghostscript delegate for PDF.
+    ImageMagick needs its Ghostscript delegate for PDF. File buffers and embedded
+    panes (including image pickers) also need Poppler's `pdfinfo`.
   - SVG uses `rsvg-convert` when available; otherwise it requires ImageMagick MSVG.
   - GIF previews show the first frame.
   - PNG preview does not require an external converter.
@@ -222,8 +223,9 @@ Conversion is asynchronous, bounded by a timeout, and cached by path, inode, siz
 Conversions and clipboard normalization take priority over queued import hashes,
 with FIFO ordering within each class. While hashes wait, at most three interactive
 jobs start before one hash job. Running processes keep their slots until exit.
-Converted previews fit within 1920x1080 at default zoom; native PNGs retain their dimensions and
-are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
+Converted previews normally fit within 1920x1080 at default zoom. PDF file buffers
+and embedded panes instead rasterize for their viewport pixels. Native PNGs
+retain their dimensions and are checked against `max_dimension`/`max_pixels`. Floating previews do not upscale;
 picker and file-buffer images can upscale to fit their viewport. Originals are never modified.
 Converted disk images are managed asynchronously by `disk_cache` limits.
 Unused images are removed in access order; currently used images are protected
@@ -706,18 +708,20 @@ placeholder highlights and placement leases. Drawing preserves buffer flags and
 fits the pane after gutters, with `upscale=true` by default. `page` selects a PDF
 page. `render_scale` optionally multiplies converted-raster detail (a finite
 number from 1 to 8). Scale 2 raises the default output box from 1920×1080 to
-3840×2160 and PDF rasterization from 144 to 288 DPI, while preserving the fitted
-pane size. Validation limits still apply; native PNGs are unchanged. The setting
+3840×2160 (and fixed-DPI PDF rasterization from 144 to 288 DPI), while
+preserving the fitted pane size. Validation limits still apply; native PNGs are unchanged. The setting
 is scoped to this view, survives resizing and has a separate conversion/cache
 identity. Other views keep their configured detail.
-For PDFs, `fit_pixels=true` instead rasterizes vectors to the pane's pixel box,
+PDFs default to `fit_pixels=true`, rasterizing vectors to the pane's pixel box,
 using measured terminal cell pixels (or configured `cell_size`) multiplied by
 `render_scale`. This avoids enlarging a small cropped PDF after fixed-DPI
 rasterization. Targets are rounded to 64-pixel buckets and respect configured
 pixel/dimension limits. Adaptive PDF previews require `pdfinfo` (Poppler) to
 measure the selected page, including its rotation. Shrinking reuses pixels;
-growing the pane upgrades detail when needed, including a resize during preparation. `pdf_density` applies only
-to fixed-DPI rendering. Native images and other views retain their policy.
+growing the pane upgrades detail when needed, including a resize during
+preparation. `pdf_density` applies only to fixed-DPI rendering, selected with
+`fit_pixels=false`. This default also applies to image import pickers and
+third-party embedded panes. Native images retain their policy.
 Optional `paint(draw)` must synchronously execute `draw()` on the main
 thread, including both buffer lines and extmarks, and may return false to reject
 a stale transaction. This supports hosts whose normal line writer is asynchronous.
@@ -940,6 +944,11 @@ PDF buffers need ImageMagick with Ghostscript, plus Poppler's `pdfinfo`
 `:ImagePage 3` selects a page; `:ImageNextPage` / `:ImagePreviousPage` move a page
 (counts supported). Relative page movement clamps to the first/last page;
 `page(n)` and `:ImagePage N` reject out-of-range values.
+Fit and numeric zoom rasterize PDF vectors for the window's measured cell pixels
+(or configured `cell_size` fallback), scaling detail with zoom. Targets use 64-pixel
+buckets and obey `max_dimension`/`max_pixels`; small cropped PDFs therefore remain
+sharp when filling a large window. Resizing updates the raster target. `1` / native
+mode uses `pdf_density` (144 by default) for a stable prepared-pixel scale.
 Page bounds come from actual PDF metadata. Conversion/transmission caches retain
 pages separately, so revisiting an unchanged page can reuse its uploaded pixels.
 `r` / `:ImageReload` reloads the current file and refreshes metadata. Source changes
@@ -993,10 +1002,10 @@ cells (counts supported). `:ImageZoom fit|native|in|out|FACTOR`, `zoom(value)`,
 to fit and ranges from 0.125 to 8. Zoom resets pan; pan clamps to image edges.
 Each visible split retains independent controls across resize/reload/page changes;
 leaving its buffer resets that window's controls. Cropped placements reuse uploaded
-pixels. PDF and other converted formats prepare larger rasters when zoomed in; PDF
-density and output bounds scale together, bounded by source/output limits and the
-existing conversion queue. Native scale refers to the prepared raster, including
-configured PDF density. Original files are unchanged.
+pixels. PDF fit/numeric zoom prepares viewport-sized rasters with detail proportional
+to zoom; other converted formats scale their output bounds. Source/output limits
+and the existing conversion queue still apply. Native scale refers to the prepared
+raster, using configured PDF density for PDFs. Original files are unchanged.
 
 Set `insert.deduplicate = true` (default false), or pass `deduplicate = true` to
 insertion/paste, to reuse byte-identical files with the same extension in the

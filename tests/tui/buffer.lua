@@ -70,6 +70,13 @@ local steps = {
     assert(status.pages == 2 and status.page == 1, "Wrong PDF metadata")
     assert(status.views[win].window and status.views[win].page == 1, "Page one not displayed")
     within_owner()
+    local view = status.views[win]
+    local frame = view.window
+    assert(
+      view.dimensions.width >= vim.api.nvim_win_get_width(frame) * 10 - 10
+        and view.dimensions.height >= vim.api.nvim_win_get_height(frame) * 20 - 20,
+      "PDF raster is enlarged beyond the PTY viewport's measured pixels"
+    )
     vim.api.nvim_input("]p")
   end,
   function()

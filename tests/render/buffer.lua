@@ -273,7 +273,19 @@ end
 check(first_path ~= nil, "PDF converted to PNG for upload")
 local first_color = vim.system({ "magick", first_path, "-format", "%[pixel:p{10,10}]", "info:" }):wait().stdout
 check(first_color:match("255,0,0") or first_color:match("100%%,0%%,0%%"), "First PDF page is red: " .. first_color)
+vim.cmd.only()
+check(ready(second), "PDF refits the full window after closing splits")
 local initial_dimensions = image.status().buffer.views[second].dimensions
+local pdf_frame = image.status().buffer.views[second].window
+check(
+  initial_dimensions.width >= vim.api.nvim_win_get_width(pdf_frame) * 10 - 10
+    and initial_dimensions.height >= vim.api.nvim_win_get_height(pdf_frame) * 20 - 20,
+  "Small vector PDF has enough raster pixels for its displayed viewport"
+)
+check(image.zoom("native") and ready(second), "PDF native mode renders at configured density")
+local native_dimensions = image.status().buffer.views[second].dimensions
+check(native_dimensions.width == 320 and native_dimensions.height == 200, "Native PDF keeps fixed-DPI semantics")
+check(image.zoom("fit") and ready(second), "PDF returns to adaptive fit after native mode")
 check(image.zoom(2) and ready(second), "PDF zoom re-renders")
 local detailed = image.status().buffer.views[second].dimensions
 check(

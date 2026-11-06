@@ -155,7 +155,7 @@ function M.check()
   end
 
   if vim.fn.executable(tools.pdfinfo) == 1 then
-    vim.health.ok("pdfinfo found: PDF buffer page counts available (" .. tools.pdfinfo .. ")")
+    vim.health.ok("pdfinfo found: PDF page counts and viewport geometry available (" .. tools.pdfinfo .. ")")
   else
     vim.health.warn("PDF metadata executable missing: " .. tools.pdfinfo .. " (brew install poppler)")
   end

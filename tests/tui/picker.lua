@@ -3,15 +3,16 @@ vim.opt.rtp:prepend(root)
 vim.opt.rtp:prepend(assert(vim.env.IMAGE_TOOLS_SELECTION_ROOT))
 vim.o.termguicolors, vim.o.swapfile = true, false
 require("selection_tools").setup({ layout = { width = 0.6, height = 0.65, preview_height = 0.6 } })
+local pdf = vim.env.IMAGE_TOOLS_PICKER_PDF == "1"
 local image = require("image_tools")
-image.setup({ auto_preview = false, transport = "auto" })
+image.setup({ auto_preview = false, transport = vim.env.IMAGE_TOOLS_TEST_TRANSPORT or "auto" })
 local buf = vim.api.nvim_get_current_buf()
 vim.api.nvim_buf_set_name(buf, temporary .. "/note.md")
 vim.bo.filetype = "markdown"
 vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "original document" })
 local done, err, paths
 local picker = image.pick(
-  { picker = { cwd = temporary, ft = { "png" }, layout = { width = 0.6, height = 0.65 } } },
+  { picker = { cwd = temporary, ft = { pdf and "pdf" or "png" }, layout = { width = 0.6, height = 0.65 } } },
   function(e, p)
     done, err, paths = true, e, p
   end
@@ -27,6 +28,10 @@ local steps = {
     local width, height = renderer.width, renderer.height
     assert(width == renderer.view_width or height == renderer.view_height, "Image does not fill pane")
     assert(width > 16 or height > 5, "Small image did not upscale")
+    if pdf then
+      assert(renderer.raster_size, "Picker PDF did not default to viewport rasterization")
+      results.initial_pixels = { width * 10 - 10, height * 20 - 20 }
+    end
     initial_width, initial_height = width, height
     picker.opts.layout.width = 0.95
     picker.opts.layout.height = 0.95
@@ -42,8 +47,24 @@ local steps = {
       vim.api.nvim_buf_get_lines(state.buf, 0, 1, false)[1]:find(vim.fn.nr2char(0x10EEEE), 1, true) == 1,
       "Image is not top-left aligned"
     )
-    results.cache = renderer.transfer:status()
-    picker.opts.actions.confirm(picker)
+    if pdf then
+      results.resized_pixels = { state.width * 10 - 10, state.height * 20 - 20 }
+      assert(renderer.transfer:status().uploads == 2, "Growing PDF picker did not upgrade its raster")
+      picker.opts.layout.width = 0.6
+      picker.opts.layout.height = 0.65
+      picker.opts.layout.preview_height = 0.6
+      picker:resize()
+    else
+      results.cache = renderer.transfer:status()
+      picker.opts.actions.confirm(picker)
+    end
+  end,
+  function()
+    if pdf then
+      assert(renderer.transfer:status().uploads == 2, "Shrinking PDF picker uploaded redundant pixels")
+      results.cache = renderer.transfer:status()
+      picker.opts.actions.confirm(picker)
+    end
   end,
   function()
     assert(done and not err, err or "Insertion not completed")
