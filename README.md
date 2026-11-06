@@ -1185,3 +1185,6 @@ when available on runtimepath, including shared colors, wrapping and frame clean
 It loads only the diff service when review opens. Without git-tools, a plain diff
 preview remains available. image-tools owns move validation, cancellation and rollback;
 selection-tools owns picker windows and confirmation.
+
+`:checkhealth image_tools` also reports picker availability and whether image-move
+review can use shared native diffs or its plain fallback, without loading providers.

@@ -90,6 +90,18 @@ end
 -- Report terminal/tool support and service/cache diagnostics without initializing the plugin.
 ---@return nil
 function M.check()
+  vim.health.start("image-tools: workflow providers")
+  if #vim.api.nvim_get_runtime_file("lua/selection_tools/init.lua", false) > 0 then
+    vim.health.ok("selection-tools available for image selection and move review")
+  else
+    vim.health.warn("selection-tools unavailable; image picker and move review require it")
+  end
+  if #vim.api.nvim_get_runtime_file("lua/git_tools/diff/init.lua", false) > 0 then
+    vim.health.ok("git-tools shared native diff available for image move review")
+  else
+    vim.health.info("git-tools unavailable; image move review uses plain diff fallback")
+  end
+
   local state = require("image_tools").status()
   local tools = state.tools
     or { magick = defaults.magick, rsvg = defaults.rsvg, pdfinfo = defaults.pdfinfo, pngpaste = "pngpaste" }

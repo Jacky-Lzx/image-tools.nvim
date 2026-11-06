@@ -83,6 +83,7 @@ run_test core/regression.lua # general regressions
 run_test core/runtime.lua
 run_test core/line_lifecycle.lua # reference entry/exit, edits and async cancellation
 run_test core/preview_diagnostics.lua
+run_test core/workflow_health.lua
 run_test core/auto_preview_delay.lua
 run_test core/cursor_lifecycle.lua
 run_test core/tex_range_lifecycle.lua # asserts that a preview stays open within a multiline reference and closes on exit
