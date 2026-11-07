@@ -1196,3 +1196,5 @@ Health reports actionable failures and a compact result for applicable checks. D
 optional and not-yet-activated features do not warn solely because they are inactive.
 Inspection does not configure plugins, start services or install dependencies.
 Use `:ImageInfo` for detailed configuration and runtime information.
+
+`ImageInfo` keeps human-readable diagnostics literal and marks the inspected runtime/cache section as Lua using optional notification spans. The report remains readable with the default Neovim notifier.

@@ -12,8 +12,13 @@ function M.show(runtime, lines)
     finished = true
     local details = vim.deepcopy(state)
     details.disk_cache = cache
-    lines[#lines + 1] = "Runtime and disk cache:\n" .. vim.inspect(details)
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "image-tools" })
+    local heading = table.concat(lines, "\n") .. "\nRuntime and disk cache:\n"
+    local value = vim.inspect(details)
+    vim.notify(heading .. value, vim.log.levels.INFO, {
+      title = "image-tools",
+      markdown = false,
+      spans = { { start = #heading, finish = #heading + #value, filetype = "lua" } },
+    })
   end
   local cancel = require("image_tools.media.disk_cache").inspect(opts, display)
   vim.defer_fn(function()
