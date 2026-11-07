@@ -225,6 +225,12 @@ vim.notify = function(text)
   message = text
 end
 vim.cmd("ImageInfo")
+check(
+  vim.wait(5000, function()
+    return message ~= nil
+  end, 1),
+  "ImageInfo inspection completes"
+)
 vim.notify = notify
 check(
   message:find("Prepared raster:", 1, true) and message:find("Terminal cache:", 1, true),

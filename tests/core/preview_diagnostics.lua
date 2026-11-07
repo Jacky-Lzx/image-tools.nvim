@@ -63,6 +63,12 @@ api.close()
 assert(api.info().error == info.error, "Closing preserves metadata without retaining a view")
 assert(api.info().timings.total_ms == failed_total, "Retained failure timings stay fixed")
 vim.cmd("ImageInfo")
+assert(
+  vim.wait(5000, function()
+    return #notices > 0
+  end, 1),
+  "Explicit cache inspection completes"
+)
 assert(notices[#notices]:find("Conversion fixture failed", 1, true))
 assert(notices[#notices]:find("Preparation", 1, true) and notices[#notices]:find("Total", 1, true))
 api.preview("/tmp/placement.png", { silent = true })

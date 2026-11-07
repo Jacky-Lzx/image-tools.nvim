@@ -1,237 +1,98 @@
--- Module: image_tools.health
---
--- Purpose:
---   Provide Neovim checkhealth diagnostics for terminal, tools and plugin
---   resources.
---
--- Architecture:
---   Read terminal capabilities, the public status snapshot and media/disk_cache
---   inspection. Tool detection uses configured executable names; diagnostics do
---   not start a parser or initialize the Runtime.
---
--- Ownership:
---   Own only the current inspection callback and its bounded wait. Disk
---   inspection is read-only and does not create or evict cache files.
-
 local M = {}
-local defaults = require("image_tools.defaults")
-local BINARY_UNIT_BASE = 1024
-local DISK_INSPECTION_TIMEOUT_MS = 3000
-local DISK_INSPECTION_POLL_MS = 10
 
--- Format a byte estimate in binary units for readable health output.
----@param bytes number Nonnegative bytes.
----@return string display
-local function size(bytes)
-  local units, index = { "B", "KiB", "MiB", "GiB", "TiB" }, 1
-  while bytes >= BINARY_UNIT_BASE and index < #units do
-    bytes, index = bytes / BINARY_UNIT_BASE, index + 1
-  end
-  return string.format(index == 1 and "%.0f %s" or "%.2f %s", bytes, units[index])
-end
-
--- Inspect managed disk usage with a bounded wait and report missing/unreadable directories without
--- eviction.
----@param state ImageToolsRuntimeStatus Existing status snapshot or unconfigured defaults.
----@return nil
-local function disk_health(state)
-  vim.health.start("image-tools: disk cache")
-
-  local opts
-  if state.disk_cache then
-    opts = { cache = state.disk_cache.path, disk_cache = state.disk_cache }
-  else
-    opts = require("image_tools.config").resolve()
-    vim.health.info("Plugin is not configured; showing default disk-cache settings")
-  end
-
-  local report
-  local cancel = require("image_tools.media.disk_cache").inspect(opts, function(snapshot)
-    report = snapshot
-  end)
-
-  if not vim.wait(DISK_INSPECTION_TIMEOUT_MS, function()
-    return report ~= nil
-  end, DISK_INSPECTION_POLL_MS) then
-    cancel()
-    vim.health.info("Directory: " .. opts.cache)
-    vim.health.warn("Disk-cache inspection timed out; current usage is unavailable")
-    return
-  end
-  vim.health.info("Directory: " .. report.path)
-  vim.health.info("Automatic eviction: " .. (report.enabled and "enabled" or "disabled"))
-  vim.health.info(string.format("Limits: %d file(s) / %s", report.max_files, size(report.max_bytes)))
-  if report.error then
-    vim.health.warn("Cannot inspect disk cache: " .. report.error)
-    return
-  end
-  vim.health.info(
-    string.format("Current usage: %d file(s) / %s (%d bytes)", report.files, size(report.bytes), report.bytes)
-  )
-  vim.health.info(
-    string.format("Protected files in use: %d file(s) / %s", report.protected, size(report.protected_bytes))
-  )
-  if not report.exists then
-    vim.health.info("Cache directory has not been created yet")
-  end
-  vim.health.info("Cleanup: " .. (report.cleanup_running and "running or queued" or "idle"))
-  if report.enabled and (report.files > report.max_files or report.bytes > report.max_bytes) then
-    if report.cleanup_running then
-      vim.health.info("Cache currently exceeds limits; cleanup is in progress")
-    elseif report.protected > 0 then
-      vim.health.info("Cache currently exceeds limits; files in use are retained until previews close")
-    else
-      vim.health.warn("Cache exceeds configured limits; automatic cleanup may be pending")
-    end
-  end
-  vim.health.info("Run :ImageCacheClear to remove unused converted images from disk")
-end
-
--- Report terminal/tool support and service/cache diagnostics without initializing the plugin.
----@return nil
 function M.check()
-  vim.health.start("image-tools: workflow providers")
-  if #vim.api.nvim_get_runtime_file("lua/selection_tools/init.lua", false) > 0 then
-    vim.health.ok("selection-tools available for image selection and move review")
-  else
-    vim.health.warn("selection-tools unavailable; image picker and move review require it")
+  vim.health.start("image-tools.nvim")
+  if vim.fn.has("nvim-0.12") == 0 then
+    vim.health.error("Neovim 0.12+ is required", { "Upgrade Neovim" })
+    return
   end
-  if #vim.api.nvim_get_runtime_file("lua/git_tools/diff/init.lua", false) > 0 then
-    vim.health.ok("git-tools shared native diff available for image move review")
-  else
-    vim.health.info("git-tools unavailable; image move review uses plain diff fallback")
+  local issues = {}
+  local function problem(level, message, advice)
+    issues[#issues + 1] = { level = level, message = message, advice = advice }
   end
-
-  local state = require("image_tools").status()
+  local plugin = package.loaded.image_tools
+  local state = plugin and plugin.status()
+  if not state or not state.configured then
+    vim.health.info("Not configured; image feature checks skipped.")
+    return
+  end
+  local opts = plugin.configuration()
+  local supported, reason = require("image_tools.terminal").supports(opts)
+  if #vim.api.nvim_list_uis() > 0 and not supported then
+    problem(
+      "warn",
+      tostring(reason) .. "; terminal image display is unavailable.",
+      { "Use a Kitty graphics compatible terminal" }
+    )
+  end
   local tools = state.tools
-    or { magick = defaults.magick, rsvg = defaults.rsvg, pdfinfo = defaults.pdfinfo, pngpaste = "pngpaste" }
-  vim.health.start("image-tools")
-  local supported, reason = require("image_tools.terminal").supports({})
-  if supported then
-    vim.health.ok("Kitty terminal detected (Unicode placeholders require Kitty 0.28+)")
-  else
-    vim.health.warn(reason)
-  end
-
-  if vim.fn.executable(tools.magick) == 1 then
-    vim.health.ok("ImageMagick found: non-PNG previews available (" .. tools.magick .. ")")
-  else
-    vim.health.warn(
-      "ImageMagick missing: " .. tools.magick .. "; native PNG remains available; SVG may use rsvg-convert"
+  if vim.fn.executable(tools.magick) == 0 then
+    problem(
+      "warn",
+      tools.magick .. ": unavailable; non-PNG conversion is limited.",
+      { "Install ImageMagick or configure magick" }
     )
   end
-
-  local clipboard = state.clipboard
-  if state.inline and state.inline.enabled then
-    vim.health.info(
-      string.format(
-        "Inline Markdown: %d ready, %d pending, %d failed in %d window(s)",
-        state.inline.ready,
-        state.inline.pending,
-        state.inline.failed,
-        state.inline.windows
-      )
-    )
-    if state.inline.last_error then
-      vim.health.warn("Most recent inline error: " .. state.inline.last_error)
-    end
-  end
-  local remote = state.remote or defaults.remote
-  if remote.enabled then
-    if vim.fn.executable(remote.curl) == 1 then
-      vim.health.ok("HTTPS downloader: " .. remote.curl .. " (TLS verification enabled)")
-    else
-      vim.health.warn("HTTPS downloader missing: " .. remote.curl)
-    end
-  else
-    vim.health.info("Automatic HTTPS loading disabled; enable remote.enabled to preview remote references")
-  end
-  if not clipboard then
-    local backend, err = require("image_tools.workflow.clipboard_backend").detect({})
-    clipboard = backend and { backend = backend.name, executable = backend.executable } or { error = err }
-  end
-  if clipboard.backend then
-    vim.health.ok("Clipboard backend: " .. clipboard.backend .. " (" .. clipboard.executable .. ")")
-  else
-    vim.health.warn(clipboard.error)
-  end
-
-  if vim.fn.executable(tools.rsvg) == 1 then
-    vim.health.ok("rsvg-convert found: SVG preview renderer (" .. tools.rsvg .. ")")
-  else
-    vim.health.info("SVG executable missing: " .. tools.rsvg .. "; falls back to ImageMagick internal MSVG renderer")
-  end
-
-  if vim.fn.executable("gs") ~= 1 then
-    vim.health.info("Ghostscript delegate is needed for ImageMagick PDF preview")
-  end
-
-  if vim.fn.executable(tools.pdfinfo) == 1 then
-    vim.health.ok("pdfinfo found: PDF page counts and viewport geometry available (" .. tools.pdfinfo .. ")")
-  else
-    vim.health.warn("PDF metadata executable missing: " .. tools.pdfinfo .. " (brew install poppler)")
-  end
-
-  for _, name in ipairs({ "latex", "dvipng" }) do
-    local tool = tools["math_" .. name] or defaults.math[name]
-    if vim.fn.executable(tool) == 1 then
-      vim.health.ok("Formula renderer found: " .. tool .. " (math." .. name .. ")")
-    else
-      vim.health.info(
-        "Formula renderer missing: " .. tool .. "; install TeX Live with latex, amsmath, amssymb and dvipng"
-      )
-    end
-  end
-
-  local cell = require("image_tools.terminal").cell_size(vim.deepcopy(state.cell_size or defaults.cell_size))
-  vim.health.info(string.format("Cell geometry: %.2f x %.2f pixels", cell.width, cell.height))
-
-  vim.health.info("Transport: " .. state.transport .. " (auto tries local files and falls back to direct data)")
-
-  if state.terminal_cache then
-    vim.health.info(
-      string.format(
-        "Terminal cache: %d image(s), %d estimated decoded bytes; %d hit(s), %d upload attempt(s), %d placement(s)",
-        state.terminal_cache.images,
-        state.terminal_cache.bytes,
-        state.terminal_cache.hits,
-        state.terminal_cache.uploads,
-        state.terminal_cache.placements or 0
-      )
-    )
-    if state.terminal_cache.last_error then
-      vim.health.warn(state.terminal_cache.last_error)
-    end
-  end
-  if state.conversion_queue then
-    vim.health.info(
-      string.format("Converters: %d active, %d queued", state.conversion_queue.active, state.conversion_queue.queued)
-    )
-  end
-  if state.treesitter then
-    local syntax = state.treesitter
-    ---@cast syntax ImageToolsSyntaxStatus
-    vim.health.start("image-tools: reference syntax")
-    vim.health.info("Tree-sitter: " .. (syntax.enabled and "enabled" or "disabled; using Lua scanner"))
-    vim.health.info(
-      string.format("%d parse(s), %d index hit(s), %d indexed row(s)", syntax.parses, syntax.hits, syntax.indexed_rows)
-    )
-    for _, reason in ipairs(vim.tbl_keys(syntax.fallbacks)) do
-      vim.health.info(string.format("Fallback %s: %d event(s)", reason, syntax.fallbacks[reason]))
-    end
-    if syntax.current then
-      local current = syntax.current
-      ---@cast current ImageToolsSyntaxDiagnostic
-      vim.health.info("Current buffer backend: " .. current.backend .. " (" .. current.lang .. ")")
-      if current.reason then
-        vim.health.info("Reason: " .. current.reason .. ": " .. (current.detail or ""))
+  if opts.buffer.enabled and vim.tbl_contains(opts.buffer.formats, "pdf") then
+    local missing = {}
+    for _, cmd in ipairs({ tools.pdfinfo, "gs" }) do
+      if vim.fn.executable(cmd) == 0 then
+        missing[#missing + 1] = cmd
       end
-      vim.health.info(
-        string.format("Last parse: %.2f ms; last index: %.2f ms", current.parse_ms or 0, current.index_ms or 0)
+    end
+    if #missing > 0 then
+      problem(
+        "warn",
+        "PDF tools unavailable: " .. table.concat(missing, ", ") .. "; PDF previews are limited.",
+        { "Install Poppler and Ghostscript or disable PDF buffer previews" }
       )
     end
   end
-  disk_health(state)
+  if opts.math.enabled then
+    local missing = {}
+    for _, cmd in ipairs({ tools.math_latex, tools.math_dvipng }) do
+      if vim.fn.executable(cmd) == 0 then
+        missing[#missing + 1] = cmd
+      end
+    end
+    if #missing > 0 then
+      problem(
+        "warn",
+        "Formula tools unavailable: " .. table.concat(missing, ", ") .. "; formula rendering is disabled.",
+        { "Install the configured TeX tools or set math.enabled = false" }
+      )
+    end
+  end
+  if state.remote.enabled and vim.fn.executable(state.remote.curl) == 0 then
+    problem(
+      "warn",
+      state.remote.curl .. ": unavailable; enabled remote image loading cannot run.",
+      { "Install/configure curl or disable remote.enabled" }
+    )
+  end
+  local cache = state.disk_cache
+  local stat = cache and vim.uv.fs_stat(cache.path)
+  if stat and stat.type ~= "directory" then
+    problem("error", "Cache path is not a directory: " .. cache.path, { "Configure cache to use a directory" })
+  end
+
+  if #issues == 0 and #vim.api.nvim_list_uis() == 0 then
+    vim.health.info("Conversion requirements are available; terminal checks need an attached UI. Details: :ImageInfo")
+    return
+  end
+  table.sort(issues, function(a, b)
+    if a.level ~= b.level then
+      return a.level == "error"
+    end
+    return a.message < b.message
+  end)
+  for _, issue in ipairs(issues) do
+    vim.health[issue.level](issue.message, issue.advice)
+  end
+  if #issues == 0 then
+    vim.health.ok("Configured image rendering requirements are available.")
+  end
+  vim.health.info("Details: :ImageInfo")
 end
 
 return M

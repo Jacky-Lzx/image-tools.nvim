@@ -80,7 +80,7 @@ function M.register(runtime)
   command("ImageInfo", function()
     local info, err = runtime:info()
     if not info then
-      report(false, err)
+      require("image_tools.diagnostics").show(runtime, { err or "No active image preview" })
       return
     end
     local lines = {
@@ -128,8 +128,8 @@ function M.register(runtime)
         end
       end
     end
-    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "image-tools" })
-  end, { desc = "Show current image/PDF metadata and cache statistics", force = true })
+    require("image_tools.diagnostics").show(runtime, lines)
+  end, { desc = "Inspect image metadata, runtime state and disk cache", force = true })
 
   command("ImageCheckAssets", function(args)
     if args.args ~= "" and not args.bang then
@@ -215,16 +215,18 @@ function M.register(runtime)
     runtime:localize()
   end, { desc = "Download the selected HTTPS image and replace its reference", force = true })
 
-  command(
-    "ImageInsert",
-    function(args)
-      runtime:insert(
-        args.args ~= "" and args.args or nil,
-        { mode = args.bang and "reference" or runtime.options.insert.mode }
-      )
-    end,
-    { nargs = "?", bang = true, complete = "file", desc = "Import an image (! references the source)", force = true }
-  )
+  command("ImageInsert", function(args)
+    runtime:insert(
+      args.args ~= "" and args.args or nil,
+      { mode = args.bang and "reference" or runtime.options.insert.mode }
+    )
+  end, {
+    nargs = "?",
+    bang = true,
+    complete = "file",
+    desc = "Import an image (! references the source)",
+    force = true,
+  })
 
   command("ImagePreview", function(args)
     if args.args == "" then

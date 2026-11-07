@@ -80,9 +80,10 @@ Set `image = { enabled = false }` in Snacks opts and remove any direct `Snacks.i
 - `:ImageCheckAssets` reports missing references and possibly unused assets.
 - `:checkhealth image_tools` checks the terminal and configured conversion tools.
 
-Health tool detection checks configured `magick`, `pdfinfo`, `rsvg` and
-the selected clipboard backend, `math.latex` and `math.dvipng` executables, using their standard names when unset. Ghostscript
-remains a check for `gs` on PATH; ImageMagick chooses its own PDF delegate.
+Health checks configured `magick`, PDF metadata/delegate tools when PDF buffer previews
+are enabled, and `math.latex` / `math.dvipng` when formula rendering is enabled.
+Normal optional fallbacks are silent. `:ImageInfo` also works without an active preview;
+it shows runtime state and performs read-only disk-cache inspection explicitly.
 
 Public API: `setup(opts)`, `preview(path, opts)`, `hover(opts)`, `close()`,
 `clear_cache()`, `clear_disk_cache(callback)`, `toggle()`, `status()`, `insert(paths, opts, callback)`,
@@ -629,7 +630,7 @@ Set `insert.clipboard_backend` (or per-call `clipboard_backend`) to `auto`,
 `pngpaste`, `pbctl`, `wl-paste`, `xclip`, or `powershell`. Override executable
 paths with `clipboard_tools = { ["wl-paste"] = "/path/to/wl-paste" }`.
 The legacy `pngpaste` override still selects that reader on macOS. Readers request
-PNG; streamed bytes are bounded by `max_bytes`. `:checkhealth image_tools` and
+PNG; streamed bytes are bounded by `max_bytes`. `:ImageInfo` and
 `status().clipboard` report the selected backend/tool or an availability error.
 Backend protocol tests run with fixtures; native GUI clipboard validation remains
 platform-specific. See [backend commands and native validation](doc/clipboard-backends.md).
@@ -826,7 +827,7 @@ Set `treesitter = false` to always use the Lua scanner. Project roots, custom
 resolvers and file checks remain live. Markdown uses its existing scanner.
 `status().treesitter` reports parse/index timing, index hits, indexed rows and
 fallback reasons (`parser_unavailable`, `query_error`, `parse_error`, `index_error`,
-`error_context`). `:checkhealth image_tools` shows these diagnostics without
+`error_context`). `:ImageInfo` shows these diagnostics without
 starting a parser. Parse timing includes time yielded to the event loop.
 
 Automatic preview and insertion support `tex`, `latex` and `plaintex`. Standard
@@ -1186,5 +1187,12 @@ It loads only the diff service when review opens. Without git-tools, a plain dif
 preview remains available. image-tools owns move validation, cancellation and rollback;
 selection-tools owns picker windows and confirmation.
 
-`:checkhealth image_tools` also reports picker availability and whether image-move
-review can use shared native diffs or its plain fallback, without loading providers.
+Picker and move-review providers are resolved when those workflows are invoked.
+Their absence does not warn in health when the workflows are unused.
+
+## Health and inspection
+
+Health reports actionable failures and a compact result for applicable checks. Disabled,
+optional and not-yet-activated features do not warn solely because they are inactive.
+Inspection does not configure plugins, start services or install dependencies.
+Use `:ImageInfo` for detailed configuration and runtime information.

@@ -116,6 +116,11 @@ function M.clear_disk_cache(callback)
   return runtime():clear_disk_cache(callback)
 end
 
+-- Return configuration without creating a Runtime or attaching handlers.
+function M.configuration()
+  return instance and vim.deepcopy(instance.options) or nil
+end
+
 -- Read current configuration/resource snapshots without implicitly setting up the plugin.
 ---@return ImageToolsRuntimeStatus status Unconfigured snapshots omit service statistics.
 function M.status()
