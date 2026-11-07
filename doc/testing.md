@@ -2,14 +2,17 @@
 
 Run `sh tests/run.sh` from a checkout. Each Lua suite gets a fresh Neovim without
 user configuration; generated files/caches/logs use a disposable directory. The
-runner stops on the first failure and preserves its exit status. See README for
-the optional dependency switches and the distinction between recognition,
+runner continues after independent failures and retains each failed run's logs,
+state and JSON summary. `tests/cases.json` is the executable registration list;
+[the runner guide](../tests/README.md) documents filtering, fixture pins and
+explicit suite selection. See README for optional dependencies and the distinction between recognition,
 window lifecycle, protocol responses and visible pixels.
 
 `tests/core/startup.lua` checks that setup, refresh, diagnostics, cleanup and
 reconfiguration retain deferred modules, and that file canvases and floats
 share the first lazily created pixel pool. Set `IMAGE_TOOLS_LAZY_ROOT` to an
-installed lazy.nvim checkout to run `tests/core/lazy.lua`. It executes the README
+installed lazy.nvim checkout and select `sh tests/run.sh compatibility` to run
+`tests/core/lazy.lua`. It executes the README
 spec in isolated child processes and checks empty/unrelated buffers, document
 filetypes, command/API loading, uppercase image/PDF reads, and actual startup
 file arguments. No plugin installation or user-config writes are needed.
@@ -61,7 +64,7 @@ are available through `tests/bench/upload.lua`; see [performance](performance.md
 | --- | --- |
 | Format (Ubuntu 24.04) | Pinned StyLua over implementation/tests, shell syntax and whitespace |
 | Basic (macOS 15) | Required headless suites and Python PTY protocol scenarios |
-| Integration (macOS 15) | The same suite plus pinned real LaTeX/Typst parsers, LaTeX/Typst compilation and SVG/PDF tools |
+| Integration (macOS 15) | The same suite plus pinned sibling picker/diff workflows, real LaTeX/Typst parsers, compilation and SVG/PDF tools |
 
 GitHub Actions are pinned by commit. `tests/ci/versions.sh` pins Neovim, StyLua,
 the Tree-sitter CLI, both parser revisions. The integration installer
@@ -101,8 +104,13 @@ export PATH="/tmp/image-tools-tree-sitter/node_modules/.bin:$PATH"
 sh tests/ci/install-fixtures.sh /tmp/image-tools-ci-fixtures
 export IMAGE_TOOLS_PARSER_ROOT=/tmp/image-tools-ci-fixtures/runtime
 nvim --headless -u NONE -i NONE --noplugin -l tests/ci/preflight.lua
-sh tests/run.sh
+sh tests/run.sh unit,ui,parsers
 ```
+
+For the required picker/diff workflows, run `python3 tests/run.py fixtures` in an
+isolated checkout with absent sibling directories, then select
+`sh tests/run.sh integration --locked`. Existing development siblings can omit
+`--locked`; their actual revisions and dirty state are recorded in the summary.
 
 Use a new disposable fixture directory after changing pins. The installer refuses
 to replace a checkout at a different revision. Fixture sources, generated parsers

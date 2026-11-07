@@ -1,0 +1,1534 @@
+{
+  "version": 1,
+  "default": [
+    "unit",
+    "ui"
+  ],
+  "defaults": {
+    "IMAGE_TOOLS_ROOT": "{root}"
+  },
+  "cases": [
+    {
+      "name": "runner-contracts",
+      "suite": "unit",
+      "command": [
+        "{python}",
+        "tests/runner_checks.py"
+      ],
+      "files": [
+        "tests/runner_checks.py"
+      ],
+      "timeout": 120
+    },
+    {
+      "name": "setup_contract",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/setup_contract.lua"
+      ],
+      "files": [
+        "tests/setup_contract.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "command_ownership",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/command_ownership.lua"
+      ],
+      "files": [
+        "tests/command_ownership.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/bootstrap",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/bootstrap.lua"
+      ],
+      "files": [
+        "tests/core/bootstrap.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/startup",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/startup.lua"
+      ],
+      "files": [
+        "tests/core/startup.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/regression",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/regression.lua"
+      ],
+      "files": [
+        "tests/core/regression.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/runtime",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/runtime.lua"
+      ],
+      "files": [
+        "tests/core/runtime.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/line_lifecycle",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/line_lifecycle.lua"
+      ],
+      "files": [
+        "tests/core/line_lifecycle.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/preview_diagnostics",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/preview_diagnostics.lua"
+      ],
+      "files": [
+        "tests/core/preview_diagnostics.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/workflow_health",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/workflow_health.lua"
+      ],
+      "files": [
+        "tests/core/workflow_health.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/auto_preview_delay",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/auto_preview_delay.lua"
+      ],
+      "files": [
+        "tests/core/auto_preview_delay.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/cursor_lifecycle",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/cursor_lifecycle.lua"
+      ],
+      "files": [
+        "tests/core/cursor_lifecycle.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/tex_range_lifecycle",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/tex_range_lifecycle.lua"
+      ],
+      "files": [
+        "tests/core/tex_range_lifecycle.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/math_lifecycle",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/math_lifecycle.lua"
+      ],
+      "files": [
+        "tests/core/math_lifecycle.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "core/health",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/health.lua"
+      ],
+      "files": [
+        "tests/core/health.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/disk_cache",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/disk_cache.lua"
+      ],
+      "files": [
+        "tests/media/disk_cache.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/conversion",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/conversion.lua"
+      ],
+      "files": [
+        "tests/media/conversion.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/pdf_fit",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/pdf_fit.lua"
+      ],
+      "files": [
+        "tests/media/pdf_fit.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/prepare",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/prepare.lua"
+      ],
+      "files": [
+        "tests/media/prepare.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/math",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/math.lua"
+      ],
+      "files": [
+        "tests/media/math.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "media/conversion_queue",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/media/conversion_queue.lua"
+      ],
+      "files": [
+        "tests/media/conversion_queue.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "terminal/transfer",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/terminal/transfer.lua"
+      ],
+      "files": [
+        "tests/terminal/transfer.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "terminal/stream",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/terminal/stream.lua"
+      ],
+      "files": [
+        "tests/terminal/stream.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "terminal/pixel_pool",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/terminal/pixel_pool.lua"
+      ],
+      "files": [
+        "tests/terminal/pixel_pool.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/session",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/session.lua"
+      ],
+      "files": [
+        "tests/render/session.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/preview_bounds",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/preview_bounds.lua"
+      ],
+      "files": [
+        "tests/render/preview_bounds.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/float",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/float.lua"
+      ],
+      "files": [
+        "tests/render/float.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/view",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/view.lua"
+      ],
+      "files": [
+        "tests/render/view.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/handoff",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/handoff.lua"
+      ],
+      "files": [
+        "tests/render/handoff.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/insert",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/insert.lua"
+      ],
+      "files": [
+        "tests/workflow/insert.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/template",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/template.lua"
+      ],
+      "files": [
+        "tests/workflow/template.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/process",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/process.lua"
+      ],
+      "files": [
+        "tests/workflow/process.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/file_process",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/file_process.lua"
+      ],
+      "files": [
+        "tests/workflow/file_process.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/naming",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/naming.lua"
+      ],
+      "files": [
+        "tests/workflow/naming.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/insert_mode",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-c",
+        "luafile {root}/tests/workflow/insert_mode.lua"
+      ],
+      "files": [
+        "tests/workflow/insert_mode.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/content",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/content.lua"
+      ],
+      "files": [
+        "tests/workflow/content.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/assets",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/assets.lua"
+      ],
+      "files": [
+        "tests/workflow/assets.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/asset_project",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/asset_project.lua"
+      ],
+      "files": [
+        "tests/workflow/asset_project.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/move",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/move.lua"
+      ],
+      "files": [
+        "tests/workflow/move.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/clipboard",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/clipboard.lua"
+      ],
+      "files": [
+        "tests/workflow/clipboard.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/clipboard_backend",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/clipboard_backend.lua"
+      ],
+      "files": [
+        "tests/workflow/clipboard_backend.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "workflow/review",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/review.lua"
+      ],
+      "files": [
+        "tests/workflow/review.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}",
+        "IMAGE_TOOLS_SELECTION_ROOT": "{root}/../selection-tools.nvim",
+        "IMAGE_TOOLS_GIT_ROOT": "{root}/../git-tools.nvim"
+      },
+      "requires": [
+        "path:$IMAGE_TOOLS_SELECTION_ROOT/lua/selection_tools/init.lua",
+        "path:$IMAGE_TOOLS_GIT_ROOT/lua/git_tools/diff/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "workflow/review-2",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/review.lua"
+      ],
+      "files": [
+        "tests/workflow/review.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}",
+        "IMAGE_TOOLS_SELECTION_ROOT": "{root}/../selection-tools.nvim",
+        "IMAGE_TOOLS_GIT_ROOT": "{root}/../git-tools.nvim"
+      },
+      "requires": [
+        "path:$IMAGE_TOOLS_SELECTION_ROOT/lua/selection_tools/init.lua",
+        "path:$IMAGE_TOOLS_GIT_ROOT/lua/git_tools/diff/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "workflow/selection",
+      "suite": "integration",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/selection.lua"
+      ],
+      "files": [
+        "tests/workflow/selection.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}",
+        "IMAGE_TOOLS_SELECTION_ROOT": "{root}/../selection-tools.nvim",
+        "IMAGE_TOOLS_GIT_ROOT": "{root}/../git-tools.nvim"
+      },
+      "requires": [
+        "path:$IMAGE_TOOLS_SELECTION_ROOT/lua/selection_tools/init.lua",
+        "path:$IMAGE_TOOLS_GIT_ROOT/lua/git_tools/diff/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "workflow/selection_handoff",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/workflow/selection_handoff.lua"
+      ],
+      "files": [
+        "tests/workflow/selection_handoff.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/markdown",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/markdown.lua"
+      ],
+      "files": [
+        "tests/document/markdown.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/generic",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/generic.lua"
+      ],
+      "files": [
+        "tests/document/generic.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/inline",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/inline.lua"
+      ],
+      "files": [
+        "tests/document/inline.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/math",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/math.lua"
+      ],
+      "files": [
+        "tests/document/math.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/formats",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/formats.lua"
+      ],
+      "files": [
+        "tests/document/formats.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/html",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/html.lua"
+      ],
+      "files": [
+        "tests/document/html.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/adapters",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/adapters.lua"
+      ],
+      "files": [
+        "tests/document/adapters.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/syntax_cache",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/syntax_cache.lua"
+      ],
+      "files": [
+        "tests/document/syntax_cache.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/treesitter",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/treesitter.lua"
+      ],
+      "files": [
+        "tests/document/treesitter.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/tex",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/tex.lua"
+      ],
+      "files": [
+        "tests/document/tex.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/tex_multiline",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/tex_multiline.lua"
+      ],
+      "files": [
+        "tests/document/tex_multiline.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "document/typst",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/typst.lua"
+      ],
+      "files": [
+        "tests/document/typst.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/buffer",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/buffer.lua"
+      ],
+      "files": [
+        "tests/render/buffer.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/canvas_bounds",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/canvas_bounds.lua"
+      ],
+      "files": [
+        "tests/render/canvas_bounds.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "render/inline",
+      "suite": "unit",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/render/inline.lua"
+      ],
+      "files": [
+        "tests/render/inline.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 90
+    },
+    {
+      "name": "https/run",
+      "suite": "ui",
+      "command": [
+        "{python}",
+        "{root}/tests/https/run.py"
+      ],
+      "files": [
+        "tests/https/run.py"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 120
+    },
+    {
+      "name": "tui/run",
+      "suite": "ui",
+      "command": [
+        "{python}",
+        "{root}/tests/tui/run.py"
+      ],
+      "files": [
+        "tests/tui/run.py"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "timeout": 240
+    },
+    {
+      "name": "core/lazy",
+      "suite": "compatibility",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/core/lazy.lua"
+      ],
+      "files": [
+        "tests/core/lazy.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "requires": [
+        "env:IMAGE_TOOLS_LAZY_ROOT",
+        "path:$IMAGE_TOOLS_LAZY_ROOT/lua/lazy/init.lua"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "document/async",
+      "suite": "parsers",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/async.lua"
+      ],
+      "files": [
+        "tests/document/async.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "requires": [
+        "env:IMAGE_TOOLS_PARSER_ROOT",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/latex.so",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/typst.so"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "document/incremental",
+      "suite": "parsers",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/incremental.lua"
+      ],
+      "files": [
+        "tests/document/incremental.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "requires": [
+        "env:IMAGE_TOOLS_PARSER_ROOT",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/latex.so",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/typst.so"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "document/tex_multiline_ts",
+      "suite": "parsers",
+      "command": [
+        "{nvim}",
+        "--headless",
+        "-u",
+        "NONE",
+        "-i",
+        "NONE",
+        "--noplugin",
+        "-l",
+        "{root}/tests/document/tex_multiline_ts.lua"
+      ],
+      "files": [
+        "tests/document/tex_multiline_ts.lua"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}"
+      },
+      "requires": [
+        "env:IMAGE_TOOLS_PARSER_ROOT",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/latex.so",
+        "path:$IMAGE_TOOLS_PARSER_ROOT/parser/typst.so"
+      ],
+      "timeout": 90
+    },
+    {
+      "name": "picker-tui",
+      "suite": "integration",
+      "command": [
+        "{python}",
+        "{root}/tests/tui/run.py"
+      ],
+      "files": [
+        "tests/tui/run.py"
+      ],
+      "env": {
+        "IMAGE_TOOLS_TEST_TMP": "{tmp}",
+        "IMAGE_TOOLS_SELECTION_ROOT": "{root}/../selection-tools.nvim",
+        "IMAGE_TOOLS_TUI_PICKER_ONLY": "1"
+      },
+      "requires": [
+        "path:{root}/../selection-tools.nvim/lua/selection_tools/init.lua",
+        "exe:magick",
+        "exe:pdfinfo"
+      ],
+      "timeout": 120
+    }
+  ],
+  "support": {
+    "tests/tui/cursor.lua": "Loaded by tests/render/preview_bounds.lua",
+    "tests/tui/preview.lua": "Loaded by tests/tui/run.py",
+    "tests/tui/math.lua": "Loaded by tests/core/math_lifecycle.lua",
+    "tests/tui/buffer.lua": "Loaded by tests/tui/run.py",
+    "tests/tui/picker.lua": "Loaded by tests/tui/run.py",
+    "tests/tui/inline.lua": "Loaded by tests/tui/run.py",
+    "tests/tui/latex.lua": "Loaded by tests/workflow/template.lua",
+    "tests/media/remote.lua": "Loaded by tests/https/run.py",
+    "tests/run.sh": "Stable shell entry point for tests/run.py"
+  },
+  "manual": {
+    "tests/bench/latency.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/bench/upload.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/bench/startup.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/bench/deduplicate.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/ci/versions.sh": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/ci/install-fixtures.sh": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/ci/preflight.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/manual/kitty_placeholders.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/manual/kitty_placeholders.py": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation",
+    "tests/manual/clipboard_native.lua": "Explicit fixture installation, benchmark or manual acceptance tool; see testing documentation"
+  },
+  "fixtures": {
+    "git-tools.nvim": {
+      "repository": "Jacky-Lzx/git-tools.nvim",
+      "revision": "29a9db7c77f25800d7c4d21483ea8da0e5b064eb",
+      "path": "{root}/../git-tools.nvim"
+    },
+    "selection-tools.nvim": {
+      "repository": "Jacky-Lzx/selection-tools.nvim",
+      "revision": "1dff1fa0efa8614e784e457c79eefd2d257ba312",
+      "path": "{root}/../selection-tools.nvim"
+    }
+  }
+}

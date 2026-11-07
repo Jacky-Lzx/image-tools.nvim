@@ -1198,3 +1198,5 @@ Inspection does not configure plugins, start services or install dependencies.
 Use `:ImageInfo` for detailed configuration and runtime information.
 
 `ImageInfo` keeps human-readable diagnostics literal and marks the inspected runtime/cache section as Lua using optional notification spans. The report remains readable with the default Neovim notifier.
+
+[Test workflow](tests/README.md): registered suites, filtering, required fixtures and retained failure evidence.

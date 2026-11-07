@@ -14,6 +14,7 @@ import select
 import shutil
 import struct
 import subprocess
+import sys
 import tempfile
 import termios
 import time
@@ -276,6 +277,16 @@ def run_case(mode, reject_file=False, evict=False, picker=False, picker_pdf=Fals
 
 
 test_rgb_colors()
+
+# The integration registry selects this explicit subset; the standalone suite
+# never discovers sibling checkouts merely because they happen to exist.
+if os.environ.get("IMAGE_TOOLS_TUI_PICKER_ONLY") == "1":
+    assert os.environ.get("IMAGE_TOOLS_SELECTION_ROOT"), "Set IMAGE_TOOLS_SELECTION_ROOT"
+    run_case("auto", picker=True)
+    run_case("auto", picker=True, picker_pdf=True)
+    run_case("direct", picker=True, picker_pdf=True)
+    print("image-tools picker TUI: required real selection, PDF uploads and protocol replies passed")
+    sys.exit(0)
 
 run_case("auto")
 run_case("direct")

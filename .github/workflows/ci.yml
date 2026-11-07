@@ -76,6 +76,7 @@ jobs:
       - name: Build pinned integration fixtures
         if: matrix.suite == 'integration'
         run: |
+          python3 tests/run.py fixtures
           sh tests/ci/install-fixtures.sh "$RUNNER_TEMP/image-tools-fixtures"
           echo "IMAGE_TOOLS_PARSER_ROOT=$RUNNER_TEMP/image-tools-fixtures/runtime" >> "$GITHUB_ENV"
       - name: Record environment
@@ -97,7 +98,13 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          sh tests/run.sh 2>&1 | tee artifacts/tests.log
+          suites=unit,ui
+          locked=
+          if [ "${{ matrix.suite }}" = integration ]; then
+            suites=unit,ui,integration,parsers
+            locked=--locked
+          fi
+          python3 tests/run.py "$suites" $locked --output artifacts/run 2>&1 | tee artifacts/tests.log
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
