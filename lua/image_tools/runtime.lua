@@ -657,12 +657,21 @@ end
 
 -- Toggle automatic reference preview, close current work and refresh when newly enabled.
 ---@return boolean enabled
-function Runtime:toggle()
-  self.options.auto_preview = not self.options.auto_preview
+function Runtime:set_auto_preview(enabled)
+  if self.options.auto_preview == enabled then
+    return enabled
+  end
+  self.options.auto_preview = enabled
   self:close()
   if self.options.auto_preview then
     self:refresh()
   end
+  return self.options.auto_preview
+end
+
+-- Describe the active viewer without starting media work or populating caches.
+function Runtime:toggle()
+  self:set_auto_preview(not self.options.auto_preview)
   vim.notify(
     "Automatic image preview " .. (self.options.auto_preview and "enabled" or "disabled"),
     vim.log.levels.INFO,
@@ -671,7 +680,6 @@ function Runtime:toggle()
   return self.options.auto_preview
 end
 
--- Describe the active viewer without starting media work or populating caches.
 function Runtime:info()
   local buffer = self.buffers:status()
   local state = self.preview and self.preview.state

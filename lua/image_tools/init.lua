@@ -224,6 +224,11 @@ end
 
 -- Toggle automatic reference preview, close current work and refresh when newly enabled.
 ---@return boolean enabled
+function M.set_auto_preview(enabled)
+  assert(type(enabled) == "boolean", "image-tools: automatic preview state must be boolean")
+  return runtime():set_auto_preview(enabled)
+end
+
 function M.toggle()
   return runtime():toggle()
 end

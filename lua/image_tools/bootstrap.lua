@@ -148,15 +148,19 @@ function M.enabled()
   end
   return automatic
 end
-function M.toggle()
+function M.set_auto_preview(enabled)
+  assert(type(enabled) == "boolean", "image-tools: automatic preview state must be boolean")
   local image = loaded()
-  automatic = image and image.toggle() or not automatic
+  automatic = image and image.set_auto_preview(enabled) or enabled
   if automatic and not image then
     for _, buf in ipairs(api.nvim_list_bufs()) do
       watch(buf)
     end
   end
   return automatic
+end
+function M.toggle()
+  return M.set_auto_preview(not M.enabled())
 end
 function M.configured()
   generation = generation + 1
