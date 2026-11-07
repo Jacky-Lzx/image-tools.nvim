@@ -62,3 +62,6 @@ compatibility adapters still require their documented environment paths.
 The canonical runner copies live in `plugin-tools.nvim/tests/`. Maintainers can
 run `python3 scripts/sync-test-runner.py --check` there to detect drift, or use
 `--write` to refresh sibling copies without changing their case manifests.
+
+Image CI archives the complete per-case result tree in `run.tar.gz` before uploading
+artifacts, preserving unusual filename fixtures that GitHub artifact paths cannot represent.

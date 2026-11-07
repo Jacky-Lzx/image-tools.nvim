@@ -1522,12 +1522,12 @@
   "fixtures": {
     "git-tools.nvim": {
       "repository": "Jacky-Lzx/git-tools.nvim",
-      "revision": "29a9db7c77f25800d7c4d21483ea8da0e5b064eb",
+      "revision": "59b948876e7df430b9b405ec72aa0a7bfbe5f06a",
       "path": "{root}/../git-tools.nvim"
     },
     "selection-tools.nvim": {
       "repository": "Jacky-Lzx/selection-tools.nvim",
-      "revision": "1dff1fa0efa8614e784e457c79eefd2d257ba312",
+      "revision": "b18d217b0aaa9bec2d83e95c7625ebece427066b",
       "path": "{root}/../selection-tools.nvim"
     }
   }

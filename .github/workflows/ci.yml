@@ -56,7 +56,7 @@ jobs:
           neovim: true
           version: ${{ steps.versions.outputs.neovim }}
       - name: Install media dependencies
-        run: brew install imagemagick ghostscript poppler librsvg
+        run: brew install imagemagick ghostscript poppler librsvg ripgrep
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         if: matrix.suite == 'integration'
         with:
@@ -105,9 +105,18 @@ jobs:
             locked=--locked
           fi
           python3 tests/run.py "$suites" $locked --output artifacts/run 2>&1 | tee artifacts/tests.log
+      - name: Archive test fixtures with portable artifact paths
+        if: always()
+        run: |
+          if [ -d artifacts/run ]; then
+            tar -czf artifacts/run.tar.gz -C artifacts run
+          fi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: macos-${{ matrix.suite }}-logs
-          path: artifacts/
+          path: |
+            artifacts/environment.txt
+            artifacts/tests.log
+            artifacts/run.tar.gz
           if-no-files-found: ignore
