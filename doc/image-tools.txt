@@ -1,18 +1,51 @@
-*image-tools.txt*  Independent image previews for Neovim
+*image-tools.txt*	Image and PDF previews using the Kitty graphics protocol.
 
-REQUIREMENTS                                               *image-tools*
+==============================================================================
+CONTENTS                                                         *image-tools*
 
-Neovim 0.12+, termguicolors, and Kitty 0.28+ in a direct terminal session.
-PNG needs no converter. Other raster formats and PDF require ImageMagick;
-PDF conversion also needs Ghostscript. SVG uses rsvg-convert if available,
+  Quick start         |image-tools-quickstart|
+  Commands            |image-tools-commands|
+  Options             |image-tools-options|
+  Lua API             |image-tools-api|
+  Lifecycle           |image-tools-lifecycle|
+  Troubleshooting     |image-tools-troubleshooting|
+
+==============================================================================
+QUICK START                                           *image-tools-quickstart*
+
+Requires Neovim 0.12+. Requires termguicolors and a direct Kitty 0.28+
+session. Raster conversion needs ImageMagick; PDF needs Ghostscript and
+pdfinfo. Other terminals and multiplexers are unsupported.
+
+>lua
+    require("image_tools").setup({})
+<
+
+The example above selects a small working setup. Full defaults, options and
+feature contracts are documented in this reference. Public installation and
+package-manager examples are in README.md.
+
+==============================================================================
+TROUBLESHOOTING                                  *image-tools-troubleshooting*
+
+Check the minimum Neovim version and feature dependencies first. Run
+:checkhealth image_tools to inspect availability. Global mappings shown in the
+README are configuration examples unless explicitly documented as plugin
+defaults. Keep one owner for each overridden UI or mapping.
+
+REQUIREMENTS
+
+Neovim 0.12+, termguicolors, and Kitty 0.28+ in a direct terminal session. PNG
+needs no converter. Other raster formats and PDF require ImageMagick; PDF
+conversion also needs Ghostscript. SVG uses rsvg-convert if available,
 otherwise ImageMagick's MSVG renderer. PDF file buffers and embedded panes
 (including image pickers) also need Poppler's pdfinfo for metadata.
-Floating/picker previews use the first page.
-Formulas need latex, dvipng and amsmath/amssymb (TeX Live/MacTeX); they do not
-require ImageMagick or Ghostscript.
-Multiplexers (TMUX/ZELLIJ) are rejected. Other terminals, SSH and GUI frontends
-have not been validated. force=true bypasses only terminal-name detection, not
-the Neovim version, attached UI, termguicolors or multiplexer checks.
+Floating/picker previews use the first page. Formulas need latex, dvipng and
+amsmath/amssymb (TeX Live/MacTeX); they do not require ImageMagick or
+Ghostscript. Multiplexers (TMUX/ZELLIJ) are rejected. Other terminals, SSH and
+GUI frontends have not been validated. force=true bypasses only terminal-name
+detection, not the Neovim version, attached UI, termguicolors or multiplexer
+checks.
 
 SETUP                                                      *image-tools-setup*
 >
@@ -53,27 +86,28 @@ SETUP                                                      *image-tools-setup*
     force = false,
   })
 <
-Merely requiring the module does not register handlers or mappings.
-Disable Snacks.image to avoid competing image handlers and mappings.
-For lazy.nvim, use the README spec with ft, cmd and BufReadCmd patterns. This
-also handles startup image/PDF files; include custom adapter filetypes and
-buffer.formats in those triggers. lazy=false is still supported. Setup keeps
-file interception ready but defers floating-preview and terminal-pixel services
+Merely requiring the module does not register handlers or mappings. Disable
+Snacks.image to avoid competing image handlers and mappings. For lazy.nvim,
+use the README spec with ft, cmd and BufReadCmd patterns. This also handles
+startup image/PDF files; include custom adapter filetypes and buffer.formats
+in those triggers. lazy=false is still supported. Setup keeps file
+interception ready but defers floating-preview and terminal-pixel services
 until the first view. Supplied insertion options are validated during setup.
-The default cache is stdpath("cache") .. "/image-tools".
-position = "bottom_right" anchors the float to the editor's bottom-right corner,
-above the command line and status line. "cursor" places it near the cursor.
-When the loaded ui-tools.nvim scrollbar is enabled, image/formula previews leave
-its rightmost column free, including the preview border. The space remains
+The default cache is stdpath("cache") .. "/image-tools". position =
+"bottom_right" anchors the float to the editor's bottom-right corner, above
+the command line and status line. "cursor" places it near the cursor. When the
+loaded ui-tools.nvim scrollbar is enabled, image/formula previews leave its
+rightmost column free, including the preview border. The space remains
 reserved while the scrollbar is temporarily hidden or waiting to refresh.
 right_padding sets the minimum space to the right of image/formula previews in
 terminal columns, for either position. For example, right_padding = 2 reserves
 two columns for another scrollbar or other UI elements. It includes automatic
-scrollbar space: the larger reservation wins; the two are not added. Default: 0.
-Must be a non-negative integer. In very narrow editors padding shrinks to keep
-room for the preview and its border.
+scrollbar space: the larger reservation wins; the two are not added. Default:
+0. Must be a non-negative integer. In very narrow editors padding shrinks to
+keep room for the preview and its border.
 
-COMMANDS                                                   *:ImagePreview*
+COMMANDS                                                *image-tools-commands*
+                                                               *:ImagePreview*
 
 :ImagePreview [path]    Preview a file, image reference or Markdown formula.
                        Outside references, preview the first covering item.
@@ -81,258 +115,269 @@ COMMANDS                                                   *:ImagePreview*
                        Explicit relative paths use cwd; Markdown paths use
                        the document directory or configured root.
 
-:ImagePreviewClose                                         *:ImagePreviewClose*
-                       Close the float and cancel pending work. Uploaded pixels
+:ImagePreviewClose                                        *:ImagePreviewClose*
+                       Close the float and cancel pending work. Uploaded
+                           pixels
                        remain in the bounded terminal cache for reuse.
 
-:ImagePreviewClearCache                                    *:ImagePreviewClearCache*
+:ImagePreviewClearCache                              *:ImagePreviewClearCache*
                        Close floating, picker and file-buffer views and free
                        all image-tools terminal images. File buffers remain
                        attached; buffer/tab entry, resume, opening or reload
                        resumes their canvases.
 
-:ImageCacheClear                                           *:ImageCacheClear*
+:ImageCacheClear                                            *:ImageCacheClear*
                        Delete unused converted disk images, preserving files
                        held by active preparation handles.
 
-:ImagePreviewToggle                                        *:ImagePreviewToggle*
+:ImagePreviewToggle                                      *:ImagePreviewToggle*
                        Toggle automatic current-line preview.
 
 :checkhealth image_tools
                        Check the terminal and image conversion tools.
 
-API                                                        *image-tools-api*
+API                                                          *image-tools-api*
 
 setup(opts)            Configure the plugin; repeated setup replaces handlers.
 preview(path, opts)    Preview a file. opts.silent suppresses notifications.
-hover(opts)            Preview the image/formula under the cursor, falling back
-                       to the first item covering the current line.
+hover(opts)            Preview the image/formula under the cursor, falling
+back to the first item covering the current line.
 close()                Close preview; safe to call repeatedly.
 clear_cache()          Close preview and release all owned terminal images.
-clear_disk_cache(cb)   Clear unused disk conversions asynchronously; cb receives
-                       a status table (removed, protected, files, bytes, error).
+clear_disk_cache(cb)   Clear unused disk conversions asynchronously; cb
+receives a status table (removed, protected, files, bytes, error).
 toggle()               Toggle automatic preview; returns its new state.
 toggle_inline()        Toggle Markdown virtual-line rendering; return enabled.
-status()               Return configured, auto_preview, path, window, transport
-                       and terminal_cache statistics, plus buffer state,
-                       disk_cache settings/path, conversion_queue, media and
-                       treesitter diagnostics when configured.
-                       conversion_queue includes queued_interactive and
-                       queued_background counts.
-insert(paths, opts, cb) Import/reference one path or a batch; returns cancellation.
-                       With nil paths, prompt for a file.
+status()               Return configured, auto_preview, path, window,
+transport and terminal_cache statistics, plus buffer state, disk_cache
+settings/path, conversion_queue, media and treesitter diagnostics when
+configured. conversion_queue includes queued_interactive and queued_background
+counts. insert(paths, opts, cb) Import/reference one path or a batch; returns
+cancellation. With nil paths, prompt for a file.
 paste(opts, cb)         Paste a clipboard image; returns cancellation.
-pick(opts, cb)          Open selection-tools; returns a picker or nil on failure.
+pick(opts, cb)          Open selection-tools; returns a picker or nil on
+failure.
 open(path)             Open an image/PDF file buffer; returns ok, error.
 page(n)                Select a PDF page; reject out-of-range values.
-next_page(delta)       Move by delta (default 1); clamp to the first/last page.
+next_page(delta)       Move by delta (default 1); clamp to the first/last
+page.
 reload()               Reload the current image/PDF buffer and metadata.
-move(source, dest, opts, cb) Review an image move and project reference updates.
-localize(opts, cb)      Download the selected HTTPS image and replace its path.
+move(source, dest, opts, cb) Review an image move and project reference
+updates. localize(opts, cb)      Download the selected HTTPS image and replace
+its path.
 
-See README.md for resource limits, caching and custom path resolution.
-Before setup, status() returns configured=false, auto_preview=false and
+See README.md for resource limits, caching and custom path resolution. Before
+setup, status() returns configured=false, auto_preview=false and
 transport="auto". Calling it does not initialize the plugin.
 
-Conversions/clipboard normalization and import hashes share convert_concurrency.
-Waiting interactive work takes priority, with FIFO ordering within each class.
-While hashes wait, at most three interactive jobs start before one hash job.
-Running processes are never preempted; cancelled workers keep their slots until exit.
+Conversions/clipboard normalization and import hashes share
+convert_concurrency. Waiting interactive work takes priority, with FIFO
+ordering within each class. While hashes wait, at most three interactive jobs
+start before one hash job. Running processes are never preempted; cancelled
+workers keep their slots until exit.
 
-Automatic preview follows cursor lines. The cursor need not be inside the image
-link. The reference under the cursor takes priority; outside all references,
-the first image on the row is used. Errors in a selected destination do not
-fall back to another image. Moving to another image changes the preview;
-movement within the same reference, Insert mode and edits that preserve its
-source keep the window and pending conversion. Markdown/Typst references cover
-one row for images; LaTeX image references and Markdown formulas may
-cover several. Leaving that row range closes the
-preview and entering another image row starts a new one.
+Automatic preview follows cursor lines. The cursor need not be inside the
+image link. The reference under the cursor takes priority; outside all
+references, the first image on the row is used. Errors in a selected
+destination do not fall back to another image. Moving to another image changes
+the preview; movement within the same reference, Insert mode and edits that
+preserve its source keep the window and pending conversion. Markdown/Typst
+references cover one row for images; LaTeX image references and Markdown
+formulas may cover several. Leaving that row range closes the preview and
+entering another image row starts a new one.
 
-TRANSPORT                                                  *image-tools-transport*
+TRANSPORT                                              *image-tools-transport*
 
 "auto" tries Kitty t=f file transmission locally and t=d direct data when
-SSH_CONNECTION or SSH_TTY is nonempty. A file failure/timeout falls back to direct
-data. "file" forces files and reports failures; "direct" forces inline data.
-terminal_timeout (default 1500 ms) bounds each upload/placement response wait.
-Direct encoding/sending yields after at most 96 KiB of raw bytes. Plugin graphics
-commands cannot interleave between image chunks. Cancellation aborts the partial
-upload before the queue resumes. Response timeouts start on sending, after the
-last chunk for direct uploads; time waiting in this send queue is excluded.
-PNG source bytes are retained during transfer without full-image Base64 copies.
-Shared memory is not implemented; real SSH/other terminals remain unvalidated.
+SSH_CONNECTION or SSH_TTY is nonempty. A file failure/timeout falls back to
+direct data. "file" forces files and reports failures; "direct" forces inline
+data. terminal_timeout (default 1500 ms) bounds each upload/placement response
+wait. Direct encoding/sending yields after at most 96 KiB of raw bytes. Plugin
+graphics commands cannot interleave between image chunks. Cancellation aborts
+the partial upload before the queue resumes. Response timeouts start on
+sending, after the last chunk for direct uploads; time waiting in this send
+queue is excluded. PNG source bytes are retained during transfer without
+full-image Base64 copies. Shared memory is not implemented; real SSH/other
+terminals remain unvalidated.
 
 Terminal cache keys include path, inode, size and nanosecond mtime/ctime.
 Reopening only sends a placement request. If Kitty has evicted the data, it is
 uploaded again when no other view still owns it. Otherwise the affected view
-reports an error; reload to retry. Inactive entries use LRU eviction, with default
-limits of 32 images and 64 MiB estimated decoded RGBA bytes. Oversized images
-are not retained.
-max_images = 0 disables retention. Setup, suspend and exit release owned images.
+reports an error; reload to retry. Inactive entries use LRU eviction, with
+default limits of 32 images and 64 MiB estimated decoded RGBA bytes. Oversized
+images are not retained. max_images = 0 disables retention. Setup, suspend and
+exit release owned images.
 
 SCOPE                                                      *image-tools-scope*
 
-PNG, JPG, JPEG, WebP, AVIF, HEIC, GIF (first frame), BMP, TIF/TIFF, PDF and SVG
+PNG, JPG, JPEG, WebP, AVIF, HEIC, GIF (first frame), BMP, TIF/TIFF, PDF and
+SVG
 previews. Converted previews normally fit within 1920x1080 at default zoom;
 PDF file buffers and embedded panes rasterize for viewport pixels. Native PNG
-dimensions are preserved and validated against max_dimension/max_pixels. Floating previews
-do not upscale; picker and file-buffer previews can upscale to fit their pane.
-Complete same-line Markdown inline images, angle-bracket destinations, quoted
-titles, escaped punctuation and percent-encoded paths. Code blocks/spans are
-excluded. LaTeX, Typst, independent insertion, clipboard paste, selection-tools
-picker integration and read-only image/PDF file buffers are supported below.
-HTTPS images are optional; see |image-tools-https|. Multiline Markdown image
-calls are unsupported. Standalone Markdown inline display is optional; see
-|image-tools-inline|.
-Formula floating previews are described below.
-Insertion has no dependency on image-insert.nvim.
+dimensions are preserved and validated against max_dimension/max_pixels.
+Floating previews do not upscale; picker and file-buffer previews can upscale
+to fit their pane. Complete same-line Markdown inline images, angle-bracket
+destinations, quoted titles, escaped punctuation and percent-encoded paths.
+Code blocks/spans are excluded. LaTeX, Typst, independent insertion, clipboard
+paste, selection-tools picker integration and read-only image/PDF file buffers
+are supported below. HTTPS images are optional; see |image-tools-https|.
+Multiline Markdown image calls are unsupported. Standalone Markdown inline
+display is optional; see |image-tools-inline|. Formula floating previews are
+described below. Insertion has no dependency on image-insert.nvim.
 
-DISK CACHE                                                *image-tools-disk-cache*
+DISK CACHE                                            *image-tools-disk-cache*
 
-Converted PNGs are stored under cache (default stdpath("cache") .. "/image-tools").
-Automatic asynchronous eviction defaults to 256 files / 512 MiB. Active handles
-pin files and may temporarily exceed these limits. disk_cache.enabled=false
-disables automatic eviction; :ImageCacheClear still removes unused conversions.
-Cleanup considers only 64-hex-digit names with supported image extensions
-(converted PNGs and downloaded originals) directly in that directory; other
-files, symlinks and conversion temporaries are excluded. Access order is tracked
-in memory, with modification times providing the initial order after restart.
-Disk conversions are independent of the terminal pixel cache.
+Converted PNGs are stored under cache (default stdpath("cache") ..
+"/image-tools"). Automatic asynchronous eviction defaults to 256 files / 512
+MiB. Active handles pin files and may temporarily exceed these limits.
+disk_cache.enabled=false disables automatic eviction; :ImageCacheClear still
+removes unused conversions. Cleanup considers only 64-hex-digit names with
+supported image extensions (converted PNGs and downloaded originals) directly
+in that directory; other files, symlinks and conversion temporaries are
+excluded. Access order is tracked in memory, with modification times providing
+the initial order after restart. Disk conversions are independent of the
+terminal pixel cache.
 
 INSERTION                                                 *image-tools-insert*
 
-:ImageInsert [path]                                          *:ImageInsert*
-Copies a file into insert.directory (default Figures beside the saved document)
-and adds a relative reference. :ImageInsert! references it without
+:ImageInsert [path]                                             *:ImageInsert*
+Copies a file into insert.directory (default Figures beside the saved
+document) and adds a relative reference. :ImageInsert! references it without
 copying. With no path, opens selection-tools file search with image previews
-and multi-selection. Files already inside the configured image directory or its subdirectories
-are referenced directly, including picker selections in copy mode. They keep their
-filenames and skip filename prompts, regardless of the deduplicate setting.
-insert(path_or_paths, opts, callback) returns a cancel function. opts:
-directory, root, mode (copy/reference), filename, alt, prompt_for_file_name and
-insert_strategy (insert_before/insert_after/insert_line_before/insert_line_after).
-The source buffer and extmark insertion position survive asynchronous prompts.
-Collisions add suffixes without overwriting. Failure/cancellation removes newly
-imported files; text undo retains them for reuse. A batch is inserted as one edit.
-The document must be saved and modifiable. Unloading/deleting or renaming it,
+and multi-selection. Files already inside the configured image directory or
+its subdirectories are referenced directly, including picker selections in
+copy mode. They keep their filenames and skip filename prompts, regardless of
+the deduplicate setting. insert(path_or_paths, opts, callback) returns a
+cancel function. opts: directory, root, mode (copy/reference), filename, alt,
+prompt_for_file_name and insert_strategy
+(insert_before/insert_after/insert_line_before/insert_line_after). The source
+buffer and extmark insertion position survive asynchronous prompts. Collisions
+add suffixes without overwriting. Failure/cancellation removes newly imported
+files; text undo retains them for reuse. A batch is inserted as one edit. The
+document must be saved and modifiable. Unloading/deleting or renaming it,
 changing its filetype, or disabling modifiable invalidates a pending import;
-readonly alone does not block insertion. File imports preserve bytes and format
-unless processing presets are enabled; see |image-tools-file-process|.
-Successful insertion, paste and picker confirmation enter Insert mode at the first
-inserted image: inside Markdown's ![|](path) description (before existing alt text),
-inside LaTeX's caption, or after the reference in Typst. If another window or
-document is current when asynchronous insertion finishes, its focus, cursor and
-mode are preserved.
+readonly alone does not block insertion. File imports preserve bytes and
+format unless processing presets are enabled; see |image-tools-file-process|.
+Successful insertion, paste and picker confirmation enter Insert mode at the
+first inserted image: inside Markdown's ![|](path) description (before
+existing alt text), inside LaTeX's caption, or after the reference in Typst.
+If another window or document is current when asynchronous insertion finishes,
+its focus, cursor and mode are preserved.
 
-Document adapters:
-register_adapter(filetype, definition) registers/replaces a custom adapter and
-returns an unregister function. unregister_adapter(filetype) removes the current
-custom adapter; built-ins are protected. Definitions require image_formats (list)
-and markup (string template or function returning text, optional byte offset).
-Optional hooks: find, references, insertion_base, sanitize_filename,
-validate_reference, path_edit. file_extensions enables project discovery when references is
-provided. Registration is copied and survives setup; old cleanup functions cannot
-remove newer registrations. Replacement/removal invalidates pending imports.
-Markup-only inspection reports an enumeration error. See doc/adapters.md.
-HTML supports same-line literal img src attributes, comments/raw-element exclusion,
-entity decoding, escaped insertion and alt-text editing. No srcset, dynamic
-bindings, multiline tags or DOM evaluation. HTTPS sources require remote.enabled.
+Document adapters: register_adapter(filetype, definition) registers/replaces a
+custom adapter and returns an unregister function.
+unregister_adapter(filetype) removes the current custom adapter; built-ins are
+protected. Definitions require image_formats (list) and markup (string
+template or function returning text, optional byte offset). Optional hooks:
+find, references, insertion_base, sanitize_filename, validate_reference,
+path_edit. file_extensions enables project discovery when references is
+provided. Registration is copied and survives setup; old cleanup functions
+cannot remove newer registrations. Replacement/removal invalidates pending
+imports. Markup-only inspection reports an enumeration error. See
+doc/adapters.md. HTML supports same-line literal img src attributes,
+comments/raw-element exclusion, entity decoding, escaped insertion and
+alt-text editing. No srcset, dynamic bindings, multiline tags or DOM
+evaluation. HTTPS sources require remote.enabled.
 
-Naming rules:
-insert.file_name / per-call file_name accepts an os.date pattern or function.
-filename takes precedence. Functions get document, document_name, filetype, kind
-(file/clipboard), extension, timestamp, plus source/source_name for file copies.
-Time is captured before prompts/menus. Return a single basename; the real extension
-is retained. Default: clipboard timestamp, original filename for imports. Reference
-mode and already-imported assets do not rename. Invalid names/errors roll back the batch; collisions and
+Naming rules: insert.file_name / per-call file_name accepts an os.date pattern
+or function. filename takes precedence. Functions get document, document_name,
+filetype, kind (file/clipboard), extension, timestamp, plus source/source_name
+for file copies. Time is captured before prompts/menus. Return a single
+basename; the real extension is retained. Default: clipboard timestamp,
+original filename for imports. Reference mode and already-imported assets do
+not rename. Invalid names/errors roll back the batch; collisions and
 deduplication use the existing import rules.
 
-Custom templates:
-insert.template (or per-call template) accepts a string, function or filetype
-table; missing entries use built-ins, and tex entries cover latex/plaintex.
-template=false selects the built-in. String placeholders: $FILE_PATH, $FILE_NAME,
-$FILE_NAME_NO_EXT, $LABEL, $ALT, $CURSOR. At most one $CURSOR is allowed; absent
-means edit after the template. Multiline Lua padding is trimmed. Functions get
-file_path, file_name, file_name_no_ext, label, alt, filetype, document and cursor;
-return a string with ctx.cursor at the editing target. Values are literal/raw;
-escape paths/alt for your target syntax. Errors roll back imported files.
+Custom templates: insert.template (or per-call template) accepts a string,
+function or filetype table; missing entries use built-ins, and tex entries
+cover latex/plaintex. template=false selects the built-in. String
+placeholders: $FILE_PATH, $FILE_NAME, $FILE_NAME_NO_EXT, $LABEL, $ALT,
+$CURSOR. At most one $CURSOR is allowed; absent means edit after the template.
+Multiline Lua padding is trimmed. Functions get file_path, file_name,
+file_name_no_ext, label, alt, filetype, document and cursor; return a string
+with ctx.cursor at the editing target. Values are literal/raw; escape
+paths/alt for your target syntax. Errors roll back imported files.
 
-:ImagePaste                                                  *:ImagePaste*
-Reads PNG images with automatic platform selection: pngpaste then pbctl (macOS),
-wl-paste for Wayland or xclip for X11 (Linux), powershell.exe (Windows/WSL).
-paste(opts, callback) accepts the insertion options plus format (png/jpg/webp/avif)
-and quality (default 75). Markdown defaults to AVIF and requires ImageMagick;
-LaTeX/Typst default to PNG without conversion. Filenames use local paste time:
-YYYY-MM-DD_HH-MM-SS plus the output extension (e.g. 2026-04-28_16-21-17.avif/.png).
-Same-second collisions add numeric suffixes; filename and prompt_for_file_name
-override the generated name. format="png" preserves the reader's PNG without
-conversion. Explicit format overrides must be supported by the document;
-LaTeX/Typst do not accept AVIF.
-Clipboard resources are always copied. Empty clipboard, missing tools and failed
-conversion cause no insertion; cancellation kills subprocesses and cleans temp files.
-The read timeout defaults to 5000 ms (per-call clipboard_timeout); conversion
-uses convert_timeout. clipboard_backend selects auto/pngpaste/pbctl/wl-paste/
-xclip/powershell; clipboard_tools maps backend names to executable paths.
-The legacy pngpaste override remains supported. Streamed PNG output is bounded
-by max_bytes. status().clipboard and checkhealth report backend availability.
+:ImagePaste                                                      *:ImagePaste*
+Reads PNG images with automatic platform selection: pngpaste then pbctl
+(macOS), wl-paste for Wayland or xclip for X11 (Linux), powershell.exe
+(Windows/WSL). paste(opts, callback) accepts the insertion options plus format
+(png/jpg/webp/avif) and quality (default 75). Markdown defaults to AVIF and
+requires ImageMagick; LaTeX/Typst default to PNG without conversion. Filenames
+use local paste time: YYYY-MM-DD_HH-MM-SS plus the output extension (e.g.
+2026-04-28_16-21-17.avif/.png). Same-second collisions add numeric suffixes;
+filename and prompt_for_file_name override the generated name. format="png"
+preserves the reader's PNG without conversion. Explicit format overrides must
+be supported by the document; LaTeX/Typst do not accept AVIF. Clipboard
+resources are always copied. Empty clipboard, missing tools and failed
+conversion cause no insertion; cancellation kills subprocesses and cleans temp
+files. The read timeout defaults to 5000 ms (per-call clipboard_timeout);
+conversion uses convert_timeout. clipboard_backend selects
+auto/pngpaste/pbctl/wl-paste/ xclip/powershell; clipboard_tools maps backend
+names to executable paths. The legacy pngpaste override remains supported.
+Streamed PNG output is bounded by max_bytes. status().clipboard and
+checkhealth report backend availability.
 
-Processing presets:
-insert.process / per-call process accepts a preset or list. process="select"
-opens built-in PNG/AVIF/JPEG/WebP presets, filtered by the original document's
-supported formats. Presets accept name, format, quality, resize geometry, command.
-One compatible preset runs directly. command is argv with $INPUT and $OUTPUT,
-for example {"magick", "$INPUT", "-resize", "800x800>", "$OUTPUT"}; select the
-matching format. No shell is used. Cancellation, timeout and queue limits apply.
-process=false bypasses configured processing menus.
+Processing presets: insert.process / per-call process accepts a preset or
+list. process="select" opens built-in PNG/AVIF/JPEG/WebP presets, filtered by
+the original document's supported formats. Presets accept name, format,
+quality, resize geometry, command. One compatible preset runs directly.
+command is argv with $INPUT and $OUTPUT, for example {"magick", "$INPUT",
+"-resize", "800x800>", "$OUTPUT"}; select the matching format. No shell is
+used. Cancellation, timeout and queue limits apply. process=false bypasses
+configured processing menus.
 
 PICKER                                                    *image-tools-picker*
 
-:ImagePick                                                   *:ImagePick*
-pick(opts, callback) requires selection-tools.nvim and ripgrep for format globs.
-opts.insert overrides insertion defaults; opts.picker overrides selection-tools
-files() options. ft optionally restricts supported extensions (case-insensitive).
-Images render through the public embedded API in the existing preview pane.
-Confirmation closes the picker, then imports marked/current files in source
-order at the original document extmark. Cancellation releases the context without
-importing or changing the document. The capture is single-use; resume is disabled.
-Processing-enabled copy pickers also offer convertible source formats. Resize
-reuses uploaded pixels; changing/closing selections releases only their views.
-Set IMAGE_TOOLS_SELECTION_ROOT for real chooser integration and TUI tests.
+:ImagePick                                                        *:ImagePick*
+pick(opts, callback) requires selection-tools.nvim and ripgrep for format
+globs. opts.insert overrides insertion defaults; opts.picker overrides
+selection-tools files() options. ft optionally restricts supported extensions
+(case-insensitive). Images render through the public embedded API in the
+existing preview pane. Confirmation closes the picker, then imports
+marked/current files in source order at the original document extmark.
+Cancellation releases the context without importing or changing the document.
+The capture is single-use; resume is disabled. Processing-enabled copy pickers
+also offer convertible source formats. Resize reuses uploaded pixels;
+changing/closing selections releases only their views. Set
+IMAGE_TOOLS_SELECTION_ROOT for real chooser integration and TUI tests.
 
-Other preview hosts may use the public render() API. There is no Snacks adapter.
+Other preview hosts may use the public render() API. There is no Snacks
+adapter.
 
-LATEX                                                     *image-tools-latex*
+LATEX                                                      *image-tools-latex*
 
 LaTeX and Typst use Neovim's Tree-sitter buffer parser by default. Install the
 latex/typst language parsers; nvim-treesitter is not a required dependency.
 Missing parsers, incompatible queries, parsing failures or syntax errors in
-preceding context fall back to the cached Lua scanner. Valid empty results do not
-fall back. Set treesitter=false to always use the scanner.
-Parses may yield asynchronously; pending work does not start a
-lexical scan. Completion requires the same buffer/window/byte column/text version;
-row movement inside the same pending LaTeX range is allowed. Root parsing may
-cover the whole document; capture traversal advances through the requested row.
-LaTeX argument decoding can look ahead within its limits and max_scan_lines.
-Edits and parser change ranges invalidate the affected suffix, retaining valid
-prefixes.
-Path resolution stays live. status().treesitter and :checkhealth image_tools
-report backend/fallback reasons, parse/index timing, hits and indexed rows.
-Parse timing includes time yielded to the event loop.
-Markdown uses its existing scanner. Formulas use a separate bounded Lua scanner.
+preceding context fall back to the cached Lua scanner. Valid empty results do
+not fall back. Set treesitter=false to always use the scanner. Parses may
+yield asynchronously; pending work does not start a lexical scan. Completion
+requires the same buffer/window/byte column/text version; row movement inside
+the same pending LaTeX range is allowed. Root parsing may cover the whole
+document; capture traversal advances through the requested row. LaTeX argument
+decoding can look ahead within its limits and max_scan_lines. Edits and parser
+change ranges invalidate the affected suffix, retaining valid prefixes. Path
+resolution stays live. status().treesitter and :checkhealth image_tools report
+backend/fallback reasons, parse/index timing, hits and indexed rows. Parse
+timing includes time yielded to the event loop. Markdown uses its existing
+scanner. Formulas use a separate bounded Lua scanner.
 
 tex/latex/plaintex: literal \includegraphics[options]{path}, starred form,
 \detokenize paths, single-line literal \graphicspath declarations, and omitted
-PDF/PNG/JPG/JPEG extensions. Comments, \verb and verbatim/lstlisting/minted/comment
-environments are excluded. Commands and optional arguments can span lines; filename contents
-must stay on one line. Macros are not expanded. Any row covered by a complete
-reference (including commented option rows) can preview it; movement within that
-range retains the window/conversion, and leaving closes it.
-latex.max_reference_lines (64) / max_reference_bytes (16 KiB) bound each reference;
-lookahead also respects max_scan_lines. Both Tree-sitter and Lua fallback support
-these ranges. Editing any covered row invalidates the full reference. Unclosed,
-oversized references and filenames split over lines are not guessed.
-Resolution: configured root (string/function), b:vimtex.root, document directory.
-Insertion requires graphicx and uses image-insert.nvim's default figure template:
+PDF/PNG/JPG/JPEG extensions. Comments, \verb and
+verbatim/lstlisting/minted/comment environments are excluded. Commands and
+optional arguments can span lines; filename contents must stay on one line.
+Macros are not expanded. Any row covered by a complete reference (including
+commented option rows) can preview it; movement within that range retains the
+window/conversion, and leaving closes it. latex.max_reference_lines (64) /
+max_reference_bytes (16 KiB) bound each reference; lookahead also respects
+max_scan_lines. Both Tree-sitter and Lua fallback support these ranges.
+Editing any covered row invalidates the full reference. Unclosed, oversized
+references and filenames split over lines are not guessed. Resolution:
+configured root (string/function), b:vimtex.root, document directory.
+Insertion requires graphicx and uses image-insert.nvim's default figure
+template:
 >
   \begin{figure}[ht]
     \centering
@@ -341,215 +386,232 @@ Insertion requires graphicx and uses image-insert.nvim's default figure template
     \label{fig:my-plot}
   \end{figure}
 <
-The cursor enters the empty caption in Insert mode. Labels use the final filename
-without its extension, lowercased with whitespace replaced by hyphens. This
-template applies to tex/latex/plaintex, file insertion, paste and picker imports.
-Imports accept PNG/JPEG/PDF and sanitize TeX-special filename characters. Unsafe
-reference/directory paths fail and roll back. PDF preview uses the first page;
-file buffers support paging. ImageMagick must have Ghostscript support.
+The cursor enters the empty caption in Insert mode. Labels use the final
+filename without its extension, lowercased with whitespace replaced by
+hyphens. This template applies to tex/latex/plaintex, file insertion, paste
+and picker imports. Imports accept PNG/JPEG/PDF and sanitize TeX-special
+filename characters. Unsafe reference/directory paths fail and roll back. PDF
+preview uses the first page; file buffers support paging. ImageMagick must
+have Ghostscript support.
 
-FORMULAS                                                  *image-tools-math*
+FORMULAS                                                    *image-tools-math*
 
-Markdown supports $...$, $$...$$, \(...\), \[...\]
-and math/displaymath/equation/align/alignat/gather/multline/flalign/eqnarray
+Markdown supports $...$, $$...$$, \(...\), \[...\] and
+math/displaymath/equation/align/alignat/gather/multline/flalign/eqnarray
 environments, including valid starred variants. Complete expressions may span
-lines. Markdown code blocks, matched backtick spans, HTML comments and <code>/<pre>
+lines. Markdown code blocks, matched backtick spans, HTML comments and
+<code>/<pre>
 contents are skipped. Backtick spans can cross lines within a paragraph and
-max_scan_lines; unmatched runs remain literal text. Single
-Markdown dollars require non-whitespace inside each delimiter; the closing dollar
-cannot precede a digit. Unclosed or oversized expressions are ignored.
+max_scan_lines; unmatched runs remain literal text. Single Markdown dollars
+require non-whitespace inside each delimiter; the closing dollar cannot
+precede a digit. Unclosed or oversized expressions are ignored.
 
 Automatic preview and :ImagePreview use the same floating window, selection,
-delay, range and cancellation rules as images. :ImageInfo reports format="math"
-and errors; :ImageReload reloads the selected formula. Source text is preserved.
-math.enabled=false disables recognition. Asset checks list image files only.
+delay, range and cancellation rules as images. :ImageInfo reports
+format="math" and errors; :ImageReload reloads the selected formula. Source
+text is preserved. math.enabled=false disables recognition. Asset checks list
+image files only.
 
 latex compiles a standalone article snippet with math.preamble, then dvipng
 creates a tightly cropped transparent PNG. The default preamble loads amsmath
-and amssymb. Document preambles, macros and equation counters are not inherited;
-configure additional packages/macros explicitly in math.preamble. No project
-compilation is performed. Shell escape is disabled, TeX file access is restricted,
-and temporary workspaces are private and cleaned on completion/cancellation.
+and amssymb. Document preambles, macros and equation counters are not
+inherited; configure additional packages/macros explicitly in math.preamble.
+No project compilation is performed. Shell escape is disabled, TeX file access
+is restricted, and temporary workspaces are private and cleaned on
+completion/cancellation.
 
 math.latex/math.dvipng select executables. math.density defaults to 360 DPI.
-Display sizing uses a fixed 180-DPI baseline: higher density improves detail at
-the same preview size. Values such as 540 or 720 increase sampling and resource
-usage. Density changes automatically select a fresh cache entry.
+Display sizing uses a fixed 180-DPI baseline: higher density improves detail
+at the same preview size. Values such as 540 or 720 increase sampling and
+resource usage. Density changes automatically select a fresh cache entry.
 math.foreground is "auto" (Normal foreground, with light/dark fallback) or
-"#RRGGBB". math.max_lines=64 / max_bytes=16384 bound each formula; lookahead also
-respects max_scan_lines. Compilers share convert_concurrency; convert_timeout
-bounds each process. Existing PNG size/dimension limits apply. Source, preamble,
-tools, DPI and resolved color determine disk keys. Identical formulas reuse
-conversion and terminal pixels. :ImageCacheClear removes unused formula PNGs.
-Missing tools and invalid TeX appear in :ImageInfo or manual :ImagePreview;
+"#RRGGBB". math.max_lines=64 / max_bytes=16384 bound each formula; lookahead
+also respects max_scan_lines. Compilers share convert_concurrency;
+convert_timeout bounds each process. Existing PNG size/dimension limits apply.
+Source, preamble, tools, DPI and resolved color determine disk keys. Identical
+formulas reuse conversion and terminal pixels. :ImageCacheClear removes unused
+formula PNGs. Missing tools and invalid TeX appear in :ImageInfo or manual
+:ImagePreview;
 :checkhealth image_tools checks both configured executables.
 
 See examples/math.md for interactive examples. LaTeX document formulas belong
 to tex-tools.nvim: enable formula_preview and use :TexToolsFormulaPreview and
 :TexToolsFormulaInfo. LaTeX image references remain supported here.
 
-TYPST                                                     *image-tools-typst*
+TYPST                                                      *image-tools-typst*
 
-Literal same-line #image("path", ...) and image("path", ...) in code, including
-inside multiline #figure bodies. Code strings, raw text and nested comments are
-excluded. Dynamic paths and multiline image calls are not evaluated.
-Relative paths resolve beside the document; /paths use the configured project root
-(or document directory). Configure root to match typst compile --root.
-Insertion uses document-relative paths and width: 100%; PNG/JPEG/GIF/WebP/SVG/PDF
-imports are supported. PDF embedding requires a supporting Typst version (0.15.1
-tested). Outside-project direct references fail: copy or configure root instead.
-SVG preview prefers rsvg-convert (rsvg option), then ImageMagick's internal MSVG
-renderer. Complex SVG rendering may differ with MSVG. Originals are unchanged.
+Literal same-line #image("path", ...) and image("path", ...) in code,
+including inside multiline #figure bodies. Code strings, raw text and nested
+comments are excluded. Dynamic paths and multiline image calls are not
+evaluated. Relative paths resolve beside the document; /paths use the
+configured project root (or document directory). Configure root to match typst
+compile --root. Insertion uses document-relative paths and width: 100%;
+PNG/JPEG/GIF/WebP/SVG/PDF imports are supported. PDF embedding requires a
+supporting Typst version (0.15.1 tested). Outside-project direct references
+fail: copy or configure root instead. SVG preview prefers rsvg-convert (rsvg
+option), then ImageMagick's internal MSVG renderer. Complex SVG rendering may
+differ with MSVG. Originals are unchanged.
 
-
-FILE BUFFERS                                              *image-tools-buffers*
+FILE BUFFERS                                             *image-tools-buffers*
 
 buffer.enabled (true by default) installs BufReadCmd for common binary images
 and PDFs. Use lazy=false to register before startup files are read.
-:ImageOpen path                                               *:ImageOpen*
-Opens an explicit file viewer (including SVG). Normal :edit SVG
-stays editable unless svg is added to buffer.formats. Automatic takeover skips
-already loaded modified buffers. Original files stay unchanged; viewers use
-readonly, nonmodifiable nofile buffers and cannot write placeholder text to disk.
-A nonfocusable Kitty canvas belongs to each regular window, aligned top-left
-beneath a filename/page header. Splits, resizing, tab switching and closing are
-handled independently. Exiting/suspending frees images and cancels requests.
-PDF page selection is shared by splits showing the same buffer; placements and
-viewport sizes remain independent.
+:ImageOpen path                                                   *:ImageOpen*
+Opens an explicit file viewer (including SVG). Normal :edit SVG stays editable
+unless svg is added to buffer.formats. Automatic takeover skips already loaded
+modified buffers. Original files stay unchanged; viewers use readonly,
+nonmodifiable nofile buffers and cannot write placeholder text to disk. A
+nonfocusable Kitty canvas belongs to each regular window, aligned top-left
+beneath a filename/page header. Splits, resizing, tab switching and closing
+are handled independently. Exiting/suspending frees images and cancels
+requests. PDF page selection is shared by splits showing the same buffer;
+placements and viewport sizes remain independent.
 
-PDF buffers require magick with Ghostscript plus pdfinfo (brew install poppler).
-]p / [p: next/previous PDF page (counts supported).
-:ImagePage N: go to a page; reject out-of-range values.        *:ImagePage*
-:ImageNextPage: move forward (counts supported).             *:ImageNextPage*
-:ImagePreviousPage: move backward (counts supported).         *:ImagePreviousPage*
+PDF buffers require magick with Ghostscript plus pdfinfo (brew install
+poppler). ]p / [p: next/previous PDF page (counts supported).
+:ImagePage N: go to a page; reject out-of-range values.           *:ImagePage*
+:ImageNextPage: move forward (counts supported).              *:ImageNextPage*
+:ImagePreviousPage: move backward (counts supported).     *:ImagePreviousPage*
 Relative movement clamps to the first/last page.
-r / :ImageReload: reread the file and metadata.               *:ImageReload*
-PDF fit/numeric zoom rasterizes for measured viewport pixels (cell_size fallback),
-with detail proportional to zoom. Targets use 64-pixel buckets, obey dimension/
-pixel budgets and update on resize. Native mode uses pdf_density=144 by default.
-Converted/uploaded pages are cached separately.
+r / :ImageReload: reread the file and metadata.                 *:ImageReload*
+PDF fit/numeric zoom rasterizes for measured viewport pixels (cell_size
+fallback), with detail proportional to zoom. Targets use 64-pixel buckets,
+obey dimension/ pixel budgets and update on resize. Native mode uses
+pdf_density=144 by default. Converted/uploaded pages are cached separately.
 File changes are checked on buffer/window/focus events; r forces a refresh.
-Failures (missing tools, corrupt/oversized files, unsupported terminals) display
-readable errors in the file buffer. buffer.enabled=false disables automatic
-interception; :ImageOpen still works. buffer.formats controls automatic extensions.
+Failures (missing tools, corrupt/oversized files, unsupported terminals)
+display readable errors in the file buffer. buffer.enabled=false disables
+automatic interception; :ImageOpen still works. buffer.formats controls
+automatic extensions.
 
 API: open(path), page(n), next_page(delta), reload(), status().buffer.
 
-Converter and import hash processes share a priority queue controlled by convert_concurrency
-(default 2). Queued cancellation does not spawn a process; running cancellation
-holds its slot until exit. PNG reads and cache hits bypass the queue.
-status().conversion_queue reports active and queued processes.
+Converter and import hash processes share a priority queue controlled by
+convert_concurrency (default 2). Queued cancellation does not spawn a process;
+running cancellation holds its slot until exit. PNG reads and cache hits
+bypass the queue. status().conversion_queue reports active and queued
+processes.
 
-Inline, floating, picker and file-buffer previews share terminal pixel data per runtime.
-Each view has an independent virtual placement id and size. Closing a view
-releases only its placement; terminal_cache limits apply to the shared pool.
-Cache statistics are runtime-wide; placements counts active acknowledged views.
-Setup replacement and explicit clearing free all shared terminal pixels.
+Inline, floating, picker and file-buffer previews share terminal pixel data
+per runtime. Each view has an independent virtual placement id and size.
+Closing a view releases only its placement; terminal_cache limits apply to the
+shared pool. Cache statistics are runtime-wide; placements counts active
+acknowledged views. Setup replacement and explicit clearing free all shared
+terminal pixels.
 
-DEVELOPMENT                                               *image-tools-development*
+DEVELOPMENT                                          *image-tools-development*
 
-GitHub Actions runs formatting, basic and complete integration jobs. Tool/parser
-pins live in tests/ci/versions.sh; install-fixtures.sh builds disposable
-integration fixtures, and preflight.lua rejects missing promised dependencies.
-Logs record actual environment versions. See doc/testing.md for local reproduction
-and a real Kitty rendering acceptance guide. CI's PTY responder proves protocol
-behavior, not visible pixels; native clipboard validation is still manual.
+GitHub Actions runs formatting, basic and complete integration jobs.
+Tool/parser pins live in tests/ci/versions.sh; install-fixtures.sh builds
+disposable integration fixtures, and preflight.lua rejects missing promised
+dependencies. Logs record actual environment versions. See doc/testing.md for
+local reproduction and a real Kitty rendering acceptance guide. CI's PTY
+responder proves protocol behavior, not visible pixels; native clipboard
+validation is still manual.
 
-Run sh tests/run.sh. Its commented groups cover API/lifecycle, media/transport,
-insertion/picker, document scanners/parsers, file buffers and PTY/TUI tests.
-Suites are grouped under tests/core, document, media, render, terminal and
-workflow. Shared assets and demo.md live under tests/fixtures. tests/tui/run.py
-launches the TUI Lua scenarios; run python3 -u tests/tui/run.py to isolate them.
-Each Lua test uses a fresh Neovim process without user config or plugin autoloading.
-Temporary fixtures, caches and logs are removed on exit; the first failure stops
-the run. Status labels use cyan [run], yellow [skip], green [done] and red [fail].
-Redirected output, unset/dumb TERM, or NO_COLOR disables colors.
+Run sh tests/run.sh. Its commented groups cover API/lifecycle,
+media/transport, insertion/picker, document scanners/parsers, file buffers and
+PTY/TUI tests. Suites are grouped under tests/core, document, media, render,
+terminal and workflow. Shared assets and demo.md live under tests/fixtures.
+tests/tui/run.py launches the TUI Lua scenarios; run python3 -u
+tests/tui/run.py to isolate them. Each Lua test uses a fresh Neovim process
+without user config or plugin autoloading. Temporary fixtures, caches and logs
+are removed on exit; the first failure stops the run. Status labels use cyan
+[run], yellow [skip], green [done] and red [fail]. Redirected output,
+unset/dumb TERM, or NO_COLOR disables colors.
 
 The suite requires Neovim and magick with Ghostscript for PDF conversion.
 IMAGE_TOOLS_PARSER_ROOT enables dedicated latex/typst parser suites;
-IMAGE_TOOLS_SELECTION_ROOT enables picker, move review and asset UI checks. Compiler checks run only when
-pdflatex/typst are available; Python 3 enables Unix PTY tests with a simulated
-Kitty responder. Successful runs can contain skips; check the reported coverage.
-RGB checks accept semicolon/colon SGR and verify foreground image selection.
-Placeholders emit no underline decoration or special-color placement selector.
-Visible pixels still need a real Kitty check. tests/manual/clipboard_native.lua
-is a separate opt-in test with a prepared system clipboard; the runner uses
-fake clipboard tools and an explicit suite list that excludes manual tests.
+IMAGE_TOOLS_SELECTION_ROOT enables picker, move review and asset UI checks.
+Compiler checks run only when pdflatex/typst are available; Python 3 enables
+Unix PTY tests with a simulated Kitty responder. Successful runs can contain
+skips; check the reported coverage. RGB checks accept semicolon/colon SGR and
+verify foreground image selection. Placeholders emit no underline decoration
+or special-color placement selector. Visible pixels still need a real Kitty
+check. tests/manual/clipboard_native.lua is a separate opt-in test with a
+prepared system clipboard; the runner uses fake clipboard tools and an
+explicit suite list that excludes manual tests.
 
- vim:tw=78:ts=8:ft=help:norl:
-
-Floating previews check source versions on focus gain and cursor idle, including
-external rewrites and removal. `:ImageReload` / `reload()` refresh the current file
-viewer, or the floating preview when called from its owning document. Unchanged
-sources retain their placements; superseded asynchronous results are discarded.
+Floating previews check source versions on focus gain and cursor idle,
+including external rewrites and removal. `:ImageReload` / `reload()` refresh
+the current file viewer, or the floating preview when called from its owning
+document. Unchanged sources retain their placements; superseded asynchronous
+results are discarded.
 
 Markdown reference images: ![alt][id], ![id][], ![id]. Definitions may follow
-uses and must be complete on one line, within max_scan_lines. Labels ignore case
-and collapse whitespace; the first definition outside code wins. Image wikilinks
-![[path.png|label]] use literal document-relative paths, without vault search.
+uses and must be complete on one line, within max_scan_lines. Labels ignore
+case and collapse whitespace; the first definition outside code wins. Image
+wikilinks ![[path.png|label]] use literal document-relative paths, without
+vault search.
 
 Image/PDF viewer controls: `+` / `-` zoom by a factor of two, `0` fits the
-window, `1` uses native prepared-pixel scale, and arrow keys pan by five terminal
-cells (counts supported). `:ImageZoom fit|native|in|out|FACTOR`, `zoom(value)`,
-`:ImagePan X Y` and `pan(x, y)` expose the same controls. Numeric zoom is relative
-to fit and ranges from 0.125 to 8. Zoom resets pan; pan clamps to image edges.
-Each visible split retains independent controls across resize/reload/page changes;
-leaving its buffer resets that window's controls. Cropped placements reuse uploaded
-pixels. PDF fit/numeric zoom prepares viewport-sized rasters with detail proportional
-to zoom; other converted formats scale their output bounds. Source/output limits
-and the existing conversion queue still apply. Native scale refers to the prepared
+window, `1` uses native prepared-pixel scale, and arrow keys pan by five
+terminal cells (counts supported). `:ImageZoom fit|native|in|out|FACTOR`,
+`zoom(value)`, `:ImagePan X Y` and `pan(x, y)` expose the same controls.
+Numeric zoom is relative to fit and ranges from 0.125 to 8. Zoom resets pan;
+pan clamps to image edges. Each visible split retains independent controls
+across resize/reload/page changes; leaving its buffer resets that window's
+controls. Cropped placements reuse uploaded pixels. PDF fit/numeric zoom
+prepares viewport-sized rasters with detail proportional to zoom; other
+converted formats scale their output bounds. Source/output limits and the
+existing conversion queue still apply. Native scale refers to the prepared
 raster, using configured PDF density for PDFs. Original files are unchanged.
 
-Set `insert.deduplicate = true` (default false), or pass `deduplicate = true` to
-insertion/paste, to reuse byte-identical files with the same extension in the
-configured destination directory. Reuse takes precedence over the requested
-filename; the directory is not searched recursively. Reads/hashing are bounded
-by max_bytes; symlinks are excluded. Cancellation or failed insertion removes
-only files created by that transaction, preserving reused files.
+Set `insert.deduplicate = true` (default false), or pass `deduplicate = true`
+to insertion/paste, to reuse byte-identical files with the same extension in
+the configured destination directory. Reuse takes precedence over the
+requested filename; the directory is not searched recursively. Reads/hashing
+are bounded by max_bytes; symlinks are excluded. Cancellation or failed
+insertion removes only files created by that transaction, preserving reused
+files.
 
 Hashes run in isolated headless Neovim workers without extra tools or user
-configuration. Workers share convert_concurrency and time out after 10 seconds.
-A 128-entry in-memory LRU stores digests by live file revision; changed files
-are rehashed. Concurrent requests share one worker until the last subscriber
-cancels. File bytes/encoding/hashing stay outside the editor process. Each
-worker still holds bounded file data; cold hashes include process startup.
+configuration. Workers share convert_concurrency and time out after 10
+seconds. A 128-entry in-memory LRU stores digests by live file revision;
+changed files are rehashed. Concurrent requests share one worker until the
+last subscriber cancels. File bytes/encoding/hashing stay outside the editor
+process. Each worker still holds bounded file data; cold hashes include
+process startup.
 
-`:ImageCheckAssets` opens a selection-tools browser over its quickfix report of
-missing references and possibly
-unused image files in the current document's import directory. It supports
-Markdown, LaTeX and Typst literal references, with the same syntax exclusions and
-max_scan_lines limit as preview. A truncated scan is marked in the report.
-"Possibly unused" only means unused in this document: shared resources may be
-referenced elsewhere. Directory inspection is nonrecursive and excludes symlinks.
-No files are deleted. `check_assets(opts, callback)` returns a cancel function;
-the callback receives `(error, report)` with `missing`, `unreferenced`, `directory`,
-`document`, `scanned` and `truncated`. Edits/rename/unload reject stale inspection.
+`:ImageCheckAssets` opens a selection-tools browser over its quickfix report
+of missing references and possibly unused image files in the current
+document's import directory. It supports Markdown, LaTeX and Typst literal
+references, with the same syntax exclusions and max_scan_lines limit as
+preview. A truncated scan is marked in the report. "Possibly unused" only
+means unused in this document: shared resources may be referenced elsewhere.
+Directory inspection is nonrecursive and excludes symlinks. No files are
+deleted. `check_assets(opts, callback)` returns a cancel function; the
+callback receives `(error, report)` with `missing`, `unreferenced`,
+`directory`, `document`, `scanned` and `truncated`. Edits/rename/unload reject
+stale inspection.
 
-PROJECT ASSET INSPECTION                         *image-tools-project-assets*
+PROJECT ASSET INSPECTION                          *image-tools-project-assets*
 
-:ImageCheckAssets! [directory] recursively checks project documents and the union
-of their configured import directories. The default root is the nearest .git
-ancestor or the current document directory. Supported extensions: md, markdown,
-tex, ltx, typ. API: check_assets({scope="project", project_root="/project"}, cb).
-Reports include scope, project_root, documents, warnings and references (canonical
-image path -> list of filename/lnum/col locations). Document reports also include
-scope and references. Shared images are unused only if no scanned document refers
-to them. No files are deleted or rewritten.
+:ImageCheckAssets! [directory] recursively checks project documents and the
+union of their configured import directories. The default root is the nearest
+.git ancestor or the current document directory. Supported extensions: md,
+markdown, tex, ltx, typ. API: check_assets({scope="project",
+project_root="/project"}, cb). Reports include scope, project_root, documents,
+warnings and references (canonical image path -> list of filename/lnum/col
+locations). Document reports also include scope and references. Shared images
+are unused only if no scanned document refers to them. No files are deleted or
+rewritten.
 
-Loaded buffers contribute unsaved text. Offline documents use temporary unnamed
-buffers; focus and existing buffers are preserved. Live edits/rename/unload and
-disk-document changes reject stale reports. Cancellation releases scratch buffers.
-Adapters share Lua reference enumeration, including code/comment exclusions.
-Offline LaTeX has no master-document VimTeX state; use root/resolve as needed.
+Loaded buffers contribute unsaved text. Offline documents use temporary
+unnamed buffers; focus and existing buffers are preserved. Live
+edits/rename/unload and disk-document changes reject stale reports.
+Cancellation releases scratch buffers. Adapters share Lua reference
+enumeration, including code/comment exclusions. Offline LaTeX has no
+master-document VimTeX state; use root/resolve as needed.
 
 assets.max_entries defaults to 10000 per recursive traversal;
 assets.max_document_bytes defaults to 2097152 per offline document.
-max_scan_lines applies per document. Truncation/unreadable or oversized documents
-produce warnings and mark results incomplete. assets.exclude_dirs defaults to
-{ ".git", ".hg", ".svn", "node_modules", ".venv", "vendor", "build", ".cache" }.
-Exclusions match directory names; symlinks are skipped.
+max_scan_lines applies per document. Truncation/unreadable or oversized
+documents produce warnings and mark results incomplete. assets.exclude_dirs
+defaults to { ".git", ".hg", ".svn", "node_modules", ".venv", "vendor",
+"build", ".cache" }. Exclusions match directory names; symlinks are skipped.
 
-VIEWER KEYMAPS                                         *image-tools-keymaps*
+VIEWER KEYMAPS                                           *image-tools-keymaps*
 
 Configure buffer.keymaps by action; unspecified actions keep default keys. Set
 an action to false, or the whole keymaps option to false, to disable mappings.
@@ -557,168 +619,184 @@ Existing user buffer-local mappings take precedence; reconfiguration removes
 only still-owned plugin mappings.
 
 Actions/defaults: reload=r, info=i, zoom_in=+, zoom_out=-, fit=0, native=1,
-pan_left=<Left>, pan_right=<Right>, pan_up=<Up>, pan_down=<Down>, next_page=]p,
-previous_page=[p. The page actions are PDF-only. Commands remain available.
+pan_left=<Left>, pan_right=<Right>, pan_up=<Up>, pan_down=<Down>,
+next_page=]p, previous_page=[p. The page actions are PDF-only. Commands remain
+available.
 
-:ImageInfo                                                    *:ImageInfo*
+:ImageInfo                                                        *:ImageInfo*
     Show source path/format/bytes, prepared raster dimensions, readiness, PDF
-    bounds, zoom, terminal-cache counters and disk-cache directory. info() returns
-    the same metadata plus crop; absent dimensions are pending. No conversion is
-    started. stage is preparing, placing (waiting for terminal acknowledgement),
+    bounds, zoom, terminal-cache counters and disk-cache directory. info()
+        returns
+    the same metadata plus crop; absent dimensions are pending. No conversion
+        is
+    started. stage is preparing, placing (waiting for terminal
+        acknowledgement),
     ready or failed. Without an active viewer, the most recent failed floating
-    request is returned with last_error=true, error and error_stage. Diagnostics
+    request is returned with last_error=true, error and error_stage.
+        Diagnostics
     survive close and retain no image resources; setup resets them. Without a
     viewer or retained failure, info() returns nil and an error.
     timings contains millisecond measurements for lookup/automatic delay,
-    preparation, queue/conversion, transfer, upload/placement, drawing and total
+    preparation, queue/conversion, transfer, upload/placement, drawing and
+        total
     measured time, when available. Preparation includes queue/conversion;
-    transfer includes upload/placement. These fields overlap. Pending outer-stage
-    times grow; ready/failed times freeze. Shared converter times are clipped to
+    transfer includes upload/placement. These fields overlap. Pending
+        outer-stage
+    times grow; ready/failed times freeze. Shared converter times are clipped
+        to
     this view's lifetime; shared uploads count only this view's wait. Total
     excludes asynchronous parser wait and file-viewer PDF metadata discovery.
-    These measurements end at protocol replies/drawing, not visible GPU pixels.
+    These measurements end at protocol replies/drawing, not visible GPU
+        pixels.
 
-auto_preview_delay defaults to 100 milliseconds before preparing a new automatic
-selection. Moving to a different source replaces the waiting request; leaving a
-reference, closing, clearing caches or replacing setup cancels it. Same-source
-movement/edits retain the timer and already-started conversion. Manual preview()
-and hover() bypass this delay. Set to 0 for immediate automatic preparation.
+auto_preview_delay defaults to 100 milliseconds before preparing a new
+automatic selection. Moving to a different source replaces the waiting
+request; leaving a reference, closing, clearing caches or replacing setup
+cancels it. Same-source movement/edits retain the timer and already-started
+conversion. Manual preview() and hover() bypass this delay. Set to 0 for
+immediate automatic preparation.
 
 preview_loading_delay defaults to 300 milliseconds. Pending floating previews
-show a line-end loading hint after this delay; success, failure or cancellation
-removes it. Set to 0 to disable hints. Automatic failures remain silent.
+show a line-end loading hint after this delay; success, failure or
+cancellation removes it. Set to 0 to disable hints. Automatic failures remain
+silent.
 
-Configured magick, pdfinfo, rsvg and clipboard backend executables are checked by
-checkhealth. The Ghostscript hint checks gs on PATH; ImageMagick selects its own
-PDF delegate.
+Configured magick, pdfinfo, rsvg and clipboard backend executables are checked
+by checkhealth. The Ghostscript hint checks gs on PATH; ImageMagick selects
+its own PDF delegate.
 
-:ImageZoom                                                    *:ImageZoom*
-:ImagePan                                                      *:ImagePan*
-:ImageCheckAssets                                      *:ImageCheckAssets*
+:ImageZoom                                                        *:ImageZoom*
+:ImagePan                                                          *:ImagePan*
+:ImageCheckAssets                                          *:ImageCheckAssets*
     See the viewer and asset-check usage above.
 
-EMBEDDED RENDERING                                  *image-tools-render*
+EMBEDDED RENDERING                                        *image-tools-render*
 
 image_tools.supports(path) checks supported extensions without setup.
 image_tools.float({path,display_size?,title?,is_valid?,on_error?,on_close?})
-    Display a producer-owned local image in an independent nonfocusable float.
-    Returns a handle with close(), resize() and status(), or nil,error. status()
-    reports window, stage, closed and error. The producer keeps
-    the image file available until on_close(). is_valid() controls selection
-    authority; unrelated source edits and movement need not close the float.
-    display_size={width,height} specifies positive finite logical pixel sizes,
-    independent of raster resolution. Layout inherits setup; position,
-    right_padding, max_width, max_height and border may be overridden per call.
-    Owner leave/closure and runtime cleanup release the handle. Image-tools
-    handles resizing and scrollbar space. Callbacks must not throw.
+Display a producer-owned local image in an independent nonfocusable float.
+Returns a handle with close(), resize() and status(), or nil,error. status()
+reports window, stage, closed and error. The producer keeps the image file
+available until on_close(). is_valid() controls selection authority; unrelated
+source edits and movement need not close the float.
+display_size={width,height} specifies positive finite logical pixel sizes,
+independent of raster resolution. Layout inherits setup; position,
+right_padding, max_width, max_height and border may be overridden per call.
+Owner leave/closure and runtime cleanup release the handle. Image-tools
+handles resizing and scrollbar space. Callbacks must not throw.
 
 image_tools.render({path,buf,win,previous?,is_valid?,paint?,on_error?,page?,upscale?,display_size?,render_scale?,fit_pixels?})
 returns view or nil,error. buf must be a caller-owned nofile scratch buffer
 already displayed in win. The renderer creates no windows or picker callbacks.
-view:retain() freezes a ready grid/lease, or cancels a pending request and returns
-its retained predecessor. Supply this handle as previous=... in the next render
-request for an acknowledged, atomic replacement. Abandoning the request must
-close the retained handle. Frozen views cannot repaint old selections.
-view:resize() adapts geometry using shared uploaded pixels; view:close() is
-idempotent and releases only this view's sessions, leases and placeholders.
-Window options are temporarily made minimal and restored when still owned.
-Buffer/window closure, cache cleanup and setup/reconfiguration close views.
+view:retain() freezes a ready grid/lease, or cancels a pending request and
+returns its retained predecessor. Supply this handle as previous=... in the
+next render request for an acknowledged, atomic replacement. Abandoning the
+request must close the retained handle. Frozen views cannot repaint old
+selections. view:resize() adapts geometry using shared uploaded pixels;
+view:close() is idempotent and releases only this view's sessions, leases and
+placeholders. Window options are temporarily made minimal and restored when
+still owned. Buffer/window closure, cache cleanup and setup/reconfiguration
+close views.
 
-is_valid() guards host selection/generation authority. paint(draw), if supplied,
-must execute draw() synchronously on the main thread, encompassing line writes
-and extmarks; returning false rejects a stale draw. on_error(message) receives
-asynchronous failures after cleanup. PDF page is optional; upscale defaults true.
-render_scale is an optional finite detail multiplier from 1 to 8, scoped to the
-view and retained on resize. Scale 2 raises the default converted output box to
-3840x2160 and fixed-DPI PDF density to 288 DPI without enlarging the fitted pane.
-Source aspect ratio and configured pixel/dimension limits still apply. Native PNGs are
-unchanged; conversions at different scales have independent cache identities.
-PDFs default to fit_pixels=true, replacing fixed DPI with viewport rasterization.
-This includes image import pickers and third-party embedded panes.
-Measured terminal cell pixels (or configured cell_size) are multiplied by
-render_scale. Targets are rounded to 64-pixel buckets and constrained by pixel
-and dimension limits. Shrinking reuses existing pixels; growing upgrades them,
-including growth during preparation. fit_pixels=false selects fixed-DPI mode,
-which uses pdf_density.
-Pixel-fit targets have separate cache identities from fixed-DPI conversions.
-Pixel-fit mode requires pdfinfo (Poppler) for selected-page dimensions/rotation;
-metadata is cached by source version and page, with cancellation guards.
+is_valid() guards host selection/generation authority. paint(draw), if
+supplied, must execute draw() synchronously on the main thread, encompassing
+line writes and extmarks; returning false rejects a stale draw.
+on_error(message) receives asynchronous failures after cleanup. PDF page is
+optional; upscale defaults true. render_scale is an optional finite detail
+multiplier from 1 to 8, scoped to the view and retained on resize. Scale 2
+raises the default converted output box to 3840x2160 and fixed-DPI PDF density
+to 288 DPI without enlarging the fitted pane. Source aspect ratio and
+configured pixel/dimension limits still apply. Native PNGs are unchanged;
+conversions at different scales have independent cache identities. PDFs
+default to fit_pixels=true, replacing fixed DPI with viewport rasterization.
+This includes image import pickers and third-party embedded panes. Measured
+terminal cell pixels (or configured cell_size) are multiplied by render_scale.
+Targets are rounded to 64-pixel buckets and constrained by pixel and dimension
+limits. Shrinking reuses existing pixels; growing upgrades them, including
+growth during preparation. fit_pixels=false selects fixed-DPI mode, which uses
+pdf_density. Pixel-fit targets have separate cache identities from fixed-DPI
+conversions. Pixel-fit mode requires pdfinfo (Poppler) for selected-page
+dimensions/rotation; metadata is cached by source version and page, with
+cancellation guards.
 
+IMAGE MOVES                                                 *image-tools-move*
 
-vim:tw=78:ts=8:noet:ft=help:norl:
-
-IMAGE MOVES                                               *image-tools-move*
-
-:ImageMove destination                                      *:ImageMove*
+:ImageMove destination                                            *:ImageMove*
 Move/rename the selected local image and update recognized project references.
 Destination is relative to cwd; spaces are literal. Preserve the extension.
-Selection-tools previews one diff per changed document. Enter opens an explicit
-Apply move/Cancel choice; Escape cancels without changes. Descriptions,
-titles, labels and document options survive. Shared definitions are changed once.
-API: move(source, destination, opts, callback), returning cancellation. Options:
-project_root (nearest .git or document directory by default), confirm=false to
-apply programmatically without the review UI, plus ordinary scan/root limits.
-Live buffers keep unsaved edits and remain modified; use :wall to save them.
-Unopened documents are replaced atomically, preserving CRLF and final newlines.
-Stale/incomplete scans and existing destinations reject application. Failure
-rolls back files and buffer edits; recovery backups are reported if rollback fails.
-Only recognized references in the scanned root are updated. Excluded/external
-files and dynamic expressions are not updated. Custom adapters require path_edit
-(see doc/adapters.md). Text undo does not move the image back. Reopen any image
-viewer still using the old filename.
+Selection-tools previews one diff per changed document. Enter opens an
+explicit Apply move/Cancel choice; Escape cancels without changes.
+Descriptions, titles, labels and document options survive. Shared definitions
+are changed once. API: move(source, destination, opts, callback), returning
+cancellation. Options: project_root (nearest .git or document directory by
+default), confirm=false to apply programmatically without the review UI, plus
+ordinary scan/root limits. Live buffers keep unsaved edits and remain
+modified; use :wall to save them. Unopened documents are replaced atomically,
+preserving CRLF and final newlines. Stale/incomplete scans and existing
+destinations reject application. Failure rolls back files and buffer edits;
+recovery backups are reported if rollback fails. Only recognized references in
+the scanned root are updated. Excluded/external files and dynamic expressions
+are not updated. Custom adapters require path_edit (see doc/adapters.md). Text
+undo does not move the image back. Reopen any image viewer still using the old
+filename.
 
-FILE PROCESSING                                           *image-tools-file-process*
+FILE PROCESSING                                     *image-tools-file-process*
 
 insert.process / per-call process accepts the same presets as clipboard paste:
 "select", a preset {format="png", resize="1600x1600>", quality=80}, or a list.
-File batches select once, process external copies, then insert as one transaction.
-Without format, file presets default to PNG. Processing-enabled pickers include
-convertible sources (e.g. WebP/AVIF for a LaTeX document importing PNG/JPEG).
-Default names keep source stems with output extensions; naming callbacks retain
-the original source/source_name and receive the output extension. Source files
-are unchanged. Existing assets in the destination and reference mode skip
-processing and keep their original formats, names and bytes.
-ImageMagick validates output encoding/size/dimensions. Shared queues, timeouts,
-cancellation and batch rollback apply. process=false disables processing.
+File batches select once, process external copies, then insert as one
+transaction. Without format, file presets default to PNG. Processing-enabled
+pickers include convertible sources (e.g. WebP/AVIF for a LaTeX document
+importing PNG/JPEG). Default names keep source stems with output extensions;
+naming callbacks retain the original source/source_name and receive the output
+extension. Source files are unchanged. Existing assets in the destination and
+reference mode skip processing and keep their original formats, names and
+bytes. ImageMagick validates output encoding/size/dimensions. Shared queues,
+timeouts, cancellation and batch rollback apply. process=false disables
+processing.
 
-HTTPS IMAGES                                              *image-tools-https*
+HTTPS IMAGES                                               *image-tools-https*
 
 Set remote.enabled=true for automatic/manual HTTPS previews in Markdown/HTML.
-:ImagePreview https://example.org/image.png also uses this setting. curl is needed
-for uncached downloads. remote.curl overrides its executable. TLS verification is
-enabled; curl config files are disabled. Redirects are limited to HTTPS and
-remote.max_redirects (default 5). remote.timeout=10000 bounds each download.
-Streamed bytes obey max_bytes, even without Content-Length. Content determines
-format; invalid/error responses and oversized images fail before publication.
-Other format conversion dependencies remain the same as for local images.
+:ImagePreview https://example.org/image.png also uses this setting. curl is
+needed for uncached downloads. remote.curl overrides its executable. TLS
+verification is enabled; curl config files are disabled. Redirects are limited
+to HTTPS and remote.max_redirects (default 5). remote.timeout=10000 bounds
+each download. Streamed bytes obey max_bytes, even without Content-Length.
+Content determines format; invalid/error responses and oversized images fail
+before publication. Other format conversion dependencies remain the same as
+for local images.
 
-Downloads share convert_concurrency and matching requests coalesce. A subscriber
-can cancel without stopping others. Validated originals share the bounded disk
-cache; active leases protect files. remote.ttl=3600 controls freshness in seconds;
-0 disables reuse. :ImageReload refreshes a floating URL preview from the network.
+Downloads share convert_concurrency and matching requests coalesce. A
+subscriber can cancel without stopping others. Validated originals share the
+bounded disk cache; active leases protect files. remote.ttl=3600 controls
+freshness in seconds; 0 disables reuse. :ImageReload refreshes a floating URL
+preview from the network.
 :ImageCacheClear removes unused downloads/conversions. status().remote reports
 configuration, download/cache-hit counters and pending jobs. Asset checks skip
 URLs and never download them.
 
-:ImageLocalize                                              *:ImageLocalize*
-localize(opts, callback) downloads the selected HTTPS reference, copies original
-bytes into insert.directory and replaces only its path. This explicit action
-also works with remote.enabled=false. Supports Markdown inline/reference images
-and HTML. Shared definitions retain their labels; descriptions/titles/attributes
-survive. Names use the URL basename and detected extension; filename overrides.
-Copy naming prompts, collision handling, roots and deduplication apply. Processing
-presets are bypassed. It returns cancellation; stale document identity/text or
-adapter changes reject replacement and roll back copies. The document stays
-modified; text undo retains the imported asset.
+:ImageLocalize                                                *:ImageLocalize*
+localize(opts, callback) downloads the selected HTTPS reference, copies
+original bytes into insert.directory and replaces only its path. This explicit
+action also works with remote.enabled=false. Supports Markdown
+inline/reference images and HTML. Shared definitions retain their labels;
+descriptions/titles/attributes survive. Names use the URL basename and
+detected extension; filename overrides. Copy naming prompts, collision
+handling, roots and deduplication apply. Processing presets are bypassed. It
+returns cancellation; stale document identity/text or adapter changes reject
+replacement and roll back copies. The document stays modified; text undo
+retains the imported asset.
 
-HTTPS tests: python3 tests/https/run.py runs real curl against a local temporary
-TLS server, with isolated certificate trust and no external requests. It needs
-Python 3, openssl, curl, Neovim, ImageMagick and local socket permission. The main
-runner includes it when Python is available. Actual Kitty pixels remain manual.
+HTTPS tests: python3 tests/https/run.py runs real curl against a local
+temporary TLS server, with isolated certificate trust and no external
+requests. It needs Python 3, openssl, curl, Neovim, ImageMagick and local
+socket permission. The main runner includes it when Python is available.
+Actual Kitty pixels remain manual.
 
 INLINE MARKDOWN                                           *image-tools-inline*
 
-:ImageInlineToggle                                          *:ImageInlineToggle*
+:ImageInlineToggle                                        *:ImageInlineToggle*
 Optional standalone images and display formulas below their Markdown source.
 Set inline.enabled=true or use toggle_inline(). Default: disabled. Images may
 use inline/reference/wikilink syntax, with whitespace only outside the link.
@@ -728,30 +806,184 @@ blockquote images and multiple images per line retain floating previews.
 Existing code-context exclusions and math.enabled still apply. latex/dvipng
 are required for formulas; remote.enabled is required for HTTPS images.
 
-Window-scoped virtual lines preserve document bytes, line counts, modified state
-and undo history. Source markup remains visible. Each regular split independently
-fits its text width without upscaling. inline.max_width/max_height default to
-60/20 terminal cells; actual bounds also respect window size and Kitty limits.
-Virtual lines are clipped by Neovim, follow source wrapping and gutters, scroll
-with the document and hide in closed folds. Partial images survive scrolling
-past their anchor until all their virtual rows leave the viewport.
+Window-scoped virtual lines preserve document bytes, line counts, modified
+state and undo history. Source markup remains visible. Each regular split
+independently fits its text width without upscaling.
+inline.max_width/max_height default to 60/20 terminal cells; actual bounds
+also respect window size and Kitty limits. Virtual lines are clipped by
+Neovim, follow source wrapping and gutters, scroll with the document and hide
+in closed folds. Partial images survive scrolling past their anchor until all
+their virtual rows leave the viewport.
 
 Only visible candidates start preparation/downloads, with inline.max_images=16
-per window. Scanners may read prior syntax/definition context. inline.debounce=50
-milliseconds coalesces events; 0 is immediate. Placement sessions share queues,
-conversion/disk leases and terminal pixels with other views. Leaving the visible
-region, changing buffers/tabs, closing windows, disabling, suspending or exiting
-releases pending work and placements. Source changes, edits, geometry and color
-changes refresh images. Stale completions cannot restore an invalidated view.
+per window. Scanners may read prior syntax/definition context.
+inline.debounce=50 milliseconds coalesces events; 0 is immediate. Placement
+sessions share queues, conversion/disk leases and terminal pixels with other
+views. Leaving the visible region, changing buffers/tabs, closing windows,
+disabling, suspending or exiting releases pending work and placements. Source
+changes, edits, geometry and color changes refresh images. Stale completions
+cannot restore an invalidated view.
 
-Automatic floats skip inline-eligible references. Manual :ImagePreview / hover()
-still opens a float. auto_preview / :ImagePreviewToggle affect floats separately.
-:ImageInfo selects an inline item under the source cursor; :ImageReload refreshes
-the current document's inline views when no file viewer/current float is selected.
-status().inline reports enabled/paused, windows, images, ready, pending, failed,
-syncs and last_error. :ImagePreviewClearCache pauses inline display until buffer/
+Automatic floats skip inline-eligible references. Manual :ImagePreview /
+hover() still opens a float. auto_preview / :ImagePreviewToggle affect floats
+separately. :ImageInfo selects an inline item under the source cursor;
+:ImageReload refreshes the current document's inline views when no file
+viewer/current float is selected. status().inline reports enabled/paused,
+windows, images, ready, pending, failed, syncs and last_error.
+:ImagePreviewClearCache pauses inline display until buffer/
 window entry, resume, reconfiguration or toggling inline mode.
 
 examples/inline.md provides self-contained manual tests using existing assets.
 Rendering uses nvim__ns_set window-scoped namespaces available in Neovim 0.12;
-this Neovim API is experimental and its availability is checked before drawing.
+this Neovim API is experimental and its availability is checked before
+drawing.
+
+==============================================================================
+CONFIGURATION                                            *image-tools-options*
+                                         *image-tools-reference-configuration*
+
+>lua
+    require("image_tools").setup({
+      auto_preview = true,
+      path_preview = true, -- local path previews in filetypes without a document adapter
+      auto_preview_delay = 100, -- milliseconds before preparing a new automatic selection; 0 is immediate
+      preview_loading_delay = 300, -- milliseconds before a line-end loading hint; 0 disables it
+      treesitter = true, -- LaTeX/Typst syntax trees, with automatic lexer fallback
+      inline = { enabled = false, max_width = 60, max_height = 20, max_images = 16, debounce = 50 },
+      remote = { enabled = false, curl = "curl", timeout = 10000, ttl = 3600, max_redirects = 5 },
+      latex = { max_reference_lines = 64, max_reference_bytes = 16 * 1024 },
+      math = {
+        enabled = true,
+        latex = "latex",
+        dvipng = "dvipng",
+        density = 360, -- raster DPI; higher values improve detail at the same display size
+        foreground = "auto", -- Normal foreground, or "#RRGGBB"
+        preamble = "\\usepackage{amsmath,amssymb}",
+        max_lines = 64,
+        max_bytes = 16 * 1024,
+      },
+      buffer = { enabled = true }, -- automatic binary image/PDF file buffers
+      pdfinfo = "pdfinfo", -- Poppler, for PDF metadata
+      pdf_density = 144,
+      position = "cursor", -- "cursor" or "bottom_right"
+      right_padding = 0, -- minimum right-side space in terminal columns
+      transport = "auto", -- "auto", "file" or "direct"
+      terminal_timeout = 1500, -- milliseconds to wait for a graphics acknowledgement
+      terminal_cache = { max_images = 32, max_bytes = 64 * 1024 * 1024 },
+      disk_cache = { enabled = true, max_files = 256, max_bytes = 512 * 1024 * 1024 },
+      max_width = 60, -- terminal cells, capped at 297
+      max_height = 30, -- terminal cells, capped at 297
+      border = "rounded",
+      cell_size = { width = 10, height = 20 }, -- fallback when ioctl has no pixel size
+      magick = "magick",
+      rsvg = "rsvg-convert",
+      convert_timeout = 10000,
+      convert_concurrency = 2, -- simultaneous conversion/hash processes
+      max_bytes = 32 * 1024 * 1024,
+      max_dimension = 16384,
+      max_pixels = 64 * 1024 * 1024,
+      max_scan_lines = 10000,
+      -- cache = vim.fn.stdpath("cache") .. "/image-tools",
+      -- root = "/absolute/project/root",
+      -- resolve = function(document, source) return nil end,
+      force = false, -- bypass terminal-name detection for experimentation only
+    })
+<
+
+Set `position = "bottom_right"` to anchor the preview to the editor's
+bottom-right corner, above the command line and status line. The position is
+independent of the cursor and split layout. The default `"cursor"` places it
+near the cursor. When the loaded `ui-tools.nvim` scrollbar is enabled, image
+and formula previews reserve its rightmost column, including the preview
+border. This space stays reserved while the scrollbar is temporarily hidden or
+waiting to refresh. Set `right_padding = 2`, for example, to leave at least
+two columns to the right of image/formula previews for another scrollbar or
+other UI elements. It applies to both positions and includes automatic
+scrollbar space: the larger reservation wins, rather than adding them
+together. The default is `0`; values must be non-negative integers. In very
+narrow editors the padding shrinks to keep room for the preview and its
+border.
+
+`buffer.formats` defaults to `png`, `jpg`, `jpeg`, `webp`, `avif`, `heic`,
+`gif`, `bmp`, `tif`, `tiff` and `pdf`. SVG is available through explicit
+opening, but is excluded from automatic file interception by default.
+
+Conversion is asynchronous, bounded by a timeout, and cached by path, inode,
+size and nanosecond mtime/ctime. Conversions and clipboard normalization take
+priority over queued import hashes, with FIFO ordering within each class.
+While hashes wait, at most three interactive jobs start before one hash job.
+Running processes keep their slots until exit. Converted previews normally fit
+within 1920x1080 at default zoom. PDF floats, file buffers and embedded panes
+instead rasterize for their viewport pixels. Native PNGs retain their
+dimensions and are checked against `max_dimension`/`max_pixels`. Floating
+raster images do not upscale; picker and file-buffer images can upscale to fit
+their viewport. Originals are never modified. Converted disk images are
+managed asynchronously by `disk_cache` limits. Unused images are removed in
+access order; currently used images are protected and may temporarily exceed
+the limits. Set `disk_cache.enabled = false` to disable automatic eviction.
+`:ImageCacheClear` clears unused conversions manually. Cleanup selects
+hash-named converted PNGs and downloaded originals in supported image formats
+directly inside the configured cache directory. Subdirectories, other
+filenames, symbolic links and conversion temporaries are excluded. After a
+restart, file modification times provide the initial eviction order until
+images are accessed again.
+
+`info().timings` and `:ImageInfo` report milliseconds for reference lookup,
+automatic delay, preparation, process queue/conversion, transfer, upload wait,
+placement replies, placeholder drawing and total measured time when available.
+Preparation includes queue/conversion; transfer includes upload/placement, so
+these fields overlap. Pending measurements grow until completion; successful
+and failed measurements then stay fixed. See performance (doc/performance.md)
+for cache/shared-worker timing semantics and benchmarks.
+
+==============================================================================
+COMMAND OWNERSHIP                    *image-tools-reference-command-ownership*
+
+Commands belong to the plugin; choose global entry keys and short aliases in
+your configuration. Registration reports same-name conflicts without replacing
+user commands. Reconfiguration refreshes only commands still owned by this
+plugin, and cleanup preserves subsequent user replacements.
+
+==============================================================================
+SETUP CONTRACT                                         *image-tools-lifecycle*
+                                        *image-tools-reference-setup-contract*
+
+`setup(nil)` uses defaults. Configuration must be a table; caller-owned tables
+are copied before use. Invalid configuration types do not replace live
+handlers or commands. Repeating setup must not accumulate automatic
+registrations.
+
+`dispose()` releases the active runtime and cold bootstrap without loading
+services: scheduled refreshes and bootstrap watchers become stale, owned
+views, commands and timers are released, and pending setup options are
+forgotten. It is repeatable. New explicit API use starts from defaults. Both
+facade and cold bootstrap validate options before replacing a working
+configuration.
+
+Image-move review uses git-tools.nvim's public unified-diff and native
+renderer when available on runtimepath, including shared colors, wrapping and
+frame cleanup. It loads only the diff service when review opens. Without
+git-tools, a plain diff preview remains available. image-tools owns move
+validation, cancellation and rollback; selection-tools owns picker windows and
+confirmation.
+
+Picker and move-review providers are resolved when those workflows are
+invoked. Their absence does not warn in health when the workflows are unused.
+
+==============================================================================
+HEALTH AND INSPECTION            *image-tools-reference-health-and-inspection*
+
+Health reports actionable failures and a compact result for applicable checks.
+Disabled, optional and not-yet-activated features do not warn solely because
+they are inactive. Inspection does not configure plugins, start services or
+install dependencies. Use `:ImageInfo` for detailed configuration and runtime
+information.
+
+`ImageInfo` keeps human-readable diagnostics literal and marks the inspected
+runtime/cache section as Lua using optional notification spans. The report
+remains readable with the default Neovim notifier.
+
+Test workflow (tests/README.md): registered suites, filtering, required
+fixtures and retained failure evidence.
+
+vim:tw=78:ts=8:noet:ft=help:norl:
