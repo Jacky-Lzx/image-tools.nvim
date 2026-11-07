@@ -9,6 +9,7 @@ if vim.env.IMAGE_TOOLS_GIT_ROOT then
 end
 vim.o.columns, vim.o.lines = 150, 60
 local selection = require("selection_tools")
+selection.setup({ component_defaults = { path = { hl = "Special" } } })
 local open, picker = selection.open, nil
 selection.open = function(opts)
   picker = open(opts)
@@ -47,6 +48,10 @@ local function result(value)
 end
 local review = ui.review(plan, result)
 assert(#picker.matches == 2 and not picker.opts.resume)
+assert(picker.components and picker.components.specs[1].hl == "Special")
+picker:set_query("a.md")
+assert(#picker.matches == 1 and picker:current().text == "/tmp/a.md")
+picker:set_query("")
 reviewed(picker, "![a](old.png)")
 local first_frame = vim.api.nvim_win_get_buf(picker.preview_win)
 picker:move(1)
@@ -77,6 +82,10 @@ local stale = picker.opts.on_choice
 review:close()
 stale("Apply move")
 assert(not completed and picker.closed and calls == 2, "Cancelled review must ignore late confirmation")
+local empty = vim.tbl_extend("force", {}, plan, { changes = {} })
+local empty_review = ui.review(empty, result)
+assert(picker:current().message and picker.components.specs[2].kind == "text")
+empty_review:close()
 -- The report reuses quickfix indices and source positions, and supports images.
 local temp = assert(vim.uv.fs_realpath(vim.env.IMAGE_TOOLS_TEST_TMP)) .. "/review"
 vim.fn.mkdir(temp, "p")

@@ -1,5 +1,7 @@
 # image-tools.nvim
 
+Image selection inherits the selection-tools `files()` icon/path components. Image-move review uses path components for document paths and text for its empty-review message. Shared `component_defaults` apply; previews and confirmation keep their existing behavior.
+
 Image and PDF previews using the Kitty graphics protocol.
 
 ## Features

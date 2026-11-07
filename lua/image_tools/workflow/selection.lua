@@ -73,7 +73,7 @@ function M.review(plan, callback)
     items[#items + 1] = { text = change.path, lines = lines, sources = sources }
   end
   if #items == 0 then
-    items[1] = { text = "Image move (no document edits)", lines = {} }
+    items[1] = { text = "Image move (no document edits)", lines = {}, message = true }
   end
   local header = {
     "Move: " .. plan.source,
@@ -88,6 +88,19 @@ function M.review(plan, callback)
     items = items,
     multi = false,
     resume = false,
+    components = {
+      require("selection_tools.components").path({
+        get = function(item)
+          return not item.message and item.text or nil
+        end,
+        path_format = false,
+      }),
+      require("selection_tools.components").text({
+        get = function(item)
+          return item.message and item.text or nil
+        end,
+      }),
+    },
     format_item = function(item)
       return item.text
     end,
